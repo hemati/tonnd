@@ -37,15 +37,13 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     # Fitbit OAuth
     fitbit_user_id: Mapped[str | None] = mapped_column(String(64), default=None)
-    fitbit_access_token: Mapped[str | None] = mapped_column(
-        Text, default=None
-    )  # Fernet-encrypted
-    fitbit_refresh_token: Mapped[str | None] = mapped_column(
-        Text, default=None
-    )  # Fernet-encrypted
-    fitbit_token_expires: Mapped[int | None] = mapped_column(
-        default=None
-    )  # Unix timestamp
+    fitbit_access_token: Mapped[str | None] = mapped_column(Text, default=None)
+    fitbit_refresh_token: Mapped[str | None] = mapped_column(Text, default=None)
+    fitbit_token_expires: Mapped[int | None] = mapped_column(default=None)
+
+    # Renpho (reverse-engineered cloud API)
+    renpho_email: Mapped[str | None] = mapped_column(Text, default=None)
+    renpho_session_key: Mapped[str | None] = mapped_column(Text, default=None)
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
@@ -74,6 +72,7 @@ class FitnessMetric(Base):
     )
     date: Mapped[date] = mapped_column(Date, nullable=False)
     metric_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="fitbit")
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
     synced_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
@@ -83,7 +82,7 @@ class FitnessMetric(Base):
     user: Mapped["User"] = relationship(back_populates="fitness_metrics")
 
     __table_args__ = (
-        UniqueConstraint("user_id", "date", "metric_type", name="uq_user_date_metric"),
+        UniqueConstraint("user_id", "date", "metric_type", "source", name="uq_user_date_metric_source"),
         Index("ix_user_date", "user_id", "date"),
         Index("ix_user_metric_date", "user_id", "metric_type", "date"),
     )

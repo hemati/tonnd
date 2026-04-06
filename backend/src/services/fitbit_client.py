@@ -110,9 +110,12 @@ async def refresh_access_token(refresh_token: str) -> dict:
     async with httpx.AsyncClient() as client:
         response = await client.post(TOKEN_URL, headers=headers, data=data)
 
+        if response.status_code == 401 or "invalid_grant" in response.text:
+            raise TokenExpiredError("Refresh token is invalid or expired")
+
         if response.status_code != 200:
             logger.error(f"Token refresh failed: {response.text}")
-            raise Exception(f"Failed to refresh token: {response.text}")
+            raise FitbitAPIError(f"Failed to refresh token: {response.status_code}")
 
         return response.json()
 

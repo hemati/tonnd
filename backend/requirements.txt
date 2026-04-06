@@ -24,5 +24,8 @@ cryptography>=46.0.0
 # Scheduling (daily sync)
 apscheduler>=3.11.0
 
+# Renpho smart scale (reverse-engineered cloud API)
+renpho-api>=0.1.0
+
 # Utilities
 python-dateutil>=2.9.0

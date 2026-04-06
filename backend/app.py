@@ -22,11 +22,9 @@ from src.services.fitbit_client import (
     exchange_code_for_tokens,
     get_authorization_url,
 )
-from src.services.fitbit_sync import (
-    disconnect_fitbit,
-    ensure_valid_token,
-    upsert_metric,
-)
+from src.services.fitbit_sync import disconnect_fitbit, ensure_valid_token, upsert_metric
+from src.services.renpho_client import RenphoAPIError, renpho_login
+from src.services.renpho_sync import disconnect_renpho, sync_renpho_data
 from src.services.token_encryption import encrypt_token
 from src.services.user_service import (
     JWT_SECRET,
@@ -206,6 +204,43 @@ async def fitbit_callback(
     )
 
 
+# ─── Renpho OAuth ────────────────────────────────────────────────────────────
+
+
+@app.post("/auth/renpho/connect", tags=["renpho"])
+async def renpho_connect(
+    request: Request,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    body = await request.json()
+    email = body.get("email")
+    password = body.get("password")
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+
+    try:
+        renpho_login(email, password)
+    except RenphoAPIError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    user.renpho_email = encrypt_token(email)
+    user.renpho_session_key = encrypt_token(password)
+    await session.commit()
+
+    return {"connected": True, "message": "Renpho connected successfully"}
+
+
+@app.delete("/auth/renpho/disconnect", tags=["renpho"])
+async def renpho_disconnect(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    disconnect_renpho(user)
+    await session.commit()
+    return {"connected": False, "message": "Renpho disconnected"}
+
+
 # ─── API routes ──────────────────────────────────────────────────────────────
 
 
@@ -216,22 +251,18 @@ async def get_user(user: User = Depends(current_active_user)):
         "email": user.email,
         "fitbit_connected": user.fitbit_access_token is not None,
         "fitbit_user_id": user.fitbit_user_id,
+        "renpho_connected": user.renpho_session_key is not None,
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
     }
 
 
 @app.post("/api/sync", tags=["api"])
-async def sync_fitbit(
+async def sync_all_sources(
     user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
     sync_date: Optional[str] = None,
     days: int = Query(default=1, ge=1, le=30),
 ):
-    if not user.fitbit_access_token:
-        raise HTTPException(status_code=400, detail="Fitbit not connected")
-
-    access_token = await ensure_valid_token(user)
-    client = FitbitClient(access_token)
     synced_metrics = []
     errors = []
 
@@ -241,28 +272,42 @@ async def sync_fitbit(
         else date.today()
     )
 
-    for i in range(days):
-        current_date = base_date - timedelta(days=i)
-        date_str = current_date.isoformat()
+    # Sync Fitbit
+    if user.fitbit_access_token:
         try:
-            result = await client.get_all_data_for_date(date_str)
-            for metric_type, metric_data in result["data"].items():
-                await upsert_metric(
-                    session, user.id, current_date, metric_type, metric_data
-                )
-                synced_metrics.append(f"{date_str}#{metric_type}")
-            errors.extend(result.get("errors", []))
+            access_token = await ensure_valid_token(user)
+            client = FitbitClient(access_token)
+
+            for i in range(days):
+                current_date = base_date - timedelta(days=i)
+                date_str = current_date.isoformat()
+                try:
+                    result = await client.get_all_data_for_date(date_str)
+                    for metric_type, metric_data in result["data"].items():
+                        await upsert_metric(
+                            session, user.id, current_date, metric_type, metric_data, source="fitbit"
+                        )
+                        synced_metrics.append(f"fitbit:{date_str}#{metric_type}")
+                    errors.extend(result.get("errors", []))
+                except RateLimitError:
+                    errors.append(f"fitbit: rate limited at {date_str}")
+                    break
+                except Exception as e:
+                    errors.append(f"fitbit:{date_str}: {e}")
         except TokenExpiredError:
             disconnect_fitbit(user)
-            await session.commit()
-            raise HTTPException(
-                status_code=401, detail="Fitbit token expired. Please reconnect."
-            )
-        except RateLimitError:
-            errors.append(f"Rate limited at {date_str}")
-            break
-        except Exception as e:
-            errors.append(f"{date_str}: {e}")
+            errors.append("fitbit: token expired, disconnected")
+
+    # Sync Renpho
+    if user.renpho_session_key:
+        for i in range(days):
+            current_date = base_date - timedelta(days=i)
+            renpho_result = await sync_renpho_data(session, user, current_date)
+            synced_metrics.extend(renpho_result["synced_metrics"])
+            errors.extend(renpho_result["errors"])
+
+    if not user.fitbit_access_token and not user.renpho_session_key:
+        raise HTTPException(status_code=400, detail="No data sources connected")
 
     user.last_sync = datetime.now(timezone.utc)
     await session.commit()
@@ -297,7 +342,7 @@ async def get_data(
     # Group by metric type
     by_type: dict[str, list[dict]] = {}
     for m in metrics:
-        entry = {"date": m.date.isoformat(), **m.data}
+        entry = {"date": m.date.isoformat(), "source": m.source, **m.data}
         by_type.setdefault(m.metric_type, []).append(entry)
 
     # Extract latest values
@@ -347,6 +392,7 @@ async def get_data(
         "recovery_history": [],
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
         "fitbit_connected": user.fitbit_access_token is not None,
+        "renpho_connected": user.renpho_session_key is not None,
     }
 
 

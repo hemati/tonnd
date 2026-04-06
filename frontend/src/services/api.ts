@@ -40,6 +40,7 @@ export interface UserProfile {
   email: string
   fitbit_connected: boolean
   fitbit_user_id: string | null
+  renpho_connected: boolean
   last_sync: string | null
 }
 

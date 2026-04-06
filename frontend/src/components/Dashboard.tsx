@@ -49,9 +49,9 @@ export default function Dashboard() {
   const { data, isLoading, error, refetch } = useDashboard(30)
   const syncMutation = useSyncFitbit()
 
-  // Redirect if Fitbit not connected
+  // Redirect if no data source connected
   useEffect(() => {
-    if (user && !user.fitbit_connected) {
+    if (user && !user.fitbit_connected && !user.renpho_connected) {
       navigate('/connect-fitbit')
     }
   }, [user, navigate])

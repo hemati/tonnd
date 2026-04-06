@@ -39,12 +39,14 @@ async def upsert_metric(
     metric_date,
     metric_type: str,
     metric_data: dict,
+    source: str = "fitbit",
 ) -> None:
     """Insert or update a single fitness metric."""
     stmt = select(FitnessMetric).where(
         FitnessMetric.user_id == user_id,
         FitnessMetric.date == metric_date,
         FitnessMetric.metric_type == metric_type,
+        FitnessMetric.source == source,
     )
     existing = (await session.execute(stmt)).scalar_one_or_none()
     if existing:
@@ -56,6 +58,7 @@ async def upsert_metric(
                 user_id=user_id,
                 date=metric_date,
                 metric_type=metric_type,
+                source=source,
                 data=metric_data,
             )
         )
