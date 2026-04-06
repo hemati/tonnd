@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: healthcoach
+      POSTGRES_USER: healthcoach
+      POSTGRES_PASSWORD: healthcoach
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthcoach"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://healthcoach:healthcoach@postgres:5432/healthcoach?ssl=disable
+      FRONTEND_URL: http://localhost:5173
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_ENDPOINT: http://localhost:8080
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
