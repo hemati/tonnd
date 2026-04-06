@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { theme, LOGO_PATH } from '../config/theme'
+import SEO from './SEO'
 
 export default function Login() {
   const { login, register, loginWithGoogle } = useAuth()
@@ -30,6 +31,7 @@ export default function Login() {
 
   return (
     <div className={`min-h-screen ${theme.pageBg} text-white flex flex-col`}>
+      <SEO title="Sign In" description="Sign in to TONND or create a free account." path="/login" />
 
       {/* minimal nav */}
       <div className={theme.container}>

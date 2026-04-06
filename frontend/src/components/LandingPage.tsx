@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL, LOGO_PATH } from '../config/theme'
+import SEO from './SEO'
 
 /* ─── mock dashboard ─────────────────────────────────────────────────────── */
 
@@ -64,6 +65,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
+      <SEO path="/" />
 
       {/* ═══ NAV ═══ */}
       <nav className="sticky top-0 z-50 border-b border-white/[.06] bg-[#0a0a0a]/80 backdrop-blur-xl">

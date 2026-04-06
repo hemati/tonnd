@@ -1,5 +1,6 @@
 import { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import SEO from './SEO'
 
 interface LegalPageProps {
   title: string
@@ -8,8 +9,11 @@ interface LegalPageProps {
 }
 
 export function LegalPage({ title, lastUpdated, children }: LegalPageProps) {
+  const { pathname } = useLocation()
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
+      <SEO title={title} description={`${title} for TONND, the open-source health dashboard.`} path={pathname} />
       <div className="max-w-3xl mx-auto px-5 py-12">
         <div className="mb-10">
           <Link to="/" className="text-[13px] text-white/40 hover:text-white/70 transition-colors">&larr; Back</Link>
