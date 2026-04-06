@@ -42,25 +42,13 @@ body {
 }
 
 /* Landing page animations */
-@keyframes lp-float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-12px)} }
-@keyframes lp-pulse { 0%,100%{opacity:.45} 50%{opacity:.8} }
-@keyframes lp-glow  { 0%,100%{box-shadow:0 0 40px 0 rgba(45,212,191,.15)} 50%{box-shadow:0 0 80px 8px rgba(45,212,191,.25)} }
-@keyframes lp-slide-up { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
-@keyframes lp-heartbeat { 0%,100%{transform:scale(1)} 14%{transform:scale(1.12)} 28%{transform:scale(1)} 42%{transform:scale(1.08)} 56%{transform:scale(1)} }
+@keyframes lp-slide-up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
 @keyframes lp-bar { from{height:0} to{height:var(--h)} }
-.lp-float{animation:lp-float 6s ease-in-out infinite}
-.lp-pulse{animation:lp-pulse 4s ease-in-out infinite}
-.lp-glow{animation:lp-glow 4s ease-in-out infinite}
-.lp-appear{animation:lp-slide-up .7s cubic-bezier(.22,1,.36,1) both}
-.lp-appear-d1{animation-delay:.1s}
-.lp-appear-d2{animation-delay:.2s}
-.lp-appear-d3{animation-delay:.3s}
-.lp-appear-d4{animation-delay:.4s}
-.lp-heartbeat{animation:lp-heartbeat 1.8s ease-in-out infinite}
-.lp-bar-grow{animation:lp-bar .8s ease-out both}
+.lp-appear{animation:lp-slide-up .6s cubic-bezier(.22,1,.36,1) both}
+.lp-appear-d2{animation-delay:.15s}
+.lp-appear-d3{animation-delay:.25s}
+.lp-bar-grow{animation:lp-bar .6s ease-out both}
 
 @media (prefers-reduced-motion: reduce) {
-  .lp-float, .lp-pulse, .lp-glow, .lp-appear, .lp-heartbeat, .lp-bar-grow {
-    animation: none;
-  }
+  .lp-appear, .lp-bar-grow { animation: none; }
 }
