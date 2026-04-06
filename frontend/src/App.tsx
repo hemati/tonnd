@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import LandingPage from './components/LandingPage'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
 import AuthCallback from './components/AuthCallback'
@@ -36,6 +37,16 @@ function App() {
                 <Dashboard />
               </Layout>
             ) : (
+              <LandingPage />
+            )
+          }
+        />
+        <Route
+          path="/login"
+          element={
+            isAuthenticated ? (
+              <Navigate to="/" replace />
+            ) : (
               <Login />
             )
           }
@@ -48,7 +59,7 @@ function App() {
                 <FitbitConnect />
               </Layout>
             ) : (
-              <Navigate to="/" replace />
+              <Navigate to="/login" replace />
             )
           }
         />
