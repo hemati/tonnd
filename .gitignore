@@ -271,4 +271,4 @@ frontend/dist/
 
 # Project-specific
 systemd/
-scripts/migrate_from_dynamodb.py
+scripts/
