@@ -27,10 +27,12 @@ services:
       DATABASE_URL: postgresql+asyncpg://healthcoach:healthcoach@postgres:5432/healthcoach?ssl=disable
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        VITE_GA4_MEASUREMENT_ID: ${VITE_GA4_MEASUREMENT_ID:-}
     ports:
       - "5173:5173"
-    env_file: .env
     depends_on:
       - backend
 
