@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
-
-const GITHUB_URL = 'https://github.com/hemati/tonnd'
+import { GITHUB_URL, DISCORD_URL, LOGO_PATH } from '../config/theme'
 
 /* ─── mock dashboard ─────────────────────────────────────────────────────── */
 
@@ -71,7 +70,7 @@ export default function LandingPage() {
         <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
             <svg viewBox="0 0 24 24" className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+              <path d={LOGO_PATH} />
             </svg>
             <span className="text-sm font-semibold tracking-tight text-white/90">TONND</span>
           </Link>
@@ -80,6 +79,7 @@ export default function LandingPage() {
             <a href="#features" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">Features</a>
             <a href="#how-it-works" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">How it Works</a>
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">GitHub</a>
+            <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">Discord</a>
             <Link to="/login" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">Sign In</Link>
             <Link to="/login" className="text-[13px] font-medium px-3.5 py-1.5 rounded-md bg-white text-black hover:bg-white/90 transition-colors">
               Get Started
@@ -96,6 +96,7 @@ export default function LandingPage() {
             <a href="#features" onClick={() => setMenuOpen(false)} className="block text-sm text-white/50">Features</a>
             <a href="#how-it-works" onClick={() => setMenuOpen(false)} className="block text-sm text-white/50">How it Works</a>
             <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="block text-sm text-white/50">GitHub</a>
+            <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="block text-sm text-white/50">Discord</a>
             <Link to="/login" onClick={() => setMenuOpen(false)} className="block text-sm text-white/50">Sign In</Link>
             <Link to="/login" onClick={() => setMenuOpen(false)} className="block text-center text-sm font-medium px-4 py-2 rounded-md bg-white text-black">
               Get Started
@@ -289,7 +290,7 @@ export default function LandingPage() {
             <div>
               <div className="flex items-center gap-2 mb-3">
                 <svg viewBox="0 0 24 24" className="w-4 h-4 text-white/50" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                  <path d={LOGO_PATH} />
                 </svg>
                 <span className="text-sm font-semibold text-white/70">TONND</span>
               </div>
@@ -305,6 +306,7 @@ export default function LandingPage() {
                 <Link to="/login" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Sign In</Link>
                 <a href="#features" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Features</a>
                 <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">GitHub</a>
+                <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Discord</a>
               </div>
             </div>
 

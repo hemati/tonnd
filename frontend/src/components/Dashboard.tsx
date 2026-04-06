@@ -17,27 +17,27 @@ import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
 // Heroicons type
 type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
 
-// Color palette
+// Color palette — monochrome with subtle accents
 const COLORS = {
-  primary: '#6366f1',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-  purple: '#a855f7',
-  pink: '#ec4899',
-  cyan: '#06b6d4',
-  slate: '#64748b',
+  primary: '#ffffff',
+  success: '#4ade80',
+  warning: '#fbbf24',
+  danger: '#f87171',
+  purple: '#a78bfa',
+  pink: '#f472b6',
+  cyan: '#67e8f9',
+  slate: '#6b7280',
 }
 
-const SLEEP_COLORS = { deep: '#6366f1', light: '#a855f7', rem: '#ec4899', awake: '#ef4444' }
+const SLEEP_COLORS = { deep: '#818cf8', light: '#a78bfa', rem: '#c084fc', awake: '#6b7280' }
 const HR_ZONE_COLORS: Record<string, string> = {
-  'Out of Range': '#64748b', 'Fat Burn': '#22c55e', 'Cardio': '#f59e0b', 'Peak': '#ef4444',
+  'Out of Range': '#6b7280', 'Fat Burn': '#4ade80', 'Cardio': '#fbbf24', 'Peak': '#f87171',
 }
 
 // Tooltip style for recharts
 const tooltipStyle = {
-  contentStyle: { backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px' },
-  labelStyle: { color: '#f1f5f9' },
+  contentStyle: { backgroundColor: '#141414', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px' },
+  labelStyle: { color: '#e5e5e5' },
 }
 
 export default function Dashboard() {
@@ -112,7 +112,7 @@ export default function Dashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <ArrowPathIcon className="h-12 w-12 animate-spin text-cyan-500" />
+        <ArrowPathIcon className="h-12 w-12 animate-spin text-white/50" />
       </div>
     )
   }
@@ -120,10 +120,10 @@ export default function Dashboard() {
   if (error && !data) {
     return (
       <div className="text-center py-12">
-        <ExclamationCircleIcon className="h-16 w-16 text-red-500 mx-auto mb-4" />
+        <ExclamationCircleIcon className="h-16 w-16 text-white/50 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-white mb-2">Error Loading Data</h2>
-        <p className="text-slate-400 mb-4">{error.message}</p>
-        <button onClick={() => refetch()} className="bg-cyan-500 hover:bg-cyan-600 text-white px-4 py-2 rounded-lg">
+        <p className="text-white/40 mb-4">{error.message}</p>
+        <button onClick={() => refetch()} className="bg-white text-black hover:bg-white/90 px-4 py-2 rounded-lg">
           Try Again
         </button>
       </div>
@@ -136,25 +136,25 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Health Dashboard</h1>
-          <p className="text-slate-400 text-sm">Last synced: {formatLastSync(data?.last_sync || null)}</p>
-          {syncProgress && <p className="text-cyan-400 text-sm animate-pulse">{syncProgress}</p>}
+          <p className="text-white/40 text-sm">Last synced: {formatLastSync(data?.last_sync || null)}</p>
+          {syncProgress && <p className="text-white/80 text-sm animate-pulse">{syncProgress}</p>}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-slate-700/50 rounded-lg p-1">
+          <div className="flex bg-white/[.04] rounded-lg p-1">
             {[7, 14, 30].map(d => (
               <button key={d} onClick={() => setDaysToShow(d)}
                 className={cn('px-3 py-1 text-sm rounded-md transition-colors',
-                  daysToShow === d ? 'bg-cyan-500 text-white' : 'text-slate-400 hover:text-white')}>
+                  daysToShow === d ? 'bg-white/[.15] text-white' : 'text-white/40 hover:text-white')}>
                 {d}D
               </button>
             ))}
           </div>
           <button onClick={handleHistoricalSync} disabled={syncMutation.isPending}
-            className="bg-slate-600 hover:bg-slate-500 disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm">
+            className="bg-white/[.08] hover:bg-white/[.12] disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm">
             Sync 30 Days
           </button>
           <button onClick={handleSync} disabled={syncMutation.isPending}
-            className="bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+            className="bg-white text-black hover:bg-white/90 disabled:opacity-50 px-4 py-2 rounded-lg flex items-center gap-2">
             <ArrowPathIcon className={cn('h-4 w-4', syncMutation.isPending && 'animate-spin')} />
             {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
           </button>
@@ -163,33 +163,33 @@ export default function Dashboard() {
 
       {/* Weekly Summary */}
       {weeklySummary && (
-        <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 rounded-xl p-6 border border-cyan-500/20">
+        <div className="rounded-xl p-6 border border-white/[.06] bg-white/[.02]">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
             <ChartBarSquareIcon className="h-5 w-5" /> {daysToShow}-Day Summary
           </h2>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
-            <div><p className="text-2xl font-bold text-cyan-400">{weeklySummary.totalSteps.toLocaleString()}</p><p className="text-slate-400 text-sm">Total Steps</p></div>
-            <div><p className="text-2xl font-bold text-green-400">{weeklySummary.avgSteps.toLocaleString()}</p><p className="text-slate-400 text-sm">Avg Steps/Day</p></div>
-            <div><p className="text-2xl font-bold text-orange-400">{weeklySummary.totalCalories.toLocaleString()}</p><p className="text-slate-400 text-sm">Total Calories</p></div>
-            <div><p className="text-2xl font-bold text-red-400">{weeklySummary.avgCalories.toLocaleString()}</p><p className="text-slate-400 text-sm">Avg Cal/Day</p></div>
-            <div><p className="text-2xl font-bold text-purple-400">{weeklySummary.totalActiveMinutes}</p><p className="text-slate-400 text-sm">Active Min</p></div>
-            <div><p className="text-2xl font-bold text-cyan-400">{Math.floor(weeklySummary.avgSleep / 60)}h {weeklySummary.avgSleep % 60}m</p><p className="text-slate-400 text-sm">Avg Sleep</p></div>
+            <div><p className="text-2xl font-bold text-white/80">{weeklySummary.totalSteps.toLocaleString()}</p><p className="text-white/40 text-sm">Total Steps</p></div>
+            <div><p className="text-2xl font-bold text-white/70">{weeklySummary.avgSteps.toLocaleString()}</p><p className="text-white/40 text-sm">Avg Steps/Day</p></div>
+            <div><p className="text-2xl font-bold text-white/70">{weeklySummary.totalCalories.toLocaleString()}</p><p className="text-white/40 text-sm">Total Calories</p></div>
+            <div><p className="text-2xl font-bold text-white/60">{weeklySummary.avgCalories.toLocaleString()}</p><p className="text-white/40 text-sm">Avg Cal/Day</p></div>
+            <div><p className="text-2xl font-bold text-white/60">{weeklySummary.totalActiveMinutes}</p><p className="text-white/40 text-sm">Active Min</p></div>
+            <div><p className="text-2xl font-bold text-white/80">{Math.floor(weeklySummary.avgSleep / 60)}h {weeklySummary.avgSleep % 60}m</p><p className="text-white/40 text-sm">Avg Sleep</p></div>
           </div>
         </div>
       )}
 
       {/* Today's Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={ScaleIcon} iconBg="bg-blue-500/20" title="Weight"
+        <StatCard icon={ScaleIcon} iconBg="bg-white/[.06]" title="Weight"
           value={data?.latest_weight?.weight_kg ? `${Number(data.latest_weight.weight_kg).toFixed(1)} kg` : '--'}
           subtitle={data?.latest_weight?.body_fat_percent ? `Body Fat: ${Number(data.latest_weight.body_fat_percent).toFixed(1)}%` : undefined} />
-        <StatCard icon={MoonIcon} iconBg="bg-purple-500/20" title="Last Night Sleep"
+        <StatCard icon={MoonIcon} iconBg="bg-white/[.06]" title="Last Night Sleep"
           value={data?.latest_sleep?.total_minutes ? `${Math.floor(data.latest_sleep.total_minutes / 60)}h ${data.latest_sleep.total_minutes % 60}m` : '--'}
           subtitle={data?.latest_sleep?.efficiency ? `Efficiency: ${data.latest_sleep.efficiency}%` : undefined} />
-        <StatCard icon={ChartBarIcon} iconBg="bg-green-500/20" title="Steps Today"
+        <StatCard icon={ChartBarIcon} iconBg="bg-white/[.06]" title="Steps Today"
           value={data?.today_activity?.steps?.toLocaleString() || '--'}
           subtitle={data?.today_activity?.distance_km ? `Distance: ${Number(data.today_activity.distance_km).toFixed(1)} km` : undefined} />
-        <StatCard icon={HeartIcon} iconBg="bg-red-500/20" title="Resting Heart Rate"
+        <StatCard icon={HeartIcon} iconBg="bg-white/[.06]" title="Resting Heart Rate"
           value={data?.today_heart_rate?.resting_heart_rate ? `${data.today_heart_rate.resting_heart_rate} bpm` : '--'}
           subtitle={data?.today_activity?.calories_burned ? `Calories: ${data.today_activity.calories_burned.toLocaleString()}` : undefined} />
       </div>
@@ -197,79 +197,79 @@ export default function Dashboard() {
       {/* Health Vitals Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recovery Score */}
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BoltSlashIcon className="h-5 w-5" /> Recovery Score</h2>
           {data?.recovery_score ? (
             <div className="text-center">
               <div className={cn('inline-flex items-center justify-center w-24 h-24 rounded-full text-3xl font-bold',
-                data.recovery_score.score >= 75 ? 'bg-green-500/20 text-green-400' :
-                data.recovery_score.score >= 50 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400')}>
+                data.recovery_score.score >= 75 ? 'bg-white/[.06] text-white/70' :
+                data.recovery_score.score >= 50 ? 'bg-white/[.06] text-white/50' : 'bg-white/[.06] text-white/60')}>
                 {data.recovery_score.score}
               </div>
-              <p className="text-slate-400 text-sm mt-3">
+              <p className="text-white/40 text-sm mt-3">
                 {data.recovery_score.score >= 75 ? '✨ Ready for high intensity' :
                  data.recovery_score.score >= 50 ? '⚡ Light activity recommended' : '💤 Focus on recovery'}
               </p>
             </div>
-          ) : <p className="text-slate-400 text-center">No data</p>}
+          ) : <p className="text-white/40 text-center">No data</p>}
         </div>
 
         {/* Health Vitals */}
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><FireIcon className="h-5 w-5" /> Health Vitals</h2>
           <div className="space-y-4">
             <VitalRow icon={EllipsisHorizontalCircleIcon} label="Blood Oxygen" value={data?.latest_spo2?.avg ? `${Number(data.latest_spo2.avg).toFixed(1)}%` : '--'}
-              color={Number(data?.latest_spo2?.avg ?? 0) >= 95 ? 'text-green-400' : 'text-yellow-400'} />
-            <VitalRow icon={CloudIcon} label="Breathing Rate" value={data?.latest_breathing_rate?.breathing_rate ? `${Number(data.latest_breathing_rate.breathing_rate).toFixed(1)}/min` : '--'} color="text-cyan-400" />
+              color={Number(data?.latest_spo2?.avg ?? 0) >= 95 ? 'text-white/70' : 'text-white/50'} />
+            <VitalRow icon={CloudIcon} label="Breathing Rate" value={data?.latest_breathing_rate?.breathing_rate ? `${Number(data.latest_breathing_rate.breathing_rate).toFixed(1)}/min` : '--'} color="text-white/80" />
             <VitalRow icon={SunIcon} label="Skin Temp" value={data?.latest_temperature?.relative_deviation !== undefined
               ? `${Number(data.latest_temperature.relative_deviation) > 0 ? '+' : ''}${Number(data.latest_temperature.relative_deviation).toFixed(1)}°C` : '--'}
-              color={Math.abs(Number(data?.latest_temperature?.relative_deviation ?? 0)) <= 0.5 ? 'text-green-400' : 'text-yellow-400'} />
-            <VitalRow icon={HeartIcon} label="HRV (RMSSD)" value={data?.latest_hrv?.daily_rmssd ? `${Number(data.latest_hrv.daily_rmssd).toFixed(0)} ms` : '--'} color="text-purple-400" />
+              color={Math.abs(Number(data?.latest_temperature?.relative_deviation ?? 0)) <= 0.5 ? 'text-white/70' : 'text-white/50'} />
+            <VitalRow icon={HeartIcon} label="HRV (RMSSD)" value={data?.latest_hrv?.daily_rmssd ? `${Number(data.latest_hrv.daily_rmssd).toFixed(0)} ms` : '--'} color="text-white/60" />
           </div>
         </div>
 
         {/* VO2 Max */}
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><ArrowTrendingUpIcon className="h-5 w-5" /> Cardio Fitness</h2>
           {data?.latest_vo2_max?.vo2_max ? (() => {
             const v = Number(data.latest_vo2_max.vo2_max)
             return (
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-indigo-500/20">
-                  <span className="text-3xl font-bold text-indigo-400">{v.toFixed(0)}</span>
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-white/[.06]">
+                  <span className="text-3xl font-bold text-white/80">{v.toFixed(0)}</span>
                 </div>
-                <p className="text-slate-300 mt-2">VO₂ Max <span className="text-slate-500 text-sm">ml/kg/min</span></p>
-                <div className="mt-4 bg-slate-700/50 rounded-lg p-3">
-                  <p className={cn('font-semibold', v >= 50 ? 'text-green-400' : v >= 40 ? 'text-cyan-400' : v >= 30 ? 'text-yellow-400' : 'text-orange-400')}>
+                <p className="text-white/50 mt-2">VO₂ Max <span className="text-white/30 text-sm">ml/kg/min</span></p>
+                <div className="mt-4 bg-white/[.04] rounded-lg p-3">
+                  <p className={cn('font-semibold', v >= 50 ? 'text-white/80' : v >= 40 ? 'text-white/60' : v >= 30 ? 'text-white/50' : 'text-white/40')}>
                     {v >= 50 ? 'Excellent' : v >= 40 ? 'Good' : v >= 30 ? 'Fair' : 'Needs Improvement'}
                   </p>
                 </div>
               </div>
             )
-          })() : <p className="text-slate-400 text-center">No data</p>}
+          })() : <p className="text-white/40 text-center">No data</p>}
         </div>
       </div>
 
       {/* Active Zone Minutes */}
       {data?.today_active_zone_minutes && (
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BoltIcon className="h-5 w-5" /> Active Zone Minutes (Today)</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div className="bg-slate-700/30 rounded-lg p-4">
-              <p className="text-3xl font-bold text-indigo-400">{data.today_active_zone_minutes.total_minutes || 0}</p>
-              <p className="text-slate-400 text-sm">Total</p>
+            <div className="bg-white/[.03] rounded-lg p-4">
+              <p className="text-3xl font-bold text-white/80">{data.today_active_zone_minutes.total_minutes || 0}</p>
+              <p className="text-white/40 text-sm">Total</p>
             </div>
-            <div className="bg-green-500/10 rounded-lg p-4 border border-green-500/20">
-              <p className="text-2xl font-bold text-green-400">{data.today_active_zone_minutes.fat_burn_minutes || 0}</p>
-              <p className="text-slate-400 text-sm">Fat Burn</p>
+            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
+              <p className="text-2xl font-bold text-white/70">{data.today_active_zone_minutes.fat_burn_minutes || 0}</p>
+              <p className="text-white/40 text-sm">Fat Burn</p>
             </div>
-            <div className="bg-yellow-500/10 rounded-lg p-4 border border-yellow-500/20">
-              <p className="text-2xl font-bold text-yellow-400">{data.today_active_zone_minutes.cardio_minutes || 0}</p>
-              <p className="text-slate-400 text-sm">Cardio</p>
+            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
+              <p className="text-2xl font-bold text-white/50">{data.today_active_zone_minutes.cardio_minutes || 0}</p>
+              <p className="text-white/40 text-sm">Cardio</p>
             </div>
-            <div className="bg-red-500/10 rounded-lg p-4 border border-red-500/20">
-              <p className="text-2xl font-bold text-red-400">{data.today_active_zone_minutes.peak_minutes || 0}</p>
-              <p className="text-slate-400 text-sm">Peak</p>
+            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
+              <p className="text-2xl font-bold text-white/60">{data.today_active_zone_minutes.peak_minutes || 0}</p>
+              <p className="text-white/40 text-sm">Peak</p>
             </div>
           </div>
         </div>
@@ -404,12 +404,12 @@ export default function Dashboard() {
 
       {/* No Data */}
       {!data?.latest_weight && !data?.latest_sleep && !data?.today_activity && (
-        <div className="bg-slate-800/50 rounded-xl p-8 border border-slate-700/50 text-center">
-          <ChartBarSquareIcon className="h-16 w-16 text-slate-400 mx-auto mb-4" />
+        <div className="bg-white/[.02] rounded-xl p-8 border border-white/[.06] text-center">
+          <ChartBarSquareIcon className="h-16 w-16 text-white/40 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">No Data Yet</h2>
-          <p className="text-slate-400 mb-4">Click "Sync Now" to fetch your Fitbit data</p>
+          <p className="text-white/40 mb-4">Click "Sync Now" to fetch your Fitbit data</p>
           <button onClick={handleSync} disabled={syncMutation.isPending}
-            className="bg-cyan-500 hover:bg-cyan-600 disabled:opacity-50 text-white px-6 py-2 rounded-lg">
+            className="bg-white text-black hover:bg-white/90 disabled:opacity-50 px-6 py-2 rounded-lg">
             {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
           </button>
         </div>
@@ -426,17 +426,17 @@ function StatCard({ icon: Icon, iconBg, title, value, subtitle }: {
   icon: HeroIcon, iconBg: string, title: string, value: string, subtitle?: string
 }) {
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+    <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
       <div className="flex items-center gap-3 mb-4">
         <div className={cn('w-10 h-10 rounded-full flex items-center justify-center', iconBg)}>
           <Icon className="h-5 w-5" />
         </div>
         <div>
-          <p className="text-slate-400 text-sm">{title}</p>
+          <p className="text-white/40 text-sm">{title}</p>
           <p className="text-2xl font-bold text-white">{value}</p>
         </div>
       </div>
-      {subtitle && <p className="text-slate-400 text-sm">{subtitle}</p>}
+      {subtitle && <p className="text-white/40 text-sm">{subtitle}</p>}
     </div>
   )
 }
@@ -447,8 +447,8 @@ function VitalRow({ icon: Icon, label, value, color }: {
   return (
     <div className="flex items-center justify-between">
       <div className="flex items-center gap-2">
-        <Icon className="h-4 w-4 text-slate-400" />
-        <span className="text-slate-300">{label}</span>
+        <Icon className="h-4 w-4 text-white/40" />
+        <span className="text-white/50">{label}</span>
       </div>
       <span className={cn('text-lg font-semibold', color)}>{value}</span>
     </div>
@@ -459,7 +459,7 @@ function ChartCard({ title, icon: Icon, children }: {
   title: string, icon: HeroIcon, children: React.ReactNode
 }) {
   return (
-    <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
+    <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
       <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
         <Icon className="h-5 w-5" /> {title}
       </h2>
