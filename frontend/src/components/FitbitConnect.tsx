@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { initFitbitAuth, fetchUser, api } from '../services/api'
+import { trackEvent } from '../lib/analytics'
 
 export default function FitbitConnect() {
   const navigate = useNavigate()
@@ -34,6 +35,7 @@ export default function FitbitConnect() {
     setSuccess(null)
     try {
       await api.post('/auth/renpho/connect', { email: renphoEmail, password: renphoPassword })
+      trackEvent('renpho_connected')
       setSuccess('Renpho connected!')
       setRenphoEmail('')
       setRenphoPassword('')

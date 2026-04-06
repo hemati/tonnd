@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
+import { trackEvent } from '../lib/analytics'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart,
@@ -56,7 +57,10 @@ export default function Dashboard() {
     }
   }, [user, navigate])
 
-  const handleSync = () => syncMutation.mutate({ days: 1 })
+  const handleSync = () => {
+    trackEvent('manual_sync')
+    syncMutation.mutate({ days: 1 })
+  }
 
   const handleHistoricalSync = async () => {
     if (!confirm('Sync last 30 days? This will be done in 10 batches.')) return

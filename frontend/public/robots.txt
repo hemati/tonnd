@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /auth/
+Disallow: /connect-fitbit
+
+Sitemap: https://tonnd.com/sitemap.xml

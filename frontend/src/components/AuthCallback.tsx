@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TOKEN_KEY } from '../config/constants'
+import { trackEvent } from '../lib/analytics'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
@@ -23,6 +24,7 @@ export default function AuthCallback() {
       const success = searchParams.get('success')
       const fitbit = searchParams.get('fitbit')
       if (success === 'true' && fitbit === 'connected') {
+        trackEvent('fitbit_connected')
         setMessage('Fitbit connected successfully! Redirecting...')
         setTimeout(() => navigate('/'), 1500)
         return

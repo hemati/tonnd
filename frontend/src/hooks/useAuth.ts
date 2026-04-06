@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { API_URL, TOKEN_KEY } from '../config/constants'
+import { trackEvent } from '../lib/analytics'
 
 export interface User {
   userId: string
@@ -65,6 +66,7 @@ export function useAuth() {
 
     const data = await res.json()
     localStorage.setItem(TOKEN_KEY, data.access_token)
+    trackEvent('login', { method: 'email' })
     window.location.href = '/'
   }
 
@@ -80,7 +82,7 @@ export function useAuth() {
       throw new Error(err.detail || 'Registration failed')
     }
 
-    // Auto-login after registration
+    trackEvent('sign_up', { method: 'email' })
     await login(email, password)
   }
 

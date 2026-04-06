@@ -1,5 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
+import { initAnalytics, trackPageView } from './lib/analytics'
 import LandingPage from './components/LandingPage'
 import Login from './components/Login'
 import Dashboard from './components/Dashboard'
@@ -11,8 +13,16 @@ import { PrivacyPolicy } from './components/PrivacyPolicy'
 import { CookiePolicy } from './components/CookiePolicy'
 import { CookieConsent } from './components/CookieConsent'
 
+function PageViewTracker() {
+  const location = useLocation()
+  useEffect(() => { trackPageView(location.pathname) }, [location.pathname])
+  return null
+}
+
 function App() {
   const { isAuthenticated, isLoading, user } = useAuth()
+
+  useEffect(() => { initAnalytics() }, [])
 
   if (isLoading) {
     return (
@@ -65,6 +75,7 @@ function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <PageViewTracker />
       <CookieConsent />
     </BrowserRouter>
   )
