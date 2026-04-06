@@ -1,6 +1,9 @@
 # TONND
 
-Open-source fitness tracking platform with Fitbit integration. Runs entirely in Docker.
+[![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/3qmrFpwzpE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
+
+Open-source, self-hosted health dashboard. Connect Fitbit and Renpho, see all your metrics in one place. Runs entirely in Docker.
 
 ## Features
 
