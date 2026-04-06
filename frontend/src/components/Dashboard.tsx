@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO } from 'date-fns'
 import {
@@ -50,9 +50,11 @@ export default function Dashboard() {
   const syncMutation = useSyncFitbit()
 
   // Redirect if Fitbit not connected
-  if (user && !user.fitbit_connected) {
-    navigate('/connect-fitbit')
-  }
+  useEffect(() => {
+    if (user && !user.fitbit_connected) {
+      navigate('/connect-fitbit')
+    }
+  }, [user, navigate])
 
   const handleSync = () => syncMutation.mutate({ days: 1 })
 
