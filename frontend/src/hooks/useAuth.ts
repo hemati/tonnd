@@ -84,12 +84,8 @@ export function useAuth() {
     await login(email, password)
   }
 
-  const loginWithGoogle = async () => {
-    const res = await fetch(`${API_URL}/auth/google/authorize`, {
-      credentials: 'include',
-    })
-    const data = await res.json()
-    window.location.href = data.authorization_url
+  const loginWithGoogle = () => {
+    window.location.href = `${API_URL}/auth/google/authorize`
   }
 
   const handleSignOut = () => {

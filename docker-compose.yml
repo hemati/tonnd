@@ -25,14 +25,12 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql+asyncpg://healthcoach:healthcoach@postgres:5432/healthcoach?ssl=disable
-      FRONTEND_URL: http://localhost:5173
 
   frontend:
     build: ./frontend
     ports:
       - "5173:5173"
-    environment:
-      VITE_API_ENDPOINT: http://localhost:8080
+    env_file: .env
     depends_on:
       - backend
 
