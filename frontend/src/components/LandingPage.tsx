@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Bars3Icon, XMarkIcon, ArrowRightIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL, LOGO_PATH } from '../config/theme'
 import SEO from './SEO'
 
@@ -42,14 +42,11 @@ function DashboardMock() {
       {/* bar chart */}
       <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-3">
         <div className="text-[9px] uppercase tracking-wider text-white/30 mb-3">Weekly Steps</div>
-        <div className="flex items-end justify-between gap-1.5 h-16">
+        <div className="flex items-end justify-between gap-1.5" style={{ height: 64 }}>
           {mockBars.map((h, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-1">
-              <div
-                className="w-full rounded-sm bg-white/20 lp-bar-grow"
-                style={{ '--h': `${h}%`, height: `${h}%`, animationDelay: `${i * 0.08}s` } as React.CSSProperties}
-              />
-              <span className="text-[8px] text-white/25">{mockDays[i]}</span>
+            <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
+              <div className="rounded-sm bg-white/30" style={{ height: `${(h / 100) * 52}px`, width: 32 }} />
+              <span className="text-[8px] text-white/25 self-center">{mockDays[i]}</span>
             </div>
           ))}
         </div>
@@ -198,14 +195,19 @@ export default function LandingPage() {
           </p>
           <div className="grid sm:grid-cols-2 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
             {[
-              { title: 'Sleep', desc: 'Deep, light, REM, awake. Nightly efficiency and trends over weeks.' },
-              { title: 'Activity', desc: 'Steps, calories, distance, active zone minutes, and floors.' },
-              { title: 'Heart Rate & HRV', desc: 'Resting HR, zones, and heart rate variability for recovery monitoring.' },
-              { title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness score and blood oxygen saturation tracked over time.' },
+              { icon: MoonIcon, title: 'Sleep', desc: 'Deep, light, REM, awake. Nightly efficiency and trends over weeks.' },
+              { icon: BoltIcon, title: 'Activity', desc: 'Steps, calories, distance, active zone minutes, and floors.' },
+              { icon: HeartIcon, title: 'Heart Rate & HRV', desc: 'Resting HR, zones, and heart rate variability for recovery monitoring.' },
+              { icon: ChartBarSquareIcon, title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness score and blood oxygen saturation tracked over time.' },
             ].map((f) => (
               <div key={f.title} className="bg-[#0a0a0a] p-6">
-                <h3 className="text-sm font-semibold text-white/80 mb-2">{f.title}</h3>
-                <p className="text-sm text-white/40 leading-relaxed">{f.desc}</p>
+                <div className="flex items-start gap-4">
+                  <f.icon className="w-6 h-6 flex-shrink-0 text-white/40" />
+                  <div>
+                    <h3 className="text-sm font-semibold text-white/80 mb-2">{f.title}</h3>
+                    <p className="text-sm text-white/40 leading-relaxed">{f.desc}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
