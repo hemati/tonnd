@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { getPost } from '../lib/blog'
 import { mdxComponents } from './blog/MdxComponents'
 import SEO from './SEO'
@@ -17,6 +18,19 @@ export default function BlogPost() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
       <SEO title={meta.title} description={meta.description} path={`/blog/${meta.slug}`} />
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'Article',
+          headline: meta.title,
+          description: meta.description,
+          datePublished: meta.date,
+          author: { '@type': 'Person', name: meta.author },
+          publisher: { '@id': 'https://tonnd.com/#organization' },
+          mainEntityOfPage: `https://tonnd.com/blog/${meta.slug}`,
+          keywords: meta.tags.join(', '),
+        })}</script>
+      </Helmet>
 
       <div className="max-w-5xl mx-auto px-5 w-full">
         <div className="h-14 flex items-center">

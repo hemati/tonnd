@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
+import { getAllPosts } from '../lib/blog'
 import SEO from './SEO'
 import Logo from './Logo'
 import Footer from './Footer'
@@ -304,6 +305,35 @@ export default function LandingPage() {
           </a>
         </div>
       </section>
+
+      {/* ═══ BLOG ═══ */}
+      {(() => {
+        const posts = getAllPosts().slice(0, 3)
+        if (posts.length === 0) return null
+        return (
+          <>
+            <div className="border-t border-white/[.06]" />
+            <section className="max-w-5xl mx-auto px-5 py-20">
+              <div className="flex items-baseline justify-between mb-8">
+                <div>
+                  <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3">From the blog</p>
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90">Latest posts</h2>
+                </div>
+                <Link to="/blog" className="text-[13px] text-white/40 hover:text-white/70 transition-colors">View all &rarr;</Link>
+              </div>
+              <div className="grid md:grid-cols-3 gap-6">
+                {posts.map((post) => (
+                  <Link key={post.slug} to={`/blog/${post.slug}`} className="block rounded-lg border border-white/[.06] bg-white/[.02] p-5 hover:bg-white/[.04] transition-colors">
+                    <time className="text-[12px] text-white/25">{post.date}</time>
+                    <h3 className="text-sm font-semibold text-white/80 mt-2 mb-2 line-clamp-2">{post.title}</h3>
+                    <p className="text-[13px] text-white/35 line-clamp-2">{post.description}</p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          </>
+        )
+      })()}
 
       <Footer />
     </div>
