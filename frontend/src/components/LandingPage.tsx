@@ -284,28 +284,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ DIVIDER ═══ */}
-      <div className="border-t border-white/[.06]" />
-
-      {/* ═══ FINAL CTA ═══ */}
-      <section className="max-w-5xl mx-auto px-5 py-24 text-center lp-appear">
-        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
-          Built for the future.<br />Available today.
-        </h2>
-        <p className="text-[15px] text-white/40 max-w-md mx-auto mb-10">
-          Self-host your fitness dashboard. Open source, free forever.
-        </p>
-        <div className="flex flex-wrap justify-center items-center gap-3">
-          <Link to="/login" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium bg-white text-black hover:bg-white/90 transition-colors">
-            Get Started Free
-            <ArrowRightIcon className="w-3.5 h-3.5" />
-          </Link>
-          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium border border-white/[.12] text-white/60 hover:text-white hover:border-white/25 transition-colors">
-            View on GitHub
-          </a>
-        </div>
-      </section>
-
       {/* ═══ BLOG ═══ */}
       {(() => {
         const posts = getAllPosts().slice(0, 3)
@@ -334,6 +312,26 @@ export default function LandingPage() {
           </>
         )
       })()}
+
+      {/* ═══ FINAL CTA ═══ */}
+      <div className="border-t border-white/[.06]" />
+      <section className="max-w-5xl mx-auto px-5 py-24 text-center lp-appear">
+        <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
+          Built for the future.<br />Available today.
+        </h2>
+        <p className="text-[15px] text-white/40 max-w-md mx-auto mb-10">
+          Self-host your fitness dashboard. Open source, free forever.
+        </p>
+        <div className="flex flex-wrap justify-center items-center gap-3">
+          <Link to="/login" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium bg-white text-black hover:bg-white/90 transition-colors">
+            Get Started Free
+            <ArrowRightIcon className="w-3.5 h-3.5" />
+          </Link>
+          <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium border border-white/[.12] text-white/60 hover:text-white hover:border-white/25 transition-colors">
+            View on GitHub
+          </a>
+        </div>
+      </section>
 
       <Footer />
     </div>
