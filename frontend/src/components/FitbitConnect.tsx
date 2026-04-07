@@ -60,7 +60,7 @@ export default function FitbitConnect() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Fitbit */}
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 border border-slate-700/50">
+      <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-8">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-[#00B0B9]/20 mb-3">
             <svg className="w-8 h-8 text-[#00B0B9]" viewBox="0 0 24 24" fill="currentColor">
@@ -68,7 +68,7 @@ export default function FitbitConnect() {
             </svg>
           </div>
           <h2 className="text-xl font-bold text-white">Fitbit</h2>
-          <p className="text-slate-400 text-sm">
+          <p className="text-white/40 text-sm">
             Sleep, activity, heart rate, HRV, SpO2, and more
           </p>
         </div>
@@ -94,13 +94,13 @@ export default function FitbitConnect() {
       </div>
 
       {/* Renpho */}
-      <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-8 border border-slate-700/50">
+      <div className="rounded-xl border border-white/[.06] bg-white/[.02] p-8">
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-purple-500/20 mb-3">
             <span className="text-2xl">⚖️</span>
           </div>
           <h2 className="text-xl font-bold text-white">Renpho</h2>
-          <p className="text-slate-400 text-sm">
+          <p className="text-white/40 text-sm">
             Smart scale — weight, body fat, muscle mass, BMI, and 12+ metrics
           </p>
         </div>
@@ -115,7 +115,7 @@ export default function FitbitConnect() {
             </span>
             <button
               onClick={handleDisconnectRenpho}
-              className="block mx-auto text-slate-400 hover:text-red-400 text-sm transition-colors"
+              className="block mx-auto text-white/40 hover:text-white/70 text-sm transition-colors"
             >
               Disconnect
             </button>
@@ -128,7 +128,7 @@ export default function FitbitConnect() {
               value={renphoEmail}
               onChange={(e) => setRenphoEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-3 bg-white/[.04] border border-white/[.1] rounded-md text-white placeholder-white/25 text-sm focus:outline-none focus:border-white/25"
             />
             <input
               type="password"
@@ -136,7 +136,7 @@ export default function FitbitConnect() {
               value={renphoPassword}
               onChange={(e) => setRenphoPassword(e.target.value)}
               required
-              className="w-full px-4 py-3 bg-slate-700/50 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="w-full px-4 py-3 bg-white/[.04] border border-white/[.1] rounded-md text-white placeholder-white/25 text-sm focus:outline-none focus:border-white/25"
             />
             <button
               type="submit"
@@ -145,7 +145,7 @@ export default function FitbitConnect() {
             >
               {isConnectingRenpho ? 'Connecting...' : 'Connect Renpho'}
             </button>
-            <p className="text-xs text-slate-500 text-center">
+            <p className="text-xs text-white/30 text-center">
               Uses your Renpho app credentials. Note: this may log you out of the Renpho mobile app.
             </p>
           </form>
@@ -167,12 +167,12 @@ export default function FitbitConnect() {
       {/* Skip */}
       <button
         onClick={() => navigate('/')}
-        className="w-full text-slate-400 hover:text-white text-sm transition-colors"
+        className="w-full text-white/40 hover:text-white text-sm transition-colors"
       >
         Skip for now
       </button>
 
-      <p className="text-center text-xs text-slate-500">
+      <p className="text-center text-xs text-white/30">
         We only access the data you authorize. Your information is encrypted and never shared with third parties.
       </p>
     </div>

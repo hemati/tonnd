@@ -52,7 +52,7 @@ export default function AuthCallback() {
   }, [searchParams, navigate])
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
       <div className="text-center">
         {error ? (
           <>
@@ -63,7 +63,7 @@ export default function AuthCallback() {
             </div>
             <h2 className="text-xl font-semibold text-white mb-2">Error</h2>
             <p className="text-red-400">{error}</p>
-            <p className="text-slate-400 mt-2">Redirecting...</p>
+            <p className="text-white/40 mt-2">Redirecting...</p>
           </>
         ) : (
           <>
