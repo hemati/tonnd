@@ -12,6 +12,7 @@ import { TermsOfService } from './components/TermsOfService'
 import { PrivacyPolicy } from './components/PrivacyPolicy'
 import { CookiePolicy } from './components/CookiePolicy'
 import { CookieConsent } from './components/CookieConsent'
+import NotFound from './components/NotFound'
 
 function PageViewTracker() {
   const location = useLocation()
@@ -73,7 +74,7 @@ function App() {
             )
           }
         />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<NotFound />} />
       </Routes>
       <PageViewTracker />
       <CookieConsent />
