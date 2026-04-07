@@ -1,0 +1,65 @@
+---
+title: "I tracked my body in Excel at 12. Now I'm building the platform I wished existed."
+description: "From Excel spreadsheets at 12 to a self-hosted Fitbit dashboard. Why I built TONND, an open-source health tracking platform you run on your server."
+date: "2026-04-07"
+author: "Wahed Hemati"
+tags:
+  - open-source
+  - health-tracking
+  - fitbit
+  - self-hosted
+---
+
+I was a chubby kid. Not dramatically overweight, but it bothered me. I was about 12 or 13 at the time, and I already had a thing for numbers. Math class was the one subject I actually paid attention in. Spreadsheets made sense to me when most things didn't.
+
+## The Excel summer
+
+One summer I sat down at the family computer, opened Excel, and made myself a tracking system. Wrote down everything: what I ate, how much I moved, my weight every morning. I built formulas that predicted where my weight would be in two months if I stuck to the plan. Then I tracked it, every day, for the whole summer.
+
+It worked. Not because the spreadsheet was special. Measuring stuff just forced me to pay attention. You eat differently when you have to write it down afterward. You keep going when the line on the chart is heading the right way.
+
+This was over 15 years ago. There were no Fitbit watches syncing to your phone. No smart scales telling you your body fat percentage. You weighed yourself on a bathroom scale, squinted at the number, and wrote it down with a pen.
+
+## The 1% method, before I knew it had a name
+
+I didn't know it at the time, but what I was doing had a name. James Clear would later call it the aggregation of marginal gains, or the 1% method. The idea is simple: you don't need dramatic changes. You need small, measurable improvements, tracked consistently, compounding over time.
+
+A 12 year old with an Excel sheet was basically doing atomic habits before the book existed. The only tool I had was a spreadsheet and a bathroom scale, but the principle was the same: measure, adjust, repeat. Don't try to change everything at once. Just make the numbers go in the right direction, day after day.
+
+That mindset stuck with me long after that summer ended.
+
+## 15 years later, the tools got better. The problem didn't go away.
+
+I never stopped tracking. The difference is that today, the devices are absurdly good. My Fitbit gives me sleep stages, heart rate variability, VO2 max, SpO2, breathing rate, skin temperature, active zone minutes. My Renpho scale measures a dozen body composition metrics every time I step on it. Weight, body fat, muscle mass, visceral fat, bone mass, BMR. Things I couldn't have measured as a kid even if I wanted to.
+
+But here's what hasn't changed: the data still lives in five different apps.
+
+Fitbit has its app. Renpho has its app. If I ever add a Withings or Oura device, that's another app. If I want to see how my sleep quality connects to my weight trend, or whether my HRV drops after heavy training weeks, I have to jump between screens and connect the dots in my head.
+
+The devices got better. The central brain that ties it all together never got built.
+
+## So I'm building it
+
+The project is called [TONND](https://tonnd.com). It's an open source health dashboard you can self host.
+
+You connect your Fitbit, your Renpho scale, and eventually other devices. Everything shows up in one view: weight, sleep, steps, heart rate, HRV, body composition, recovery score. It runs on Docker, you own the data, and the source code is on [GitHub](https://github.com/hemati/tonnd).
+
+I use it every day. The Fitbit sync works, the Renpho integration is live, the dashboard shows real numbers. It's already useful, but I'm thinking about this in three phases.
+
+## What comes next
+
+**Phase 1** (where we are now): collect data from all your devices into one place. Display it clearly. Show trends over time. Calculate a recovery score from your HRV, sleep efficiency, and resting heart rate.
+
+**Phase 2** (coming next): feed your health data to AI. Take your last 30 days of sleep, HRV, activity, and weight data, send it to Claude or GPT, and get back something actually useful. Not "drink more water" advice. More like: "Your HRV dropped 15% this week and your training load went up. You probably need a rest day before your long run on Saturday."
+
+The 12 year old version of me had to interpret his own charts. The 2026 version shouldn't have to.
+
+**Phase 3** (the long-term goal): have the AI built directly into the platform. No copy pasting into ChatGPT, no switching to another tool. You open your dashboard and the analysis is already there, personalized to your data, your goals, your history.
+
+## Come build this with me
+
+The project is early. There's rough edges everywhere and a lot left to build. If you're someone who obsesses over health data, likes self hosting, or wants to help build a tool that actually scratches your own itch, come hang out.
+
+- **Source code:** [github.com/hemati/tonnd](https://github.com/hemati/tonnd)
+- **Discord:** [discord.gg/3qmrFpwzpE](https://discord.gg/3qmrFpwzpE)
+- **Live app:** [tonnd.com](https://tonnd.com)
