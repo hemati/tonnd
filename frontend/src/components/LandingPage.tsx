@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL, LOGO_PATH } from '../config/theme'
 import SEO from './SEO'
+import Logo from './Logo'
 
 /* ─── mock dashboard ─────────────────────────────────────────────────────── */
 
@@ -67,12 +68,7 @@ export default function LandingPage() {
       {/* ═══ NAV ═══ */}
       <nav className="sticky top-0 z-50 border-b border-white/[.06] bg-[#0a0a0a]/80 backdrop-blur-xl">
         <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 group">
-            <svg viewBox="0 0 24 24" className="w-5 h-5 text-white/70 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d={LOGO_PATH} />
-            </svg>
-            <span className="text-sm font-semibold tracking-tight text-white/90">TONND</span>
-          </Link>
+          <Logo />
 
           <div className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-[13px] text-white/40 hover:text-white/80 transition-colors">Features</a>
@@ -117,7 +113,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-[17px] text-white/45 leading-relaxed mb-10 max-w-md">
-              Connect Fitbit and Renpho. See weight, sleep, heart rate, HRV, and body composition in one place &mdash; on your own server.
+              A self-hosted fitness tracker that connects Fitbit and Renpho. Sleep tracking, weight tracking, heart rate, HRV, and body composition &mdash; all in one place, on your own server.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -266,7 +262,7 @@ export default function LandingPage() {
         <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Why self-host</p>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your health data is personal.</h2>
         <p className="text-[15px] text-white/40 mb-12 max-w-lg lp-appear">
-          TONND gives you full control over where your data lives and who can access it.
+          Health monitoring belongs on your own server. TONND gives you full control over where your data lives and who can access it.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 lp-appear">

@@ -4,33 +4,63 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/tonnd-icon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="TONND — The open-source, self-hosted dashboard for your health data. Connect Fitbit, Renpho, and more." />
+    <meta name="description" content="Open-source, self-hosted health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place." />
     <meta name="theme-color" content="#060a13" />
     <meta property="og:title" content="TONND — Self-host your health dashboard" />
-    <meta property="og:description" content="Connect Fitbit and Renpho. See weight, sleep, heart rate, HRV, and body composition in one place — on your own server." />
+    <meta property="og:description" content="Open-source, self-hosted health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://tonnd.com" />
     <title>TONND — Self-host your health dashboard</title>
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "TONND",
-      "url": "https://tonnd.com",
-      "applicationCategory": "HealthApplication",
-      "operatingSystem": "Web, Docker",
-      "description": "Open-source, self-hosted health dashboard. Connect Fitbit and Renpho, see all your metrics in one place.",
-      "license": "https://github.com/hemati/tonnd/blob/main/LICENSE",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "USD"
-      },
-      "author": {
-        "@type": "Organization",
-        "name": "TONND",
-        "url": "https://tonnd.com"
-      }
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://tonnd.com/#organization",
+          "name": "TONND",
+          "url": "https://tonnd.com",
+          "logo": "https://tonnd.com/tonnd-icon.svg",
+          "sameAs": [
+            "https://github.com/hemati/tonnd",
+            "https://discord.gg/3qmrFpwzpE"
+          ]
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://tonnd.com/#website",
+          "name": "TONND",
+          "url": "https://tonnd.com",
+          "publisher": { "@id": "https://tonnd.com/#organization" }
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://tonnd.com/",
+          "name": "TONND — Self-host your health dashboard",
+          "description": "Open-source, self-hosted health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.",
+          "url": "https://tonnd.com",
+          "isPartOf": { "@id": "https://tonnd.com/#website" },
+          "about": { "@id": "https://tonnd.com/#software" }
+        },
+        {
+          "@type": "SoftwareApplication",
+          "@id": "https://tonnd.com/#software",
+          "name": "TONND",
+          "url": "https://tonnd.com",
+          "applicationCategory": "HealthApplication",
+          "operatingSystem": "Web",
+          "description": "Open-source, self-hosted health dashboard for fitness tracking. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, body composition, and more.",
+          "screenshot": "https://tonnd.com/og-image.png",
+          "license": "https://github.com/hemati/tonnd/blob/main/LICENSE",
+          "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD",
+            "availability": "https://schema.org/InStock"
+          },
+          "author": { "@id": "https://tonnd.com/#organization" }
+        }
+      ]
     }
     </script>
   </head>
