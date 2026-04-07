@@ -1,5 +1,6 @@
 # TONND
 
+[![Tests](https://github.com/hemati/tonnd/actions/workflows/tests.yml/badge.svg)](https://github.com/hemati/tonnd/actions/workflows/tests.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/3qmrFpwzpE)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
