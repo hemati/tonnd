@@ -1,10 +1,15 @@
 """Tests for security utilities (OAuth state, input validation)."""
 
+import time
+from unittest.mock import patch
+
 from src.utils.security import (
     generate_secure_state,
+    sanitize_event_for_logging,
     validate_secure_state,
     validate_date_format,
     validate_integer_param,
+    STATE_EXPIRY_SECONDS,
 )
 
 
@@ -37,6 +42,81 @@ class TestOAuthState:
         s2 = generate_secure_state("user-2")
         assert s1 != s2
 
+    def test_expired_state(self):
+        """State older than STATE_EXPIRY_SECONDS should be rejected."""
+        state = generate_secure_state("user-exp")
+        # Fast-forward time past expiry
+        future = time.time() + STATE_EXPIRY_SECONDS + 100
+        with patch("src.utils.security.time.time", return_value=future):
+            uid, is_valid = validate_secure_state(state)
+        assert not is_valid
+        assert uid == ""
+
+    def test_malformed_timestamp(self):
+        """State with a non-integer timestamp should be rejected."""
+        bad_state = "user-id:not-a-number:nonce:abcdef1234567890"
+        uid, is_valid = validate_secure_state(bad_state)
+        assert not is_valid
+        assert uid == ""
+
+    def test_too_few_parts(self):
+        """State with fewer than 4 colon-separated parts should be rejected."""
+        uid, is_valid = validate_secure_state("a:b:c")
+        assert not is_valid
+
+    def test_too_many_parts(self):
+        """State with more than 4 parts should be rejected."""
+        uid, is_valid = validate_secure_state("a:b:c:d:e")
+        assert not is_valid
+
+    def test_state_format_has_four_parts(self):
+        """Generated state should have exactly 4 colon-separated parts."""
+        state = generate_secure_state("user-99")
+        parts = state.split(":")
+        assert len(parts) == 4
+
+    def test_state_signature_is_16_chars(self):
+        """The HMAC signature should be truncated to 16 hex chars."""
+        state = generate_secure_state("user-sig")
+        sig = state.split(":")[-1]
+        assert len(sig) == 16
+
+
+class TestSanitizeEvent:
+    def test_redacts_authorization_header(self):
+        event = {"headers": {"Authorization": "Bearer secret-token"}}
+        sanitized = sanitize_event_for_logging(event)
+        assert sanitized["headers"]["Authorization"] == "[REDACTED]"
+        # Original should not be modified
+        assert event["headers"]["Authorization"] == "Bearer secret-token"
+
+    def test_redacts_cookie_header(self):
+        event = {"headers": {"Cookie": "session=abc123"}}
+        sanitized = sanitize_event_for_logging(event)
+        assert sanitized["headers"]["Cookie"] == "[REDACTED]"
+
+    def test_redacts_lowercase_headers(self):
+        event = {"headers": {"authorization": "Bearer tok", "cookie": "x=y"}}
+        sanitized = sanitize_event_for_logging(event)
+        assert sanitized["headers"]["authorization"] == "[REDACTED]"
+        assert sanitized["headers"]["cookie"] == "[REDACTED]"
+
+    def test_redacts_request_context_authorizer(self):
+        event = {"requestContext": {"authorizer": {"claims": {"sub": "user-1"}}}}
+        sanitized = sanitize_event_for_logging(event)
+        assert sanitized["requestContext"]["authorizer"] == "[REDACTED]"
+
+    def test_no_headers_key(self):
+        event = {"body": "data"}
+        sanitized = sanitize_event_for_logging(event)
+        assert "headers" not in sanitized
+
+    def test_preserves_non_sensitive_headers(self):
+        event = {"headers": {"Content-Type": "application/json", "Authorization": "Bearer x"}}
+        sanitized = sanitize_event_for_logging(event)
+        assert sanitized["headers"]["Content-Type"] == "application/json"
+        assert sanitized["headers"]["Authorization"] == "[REDACTED]"
+
 
 class TestDateValidation:
     def test_valid_date(self):
@@ -56,6 +136,9 @@ class TestDateValidation:
     def test_none(self):
         assert not validate_date_format(None)
 
+    def test_non_string_type(self):
+        assert not validate_date_format(12345)
+
 
 class TestIntegerParam:
     def test_valid_integer(self):
@@ -72,3 +155,9 @@ class TestIntegerParam:
 
     def test_invalid_string(self):
         assert validate_integer_param("abc", default=7) == 7
+
+    def test_float_string_returns_default(self):
+        assert validate_integer_param("3.14", default=2) == 2
+
+    def test_type_error_returns_default(self):
+        assert validate_integer_param([], default=9) == 9
