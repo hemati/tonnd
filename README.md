@@ -1,6 +1,7 @@
 # TONND
 
 [![Tests](https://github.com/hemati/tonnd/actions/workflows/tests.yml/badge.svg)](https://github.com/hemati/tonnd/actions/workflows/tests.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/hemati/12fc5b2b2a177811ac569e9958f2002f/raw/coverage-badge.json)](https://github.com/hemati/tonnd/actions/workflows/tests.yml)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/3qmrFpwzpE)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
