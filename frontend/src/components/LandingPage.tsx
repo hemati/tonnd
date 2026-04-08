@@ -109,7 +109,7 @@ export default function LandingPage() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="lp-appear">
             <p className="text-[13px] text-white/30 font-medium tracking-wide mb-5">
-              Open source &middot; Self-hosted &middot; Free
+              Open source &middot; All your metrics in one place
             </p>
 
             <h1 className="text-[2.75rem] sm:text-5xl lg:text-[3.5rem] font-bold leading-[1.08] tracking-tight mb-6 text-white">
@@ -117,7 +117,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-[17px] text-white/45 leading-relaxed mb-10 max-w-md">
-              A self-hosted fitness tracker that connects Fitbit and Renpho. Sleep tracking, weight tracking, heart rate, HRV, and body composition &mdash; all in one place, on your own server.
+              Connect Fitbit and Renpho. Track sleep, weight, heart rate, HRV, and body composition &mdash; all in one place. Use it on tonnd.com or self-host on your own server.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -131,7 +131,7 @@ export default function LandingPage() {
             </div>
 
             <p className="text-[13px] text-white/25">
-              No credit card. <code className="text-white/35">docker compose up</code>
+              No credit card required.
             </p>
           </div>
 
@@ -215,16 +215,16 @@ export default function LandingPage() {
 
         {/* Own */}
         <div>
-          <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Own</p>
+          <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Open source</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your data, your rules.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
-            TONND is fully open source and self-hosted. No cloud dependency, no vendor lock-in.
+            TONND is fully open source. Use our managed cloud or run it on your own server &mdash; you always own your data.
           </p>
           <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
             {[
               { title: 'Open Source', desc: 'AGPL-3.0 licensed. Read every line, contribute, or fork.' },
-              { title: 'Self-Hosted', desc: 'docker compose up. Your health data on your own server.' },
-              { title: 'No Lock-in', desc: 'Standard PostgreSQL. Export anytime. No cloud dependency.' },
+              { title: 'Self-Host Option', desc: 'docker compose up. Run TONND on your own hardware if you prefer.' },
+              { title: 'No Lock-in', desc: 'Standard PostgreSQL. Export your data anytime.' },
             ].map((f) => (
               <div key={f.title} className="bg-[#0a0a0a] p-6">
                 <h3 className="text-sm font-semibold text-white/80 mb-2">{f.title}</h3>
@@ -261,20 +261,20 @@ export default function LandingPage() {
       {/* ═══ DIVIDER ═══ */}
       <div className="border-t border-white/[.06]" />
 
-      {/* ═══ WHY SELF-HOST ═══ */}
+      {/* ═══ WHY TONND ═══ */}
       <section className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Why self-host</p>
+        <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Why TONND</p>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your health data is personal.</h2>
         <p className="text-[15px] text-white/40 mb-12 max-w-lg lp-appear">
-          Health monitoring belongs on your own server. TONND gives you full control over where your data lives and who can access it.
+          TONND gives you full control over your health data. Use our cloud or self-host &mdash; either way, your data stays yours.
         </p>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 lp-appear">
           {[
-            { title: 'Your server', desc: 'Runs on any machine with Docker. No cloud required.' },
-            { title: 'Your database', desc: 'Standard PostgreSQL. Query, export, or back up anytime.' },
-            { title: 'Your code', desc: 'AGPL-3.0 licensed. Inspect, audit, or modify freely.' },
-            { title: 'Your privacy', desc: 'No tracking, no ads, no third-party data sharing.' },
+            { title: 'Privacy first', desc: 'No tracking, no ads, no third-party data sharing. Ever.' },
+            { title: 'Your data', desc: 'Standard PostgreSQL. Export or back up anytime.' },
+            { title: 'Open code', desc: 'AGPL-3.0 licensed. Inspect, audit, or modify freely.' },
+            { title: 'Self-host ready', desc: 'Want full control? Run TONND on any machine with Docker.' },
           ].map((item) => (
             <div key={item.title}>
               <h3 className="text-sm font-semibold text-white/80 mb-2">{item.title}</h3>
@@ -320,7 +320,7 @@ export default function LandingPage() {
           Built for the future.<br />Available today.
         </h2>
         <p className="text-[15px] text-white/40 max-w-md mx-auto mb-10">
-          Self-host your fitness dashboard. Open source, free forever.
+          Start tracking what matters. Open source, no strings attached.
         </p>
         <div className="flex flex-wrap justify-center items-center gap-3">
           <Link to="/login" className="inline-flex items-center gap-2 px-6 py-2.5 rounded-md text-sm font-medium bg-white text-black hover:bg-white/90 transition-colors">
