@@ -37,7 +37,7 @@ vi.mock('axios', () => {
 })
 
 // Import after mock so the module gets our mocked axios
-import { api, fetchUser, fetchDashboardData, initFitbitAuth, syncFitbitData } from './api'
+import { fetchUser, fetchDashboardData, initFitbitAuth, syncFitbitData } from './api'
 import type { UserProfile, FitbitInitResponse, SyncResponse } from './api'
 
 describe('api module', () => {
