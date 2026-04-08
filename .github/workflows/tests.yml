@@ -31,14 +31,13 @@ jobs:
           VERIFICATION_TOKEN_SECRET: test-verify-ci
           ENCRYPTION_KEY: dGVzdC1lbmNyeXB0aW9uLWtleS0xMjM0NTY3ODkwMTI=
           STATE_SECRET: test-state-secret-ci
-        run: python -m pytest tests/ -v --tb=short --cov=src --cov-report=json
+        run: python -m pytest tests/ -v --tb=short --cov=src --cov-report=xml
 
-      - name: Upload backend coverage
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          name: backend-coverage
-          path: backend/coverage.json
+          flags: backend
+          files: backend/coverage.xml
 
   frontend:
     runs-on: ubuntu-latest
@@ -67,51 +66,8 @@ jobs:
       - name: Run tests with coverage
         run: npx vitest run --coverage
 
-      - name: Upload frontend coverage
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-artifact@v4
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          name: frontend-coverage
-          path: frontend/coverage/coverage-summary.json
-
-  coverage-badge:
-    needs: [backend, frontend]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-
-    steps:
-      - name: Download backend coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-coverage
-          path: backend-cov
-
-      - name: Download frontend coverage
-        uses: actions/download-artifact@v4
-        with:
-          name: frontend-coverage
-          path: frontend-cov
-
-      - name: Calculate combined coverage
-        id: coverage
-        run: |
-          BE=$(python3 -c "import json; d=json.load(open('backend-cov/coverage.json')); print(round(d['totals']['percent_covered'], 1))")
-          FE=$(python3 -c "import json; d=json.load(open('frontend-cov/coverage-summary.json')); print(round(d['total']['lines']['pct'], 1))")
-          COMBINED=$(python3 -c "print(round(($BE + $FE) / 2, 1))")
-          echo "backend=$BE" >> $GITHUB_OUTPUT
-          echo "frontend=$FE" >> $GITHUB_OUTPUT
-          echo "combined=$COMBINED" >> $GITHUB_OUTPUT
-          echo "Coverage — Backend: ${BE}% | Frontend: ${FE}% | Combined: ${COMBINED}%"
-
-      - name: Update coverage badge
-        uses: schneegans/dynamic-badges-action@v1.7.0
-        with:
-          auth: ${{ secrets.GIST_TOKEN }}
-          gistID: 12fc5b2b2a177811ac569e9958f2002f
-          filename: coverage-badge.json
-          label: coverage
-          message: ${{ steps.coverage.outputs.combined }}%
-          valColorRange: ${{ steps.coverage.outputs.combined }}
-          minColorRange: 0
-          maxColorRange: 100
-          namedLogo: pytest
+          flags: frontend
+          files: frontend/coverage/cobertura-coverage.xml
