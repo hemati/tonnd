@@ -75,7 +75,7 @@ async def daily_sync_all():
             )
         )
         result = await session.execute(stmt)
-        users = result.scalars().all()
+        users = result.scalars().unique().all()
 
     stats = {"success": 0, "failed": 0, "token_expired": 0, "rate_limited": 0}
 
