@@ -16,6 +16,20 @@ export default defineConfig({
   server: {
     allowedHosts: true,
   },
+  build: {
+    rolldownOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
+            return 'recharts'
+          }
+          if (id.includes('node_modules/@radix-ui')) {
+            return 'radix-ui'
+          }
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

@@ -1,21 +1,31 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { initAnalytics, trackPageView } from './lib/analytics'
 import LandingPage from './components/LandingPage'
 import Login from './components/Login'
-import Dashboard from './components/Dashboard'
 import AuthCallback from './components/AuthCallback'
-import FitbitConnect from './components/FitbitConnect'
 import Layout from './components/Layout'
-import { TermsOfService } from './components/TermsOfService'
-import { PrivacyPolicy } from './components/PrivacyPolicy'
-import { CookiePolicy } from './components/CookiePolicy'
 import { CookieConsent } from './components/CookieConsent'
 import NotFound from './components/NotFound'
-import BlogIndex from './components/BlogIndex'
-import BlogPost from './components/BlogPost'
-import About from './components/About'
+
+// Lazy-loaded routes for code splitting
+const Dashboard = lazy(() => import('./components/Dashboard'))
+const FitbitConnect = lazy(() => import('./components/FitbitConnect'))
+const BlogIndex = lazy(() => import('./components/BlogIndex'))
+const BlogPost = lazy(() => import('./components/BlogPost'))
+const About = lazy(() => import('./components/About'))
+const TermsOfService = lazy(() => import('./components/TermsOfService').then(m => ({ default: m.TermsOfService })))
+const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })))
+const CookiePolicy = lazy(() => import('./components/CookiePolicy').then(m => ({ default: m.CookiePolicy })))
+
+function LoadingSpinner() {
+  return (
+    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
+    </div>
+  )
+}
 
 function PageViewTracker() {
   const location = useLocation()
@@ -47,18 +57,20 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route path="/terms" element={<TermsOfService />} />
-        <Route path="/privacy" element={<PrivacyPolicy />} />
-        <Route path="/cookies" element={<CookiePolicy />} />
-        <Route path="/about" element={<About />} />
-        <Route path="/blog" element={<BlogIndex />} />
-        <Route path="/blog/:slug" element={<BlogPost />} />
+        <Route path="/terms" element={<Suspense fallback={<LoadingSpinner />}><TermsOfService /></Suspense>} />
+        <Route path="/privacy" element={<Suspense fallback={<LoadingSpinner />}><PrivacyPolicy /></Suspense>} />
+        <Route path="/cookies" element={<Suspense fallback={<LoadingSpinner />}><CookiePolicy /></Suspense>} />
+        <Route path="/about" element={<Suspense fallback={<LoadingSpinner />}><About /></Suspense>} />
+        <Route path="/blog" element={<Suspense fallback={<LoadingSpinner />}><BlogIndex /></Suspense>} />
+        <Route path="/blog/:slug" element={<Suspense fallback={<LoadingSpinner />}><BlogPost /></Suspense>} />
         <Route
           path="/"
           element={
             isAuthenticated ? (
               <Layout user={user}>
-                <Dashboard />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Dashboard />
+                </Suspense>
               </Layout>
             ) : (
               <LandingPage />
@@ -80,7 +92,9 @@ function App() {
           element={
             isAuthenticated ? (
               <Layout user={user}>
-                <FitbitConnect />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <FitbitConnect />
+                </Suspense>
               </Layout>
             ) : (
               <Navigate to="/login" replace />

@@ -21,7 +21,7 @@ export function CookiePolicy() {
 
       <section>
         <LegalHeading>2. Cookies We Use</LegalHeading>
-        <p className="mb-4">TONND uses minimal cookies, only what's necessary:</p>
+        <p className="mb-4">TONND uses a small number of cookies:</p>
         <div className="space-y-4">
           <div className="rounded-lg border border-white/[.06] bg-white/[.02] p-4">
             <div className="flex items-center justify-between mb-2">
@@ -34,9 +34,19 @@ export function CookiePolicy() {
             </div>
           </div>
           <div className="rounded-lg border border-white/[.06] bg-white/[.02] p-4">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-white/80">Analytics Cookies</h3>
+              <span className="text-[11px] text-white/30 border border-white/[.1] rounded px-2 py-0.5">Requires consent</span>
+            </div>
+            <p className="text-[13px] text-white/35 mb-3">We use Google Analytics 4 (GA4) with Consent Mode v2. Analytics is denied by default and only activates after you explicitly grant consent.</p>
+            <div className="space-y-2 text-[13px]">
+              <div className="flex justify-between"><span className="font-mono text-white/40">_ga</span><span className="text-white/30">GA4 client identifier (2 years)</span></div>
+              <div className="flex justify-between"><span className="font-mono text-white/40">_ga_*</span><span className="text-white/30">GA4 session state (2 years)</span></div>
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/[.06] bg-white/[.02] p-4">
             <h3 className="text-sm font-semibold text-white/80 mb-2">What we don't use</h3>
             <ul className="list-disc list-inside space-y-1.5 ml-2 text-[13px]">
-              <li>No Google Analytics or third-party tracking</li>
               <li>No advertising or marketing cookies</li>
               <li>No cross-site tracking</li>
             </ul>
@@ -46,7 +56,7 @@ export function CookiePolicy() {
 
       <section>
         <LegalHeading>3. Third-Party Cookies</LegalHeading>
-        <p>During authentication, Google OAuth may set session cookies for sign-in.</p>
+        <p>During authentication, Google OAuth may set session cookies for sign-in. If you consent to analytics cookies, Google Analytics 4 sets cookies (<code className="text-white/50">_ga</code>, <code className="text-white/50">_ga_*</code>) to collect anonymized usage data. GA4 is loaded with Consent Mode v2, meaning all analytics storage is denied by default until you explicitly opt in.</p>
       </section>
 
       <section>
