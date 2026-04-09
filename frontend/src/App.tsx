@@ -27,6 +27,13 @@ function App() {
 
   useEffect(() => { initAnalytics() }, [])
 
+  // Signal to prerenderer that the page is ready
+  useEffect(() => {
+    if (!isLoading) {
+      document.dispatchEvent(new Event('app-rendered'))
+    }
+  }, [isLoading])
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">

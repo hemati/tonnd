@@ -26,7 +26,7 @@ export function initAnalytics() {
   // Standard gtag pattern — MUST use `arguments`, not rest params
   window.dataLayer = window.dataLayer || []
   window.gtag = function () {
-    // eslint-disable-next-line prefer-rest-params
+     
     window.dataLayer.push(arguments)
   }
 

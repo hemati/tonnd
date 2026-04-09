@@ -289,7 +289,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
                   <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v.toLocaleString(), 'Steps']} />
+                  <Tooltip {...tooltipStyle} formatter={(v: any) => [v.toLocaleString(), 'Steps']} />
                   <Bar dataKey="steps" fill={COLORS.success} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -301,7 +301,7 @@ export default function Dashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                   <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
                   <YAxis stroke="#94a3b8" fontSize={11} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => [v.toLocaleString(), 'Calories']} />
+                  <Tooltip {...tooltipStyle} formatter={(v: any) => [v.toLocaleString(), 'Calories']} />
                   <Area type="monotone" dataKey="calories_burned" stroke={COLORS.warning} fill={COLORS.warning} fillOpacity={0.3} />
                 </AreaChart>
               </ResponsiveContainer>
@@ -317,7 +317,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
                     <YAxis stroke="#94a3b8" fontSize={11} domain={['dataMin - 5', 'dataMax + 5']} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v.toFixed(1)} ms`, 'HRV']} />
+                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v.toFixed(1)} ms`, 'HRV']} />
                     <Line type="monotone" dataKey="daily_rmssd" stroke={COLORS.purple} strokeWidth={2} dot={{ fill: COLORS.purple, r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
@@ -330,7 +330,7 @@ export default function Dashboard() {
                       <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
                       <YAxis stroke="#94a3b8" fontSize={11} domain={[0, 100]} />
-                      <Tooltip {...tooltipStyle} formatter={(v: number) => [v, 'Score']} />
+                      <Tooltip {...tooltipStyle} formatter={(v: any) => [v, 'Score']} />
                       <Area type="monotone" dataKey="score" stroke={COLORS.success} fill={COLORS.success} fillOpacity={0.3} />
                     </AreaChart>
                   </ResponsiveContainer>
@@ -348,7 +348,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
                     <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={v => `${v}h`} domain={[0, 12]} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v} hours`, 'Sleep']} />
+                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v} hours`, 'Sleep']} />
                     <Bar dataKey="hours" fill={COLORS.purple} radius={[4, 4, 0, 0]} />
                     <Line type="monotone" dataKey={() => 8} stroke="#22c55e" strokeDasharray="5 5" dot={false} />
                   </ComposedChart>
@@ -363,7 +363,7 @@ export default function Dashboard() {
                     <Pie data={sleepBreakdown} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
                       {sleepBreakdown.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`${Math.floor(v / 60)}h ${v % 60}m`, '']} />
+                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${Math.floor(v / 60)}h ${v % 60}m`, '']} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
@@ -380,7 +380,7 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                     <XAxis type="number" stroke="#94a3b8" fontSize={11} tickFormatter={v => `${v}m`} />
                     <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={11} width={75} />
-                    <Tooltip {...tooltipStyle} formatter={(v: number) => [`${v} min`, 'Time']} />
+                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v} min`, 'Time']} />
                     <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
                       {heartRateZones.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Bar>

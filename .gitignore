@@ -273,3 +273,4 @@ frontend/dist/
 # Project-specific
 systemd/
 scripts/
+.claude/
