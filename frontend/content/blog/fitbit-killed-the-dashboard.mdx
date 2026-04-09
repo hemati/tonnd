@@ -1,0 +1,87 @@
+---
+title: "Fitbit killed the dashboard. So I built my own."
+description: "Google shut down Fitbit's web dashboard in July 2024. Here's why I built TONND — an open-source replacement that connects Fitbit, Renpho, and soon calorie trackers and workout apps into one unified view."
+date: "2026-04-09"
+tags: ["fitbit", "open-source", "health-tracking", "renpho", "dashboard"]
+author: "Wahed Hemati"
+---
+
+On July 8, 2024, Google [shut down the Fitbit web dashboard](https://www.androidpolice.com/fitbit-web-dashboard-shut-down/). No replacement. No migration path. Just gone. If you wanted to see your health data on anything bigger than a phone, too bad.
+
+I used the dashboard every day. I'd sit at my desk after lunch, pull it up, check my sleep from last night, look at my weight trend, and decide what to eat. It was part of my routine the way checking email was. Then one morning the page didn't load and I realized it never would again.
+
+The Fitbit community forum got [79 pages of negative feedback](https://www.techspot.com/news/103874-google-continues-ruin-fitbit-users-discontinuing-web-app.html). One Reddit user wrote: "This is the change that cuts the deepest." Another said: "When my Fitbit dies, I'm changing to a different brand." [Tom's Guide](https://www.tomsguide.com/wellness/fitness-trackers/google-just-killed-another-fitbit-feature-and-now-im-certain-the-brand-is-as-good-as-dead) ran an article titled "I'm certain the brand is as good as dead." Slashdot called it ["Google's abuse of Fitbit"](https://tech.slashdot.org/story/24/06/12/1939226/googles-abuse-of-fitbit-continues-with-web-app-shutdown) and pointed out the irony: "Google used to be a web company. Now it's a phone app or nothing."
+
+## What the dashboard actually did
+
+People keep saying "it was just a website." It wasn't. The web dashboard could do things the mobile app still can't.
+
+You could set custom date ranges and compare your sleep in January against March. Two clicks. The app doesn't do that. You could log food on a real keyboard, search for items, create custom meals, copy-paste nutritional data from other tabs. Try that on a phone. You could add workouts your device missed. You could see your full badge and achievement history. Runners could view their GPS routes on a proper map.
+
+Google said the app had all the same features. [Android Police checked](https://www.androidpolice.com/fitbit-web-dashboard-shut-down/) and confirmed this was wrong. Several features did not exist in the app at all. That's the part that still gets me. Not that they killed the dashboard. That they told everyone nothing was lost.
+
+## Then they kept going
+
+If the dashboard shutdown was the only thing, maybe you could shrug it off. Maintenance costs, focusing resources, whatever. But it wasn't the only thing. Not even close.
+
+In March 2023, Google [removed Challenges, Adventures, and Open Groups](https://gadgetsandwearables.com/2023/02/17/fitbit-remove-open-groups-challenges/) from the app. Their own data showed people in challenges walked 2,200 more steps per day and stuck around 30% longer. They removed it anyway.
+
+July 2024 was the [dashboard](https://9to5google.com/2024/06/11/fitbit-web-dashboard/).
+
+In August 2024, they [discontinued the Sense and Versa smartwatch lines](https://www.tomsguide.com/wellness/smartwatches/google-just-killed-off-fitbit-smartwatches-and-nobody-should-be-surprised). Fitbit was reduced to basic trackers. Pixel Watch became the only smartwatch.
+
+October 2024: [Fitbit.com itself went down](https://www.tomsguide.com/wellness/fitness-trackers/fitbitcom-is-shutting-down-next-week-what-you-need-to-know). The domain now redirects to the Google Store. The Fitbit brand stopped existing on the internet as its own thing.
+
+March 2025: Google [killed Google Assistant on Fitbit devices](https://www.tomsguide.com/wellness/fitness-trackers/google-just-killed-another-fitbit-feature-and-now-im-certain-the-brand-is-as-good-as-dead). Including the Sense 2 and Versa 4. Devices that came out in 2022. Google owns Fitbit and Google Assistant and somehow decided to remove its own voice assistant from its own devices rather than improve the integration.
+
+Somewhere in between, they also killed Fitbit Pay and [replaced it with Google Wallet](https://www.phonearena.com/news/google-wallet-replaces-fitbit-pay_id157901). And the WiFi functionality on the Sense 2 and Versa 4 shipped deactivated. And local music playback was removed. Each removal small enough to not make headlines on its own, but together they paint a clear picture.
+
+And now, May 2026: the [deadline to migrate your Fitbit account to a Google account](https://the5krunner.com/2026/02/03/fitbit-google-account-migration-deadline/). If you don't do it by May 19, your data gets permanently deleted on July 15. Years of sleep logs, heart rate history, weight data. All of it. Google has already [pushed this deadline twice](https://www.androidpolice.com/google-keeps-pushing-fitbit-account-migration-deadline/) after user backlash, which tells you how many people still haven't migrated and how much data is at risk.
+
+Google paid [$2.1 billion for Fitbit](https://www.clearygottlieb.com/news-and-insights/news-listing/google-completes-2-1-billion-acquisition-of-fitbit) in 2021. Five years later, they've stripped it down to a label on a budget tracker and a migration notice for [125 million users](https://electroiq.com/stats/fitbit-statistics/).
+
+## The thing the dashboard shutdown made obvious
+
+I'd been annoyed about this for a while, but losing the dashboard made it impossible to ignore: my health data is spread across apps that have no idea the others exist.
+
+Fitbit tracks my sleep, heart rate, HRV, steps, SpO2. My Renpho scale measures weight, body fat, muscle mass, visceral fat, and ten other body composition numbers. I used to log food in MyFitnessPal. Gym workouts live in a completely separate app.
+
+My sleep affects my recovery. My recovery affects my training. My training affects my appetite. My diet affects my weight. It's all one loop. But each app shows me one piece and pretends the rest don't exist. No app on the market connects a Fitbit to a Renpho scale and shows you both in the same view, let alone adds your food log and workouts on top.
+
+The more I thought about it, the less I could believe nobody had built this.
+
+## So I built it
+
+TONND started as a replacement for the web dashboard I lost. It turned into something bigger.
+
+Right now it connects two sources: Fitbit via OAuth and Renpho smart scales via their cloud API. Your Fitbit data syncs automatically. Sleep stages, heart rate, HRV, VO2 Max, SpO2, breathing rate, skin temperature, steps, calories, active zone minutes. Renpho brings weight, body fat, muscle mass, BMI, visceral fat, bone mass, BMR, the full body composition panel. Everything shows up in one dashboard, on a real screen.
+
+I use it every day now. Same routine I had with the old Fitbit dashboard, except this time I also see my Renpho data on the same screen. No app switching, no mental math.
+
+The first moment it clicked for me was the recovery score. It takes your HRV, sleep efficiency, and resting heart rate, and combines them into one number. Fitbit gives you those metrics separately. Renpho gives you weight and body composition in a different app. But when you see your recovery drop on the same screen where your weight went up and your sleep was bad, you don't need anyone to explain what happened. The data in context tells the story by itself.
+
+## Where this is going
+
+Fitbit and Renpho work today. But the point of TONND is to be the place where all your health data meets. Not just two sources.
+
+Calorie tracking is next. It doesn't matter if you use MyFitnessPal, Cronometer, or something else. Your nutrition data should be next to your weight trend and your activity. When you can see that you ate 2,800 calories, slept 5 hours, and your recovery score is 34, it tells you something. Any one of those numbers alone is noise.
+
+After that, workout apps. Your gym sessions from Strong, your runs from Strava, your rides from Wahoo. All in the same timeline. Training load affects recovery. Recovery depends on sleep. Sleep is influenced by what you ate. The whole chain matters. Right now, no app connects it.
+
+I also want to add automatic correlations at some point. Not the "AI powered insights" that every app claims now. Simpler stuff: your HRV drops on days after less than 6 hours of sleep. Your weight trends down in weeks where you average over 8,000 steps. Patterns that are obvious when all the data is in one place, but invisible when it's spread across five apps.
+
+## Why I made it open source
+
+TONND is [open source (AGPL-3.0)](https://github.com/hemati/tonnd) and runs on Docker. You can self-host it or use the managed version at [tonnd.com](https://tonnd.com).
+
+I made this choice after watching Google dismantle Fitbit for five years straight. The [125 million Fitbit users](https://electroiq.com/stats/fitbit-statistics/) who face data deletion in [July 2026](https://9to5google.com/2026/01/31/fitbit-google-account-may-2026-deadline/) if they don't migrate to a Google account are a good reminder of what happens when one company controls your health data.
+
+With TONND, the code is public. Your data sits in a PostgreSQL database you control. If I stop working on it tomorrow, you still have a running app with your data. Fork it, modify it, keep using it. Google can kill a dashboard with a blog post. You can't kill a project that someone is already running on their own hardware.
+
+## 125 million users, zero web dashboards
+
+Fitbit still has [125 million registered users](https://electroiq.com/stats/fitbit-statistics/) and 38 million who use it every month. The fitness tracker market is heading toward [$486 billion by 2034](https://www.fortunebusinessinsights.com/fitness-tracker-market-103358). Nobody stopped wanting to track their health. The companies just decided they'd rather own the data than make it useful.
+
+I don't think it has to work that way. Your Fitbit data, your Renpho data, your food log, and your workouts belong in the same place. I built the thing that puts them there.
+
+If any of this sounds familiar, try [tonnd.com](https://tonnd.com) or grab the [source on GitHub](https://github.com/hemati/tonnd).

@@ -25,6 +25,7 @@ const ROUTES = [
   '/about',
   '/blog',
   '/blog/why-i-built-tonnd',
+  '/blog/fitbit-killed-the-dashboard',
 ]
 
 // Minimal static file server that serves dist/ with SPA fallback
