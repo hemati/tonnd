@@ -119,7 +119,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-1.5 text-white/50 hover:text-white">
+          <button onClick={() => setMenuOpen(!menuOpen)} className="md:hidden p-1.5 text-white/50 hover:text-white" aria-label={menuOpen ? 'Close menu' : 'Open menu'}>
             {menuOpen ? <XMarkIcon className="w-5 h-5" /> : <Bars3Icon className="w-5 h-5" />}
           </button>
         </div>

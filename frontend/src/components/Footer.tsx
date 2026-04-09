@@ -20,7 +20,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-white/25 mb-3">Product</h4>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/25 mb-3">Product</p>
             <div className="space-y-2">
               <Link to="/login" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Sign In</Link>
               <Link to="/blog" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Blog</Link>
@@ -30,7 +30,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-[11px] font-semibold uppercase tracking-wider text-white/25 mb-3">Legal</h4>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/25 mb-3">Legal</p>
             <div className="space-y-2">
               <Link to="/terms" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Terms of Service</Link>
               <Link to="/privacy" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Privacy Policy</Link>
