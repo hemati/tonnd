@@ -15,6 +15,7 @@ import { CookieConsent } from './components/CookieConsent'
 import NotFound from './components/NotFound'
 import BlogIndex from './components/BlogIndex'
 import BlogPost from './components/BlogPost'
+import About from './components/About'
 
 function PageViewTracker() {
   const location = useLocation()
@@ -49,6 +50,7 @@ function App() {
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
         <Route path="/cookies" element={<CookiePolicy />} />
+        <Route path="/about" element={<About />} />
         <Route path="/blog" element={<BlogIndex />} />
         <Route path="/blog/:slug" element={<BlogPost />} />
         <Route

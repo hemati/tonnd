@@ -21,14 +21,28 @@ export default function BlogPost() {
       <Helmet>
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',
-          '@type': 'Article',
-          headline: meta.title,
-          description: meta.description,
-          datePublished: meta.date,
-          author: { '@type': 'Person', name: meta.author },
-          publisher: { '@id': 'https://tonnd.com/#organization' },
-          mainEntityOfPage: `https://tonnd.com/blog/${meta.slug}`,
-          keywords: meta.tags.join(', '),
+          '@graph': [
+            {
+              '@type': 'BlogPosting',
+              headline: meta.title,
+              description: meta.description,
+              datePublished: meta.date,
+              dateModified: meta.date,
+              image: 'https://tonnd.com/og-image.png',
+              author: { '@type': 'Person', name: meta.author, url: 'https://tonnd.com/' },
+              publisher: { '@id': 'https://tonnd.com/#organization' },
+              mainEntityOfPage: `https://tonnd.com/blog/${meta.slug}`,
+              keywords: meta.tags.join(', '),
+            },
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://tonnd.com/' },
+                { '@type': 'ListItem', position: 2, name: 'Blog', item: 'https://tonnd.com/blog' },
+                { '@type': 'ListItem', position: 3, name: meta.title, item: `https://tonnd.com/blog/${meta.slug}` },
+              ],
+            },
+          ],
         })}</script>
       </Helmet>
 

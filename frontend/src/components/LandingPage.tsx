@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
 import { getAllPosts } from '../lib/blog'
@@ -66,6 +67,40 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <SEO path="/" />
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'WebPage',
+              '@id': 'https://tonnd.com/',
+              'name': 'TONND — Your health data in one dashboard',
+              'description': 'Open-source health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.',
+              'url': 'https://tonnd.com/',
+              'isPartOf': { '@id': 'https://tonnd.com/#website' },
+              'about': { '@id': 'https://tonnd.com/#software' }
+            },
+            {
+              '@type': 'SoftwareApplication',
+              '@id': 'https://tonnd.com/#software',
+              'name': 'TONND',
+              'url': 'https://tonnd.com/',
+              'applicationCategory': 'HealthApplication',
+              'operatingSystem': 'Web',
+              'description': 'Open-source health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, body composition, and more.',
+              'screenshot': 'https://tonnd.com/og-image.png',
+              'license': 'https://github.com/hemati/tonnd/blob/main/LICENSE',
+              'offers': {
+                '@type': 'Offer',
+                'price': '0',
+                'priceCurrency': 'USD',
+                'availability': 'https://schema.org/InStock'
+              },
+              'author': { '@id': 'https://tonnd.com/#organization' }
+            }
+          ]
+        })}</script>
+      </Helmet>
 
       {/* ═══ NAV ═══ */}
       <nav className="sticky top-0 z-50 border-b border-white/[.06] bg-[#0a0a0a]/80 backdrop-blur-xl">

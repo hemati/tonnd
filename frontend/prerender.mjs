@@ -22,6 +22,7 @@ const ROUTES = [
   '/terms',
   '/privacy',
   '/cookies',
+  '/about',
   '/blog',
   '/blog/why-i-built-tonnd',
 ]
