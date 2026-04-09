@@ -1,12 +1,12 @@
 # Build stage
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
 ARG VITE_GA4_MEASUREMENT_ID
 ENV VITE_GA4_MEASUREMENT_ID=$VITE_GA4_MEASUREMENT_ID
-RUN npm run build
+RUN npx tsc && npx vite build
 
 # Production stage — serve static files with Nginx
 FROM nginx:alpine
