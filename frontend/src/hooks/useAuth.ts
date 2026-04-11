@@ -67,7 +67,7 @@ export function useAuth() {
     const data = await res.json()
     localStorage.setItem(TOKEN_KEY, data.access_token)
     trackEvent('login', { method: 'email' })
-    window.location.href = '/'
+    window.location.href = '/dashboard'
   }
 
   const register = async (email: string, password: string) => {

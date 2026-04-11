@@ -2,7 +2,7 @@ import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Literal, Optional
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
@@ -28,7 +28,7 @@ from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_data
 from src.services.renpho.client import RenphoAPIError, renpho_login
 from src.services.renpho.sync import disconnect_renpho, sync_renpho_data
-from src.services.token_encryption import encrypt_token
+from src.services.token_encryption import decrypt_token, encrypt_token
 from src.services.user_service import (
     JWT_SECRET,
     UserCreate,
@@ -300,6 +300,7 @@ async def sync_all_sources(
     session: AsyncSession = Depends(get_async_session),
     sync_date: Optional[str] = None,
     days: int = Query(default=1, ge=1, le=30),
+    source: Optional[Literal["fitbit", "renpho", "hevy"]] = Query(default=None, description="Sync only this source"),
 ):
     synced_metrics = []
     errors = []
@@ -310,8 +311,12 @@ async def sync_all_sources(
         else date.today()
     )
 
+    sync_fitbit = source in (None, "fitbit")
+    sync_renpho = source in (None, "renpho")
+    sync_hevy = source in (None, "hevy")
+
     # Sync Fitbit
-    if user.fitbit_access_token:
+    if sync_fitbit and user.fitbit_access_token:
         try:
             access_token = await ensure_valid_token(user)
             client = FitbitClient(access_token)
@@ -337,18 +342,22 @@ async def sync_all_sources(
             errors.append("fitbit: token expired, disconnected")
 
     # Sync Renpho
-    if user.renpho_session_key:
+    if sync_renpho and user.renpho_session_key:
         for i in range(days):
             current_date = base_date - timedelta(days=i)
             renpho_result = await sync_renpho_data(session, user, current_date)
             synced_metrics.extend(renpho_result["synced_metrics"])
             errors.extend(renpho_result["errors"])
 
-    # Sync Hevy
-    if user.hevy_api_key:
+    # Sync Hevy (shared client + template cache across days)
+    if sync_hevy and user.hevy_api_key:
+        from src.services.hevy.client import get_client
+        hevy_api_key = decrypt_token(user.hevy_api_key)
+        hevy_client = get_client(hevy_api_key)
+        hevy_template_cache: dict = {}
         for i in range(days):
             current_date = base_date - timedelta(days=i)
-            hevy_result = await sync_hevy_data(session, user, current_date)
+            hevy_result = await sync_hevy_data(session, user, current_date, hevy_client, hevy_template_cache)
             synced_metrics.extend(hevy_result["synced_metrics"])
             errors.extend(hevy_result["errors"])
 
@@ -434,11 +443,14 @@ async def get_data(
         "temperature_history": by_type.get("temperature", []),
         "today_active_zone_minutes": latest("active_zone_minutes"),
         "active_zone_minutes_history": by_type.get("active_zone_minutes", []),
+        "latest_workout": latest("workout"),
+        "workout_history": by_type.get("workout", []),
         "recovery_score": recovery_score,
         "recovery_history": [],
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
         "fitbit_connected": user.fitbit_access_token is not None,
         "renpho_connected": user.renpho_session_key is not None,
+        "hevy_connected": user.hevy_api_key is not None,
     }
 
 

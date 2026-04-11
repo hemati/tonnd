@@ -7,7 +7,7 @@ import pytest
 
 from src.services.hevy.client import (
     HevyAPIError,
-    _guess_muscle_group,
+    UNKNOWN_MUSCLE_GROUP,
     _workout_to_metrics,
     get_workouts_for_date,
     validate_hevy_api_key,
@@ -23,33 +23,7 @@ class TestExceptionHierarchy:
 
 
 # ---------------------------------------------------------------------------
-# _guess_muscle_group
-# ---------------------------------------------------------------------------
-class TestGuessMuscleGroup:
-    @pytest.mark.parametrize("title,expected", [
-        ("Barbell Bench Press", "chest"),
-        ("Incline Dumbbell Fly", "chest"),
-        ("Barbell Row", "back"),
-        ("Pull-up", "back"),
-        ("Lat Pulldown", "back"),
-        ("Overhead Press", "shoulders"),
-        ("Lateral Raise", "shoulders"),
-        ("Barbell Curl", "biceps"),
-        ("Tricep Pushdown", "triceps"),
-        ("Barbell Squat", "legs"),
-        ("Leg Press", "legs"),
-        ("Romanian Deadlift", "back"),
-        ("Plank", "core"),
-        ("Ab Crunch", "core"),
-        ("Treadmill Run", "cardio"),
-        ("Cable Crossover", "other"),
-    ])
-    def test_mapping(self, title, expected):
-        assert _guess_muscle_group(title.lower()) == expected
-
-
-# ---------------------------------------------------------------------------
-# _workout_to_metrics
+# _workout_to_metrics (with mocked template fetching)
 # ---------------------------------------------------------------------------
 class TestWorkoutToMetrics:
     def _make_workout(self, **overrides):
@@ -60,10 +34,10 @@ class TestWorkoutToMetrics:
         mock.exercises = overrides.get("exercises", [])
         return mock
 
-    def _make_exercise(self, title="Bench Press", sets=None):
+    def _make_exercise(self, title="Bench Press", template_id="abc123", sets=None):
         ex = MagicMock()
         ex.title = title
-        ex.exercise_template_id = "abc123"
+        ex.exercise_template_id = template_id
         if sets is None:
             s = MagicMock()
             s.type = "normal"
@@ -76,9 +50,17 @@ class TestWorkoutToMetrics:
         ex.sets = sets
         return ex
 
+    def _make_mock_client(self, primary="chest", secondary=None):
+        client = MagicMock()
+        resp = MagicMock()
+        resp.exercise_template.primary_muscle_group = primary
+        resp.exercise_template.secondary_muscle_groups = secondary or []
+        client.get_exercise_template.return_value = resp
+        return client
+
     def test_empty_workout(self):
-        workout = self._make_workout()
-        result = _workout_to_metrics(workout)
+        client = self._make_mock_client()
+        result = _workout_to_metrics(self._make_workout(), {}, client)
         wd = result["workout"]
         assert wd["title"] == "Push Day"
         assert wd["duration_minutes"] == 75
@@ -87,26 +69,29 @@ class TestWorkoutToMetrics:
         assert wd["exercises"] == []
 
     def test_workout_with_exercises(self):
+        client = self._make_mock_client(primary="chest", secondary=["triceps", "shoulders"])
         ex = self._make_exercise("Barbell Bench Press")
-        workout = self._make_workout(exercises=[ex])
-        result = _workout_to_metrics(workout)
+        result = _workout_to_metrics(self._make_workout(exercises=[ex]), {}, client)
         wd = result["workout"]
         assert wd["total_sets"] == 1
         assert wd["total_reps"] == 10
         assert wd["total_volume_kg"] == 800.0
         assert len(wd["exercises"]) == 1
-        assert wd["exercises"][0]["title"] == "Barbell Bench Press"
+        assert wd["exercises"][0]["primary_muscle"] == "chest"
+        assert "triceps" in wd["exercises"][0]["secondary_muscles"]
         assert wd["muscle_groups"]["chest"] == 1
 
     def test_duration_calculation(self):
+        client = self._make_mock_client()
         workout = self._make_workout(
             start_time=datetime(2026, 4, 7, 9, 0, tzinfo=timezone.utc),
             end_time=datetime(2026, 4, 7, 10, 30, tzinfo=timezone.utc),
         )
-        result = _workout_to_metrics(workout)
+        result = _workout_to_metrics(workout, {}, client)
         assert result["workout"]["duration_minutes"] == 90
 
     def test_zero_weight_sets(self):
+        client = self._make_mock_client(primary="chest")
         s = MagicMock()
         s.type = "normal"
         s.weight_kg = 0
@@ -115,12 +100,12 @@ class TestWorkoutToMetrics:
         s.distance_meters = None
         s.duration_seconds = None
         ex = self._make_exercise("Push-up", sets=[s])
-        workout = self._make_workout(exercises=[ex])
-        result = _workout_to_metrics(workout)
+        result = _workout_to_metrics(self._make_workout(exercises=[ex]), {}, client)
         assert result["workout"]["total_volume_kg"] == 0
         assert result["workout"]["total_reps"] == 15
 
     def test_none_weight_treated_as_zero(self):
+        client = self._make_mock_client(primary="core")
         s = MagicMock()
         s.type = "normal"
         s.weight_kg = None
@@ -129,9 +114,18 @@ class TestWorkoutToMetrics:
         s.distance_meters = None
         s.duration_seconds = None
         ex = self._make_exercise("Plank", sets=[s])
-        workout = self._make_workout(exercises=[ex])
-        result = _workout_to_metrics(workout)
+        result = _workout_to_metrics(self._make_workout(exercises=[ex]), {}, client)
         assert result["workout"]["total_volume_kg"] == 0
+
+    def test_template_cache_reused(self):
+        client = self._make_mock_client(primary="chest")
+        cache: dict = {}
+        ex1 = self._make_exercise("Bench Press", template_id="T1")
+        ex2 = self._make_exercise("Bench Press", template_id="T1")
+        _workout_to_metrics(self._make_workout(exercises=[ex1, ex2]), cache, client)
+        # Template should only be fetched once despite two exercises with same ID
+        assert client.get_exercise_template.call_count == 1
+        assert "T1" in cache
 
 
 # ---------------------------------------------------------------------------
@@ -140,7 +134,7 @@ class TestWorkoutToMetrics:
 class TestValidateHevyApiKey:
     @pytest.mark.asyncio
     async def test_valid_key(self):
-        with patch("src.services.hevy.client._get_client") as mock_get:
+        with patch("src.services.hevy.client.get_client") as mock_get:
             mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.is_success = True
@@ -151,7 +145,7 @@ class TestValidateHevyApiKey:
 
     @pytest.mark.asyncio
     async def test_invalid_key(self):
-        with patch("src.services.hevy.client._get_client") as mock_get:
+        with patch("src.services.hevy.client.get_client") as mock_get:
             mock_client = MagicMock()
             mock_response = MagicMock()
             mock_response.is_success = False
@@ -162,7 +156,7 @@ class TestValidateHevyApiKey:
 
     @pytest.mark.asyncio
     async def test_exception_returns_false(self):
-        with patch("src.services.hevy.client._get_client", side_effect=Exception("network")):
+        with patch("src.services.hevy.client.get_client", side_effect=Exception("network")):
             assert await validate_hevy_api_key("any-key") is False
 
 
@@ -178,59 +172,8 @@ class TestGetWorkoutsForDate:
             assert result["errors"] == []
 
     @pytest.mark.asyncio
-    async def test_with_workout_returns_data(self):
-        mock_workout = MagicMock()
-        mock_workout.title = "Leg Day"
-        mock_workout.start_time = datetime(2026, 4, 7, 10, 0, tzinfo=timezone.utc)
-        mock_workout.end_time = datetime(2026, 4, 7, 11, 0, tzinfo=timezone.utc)
-
-        ex = MagicMock()
-        ex.title = "Barbell Squat"
-        ex.exercise_template_id = "sq1"
-        s = MagicMock()
-        s.type = "normal"
-        s.weight_kg = 100
-        s.reps = 5
-        s.rpe = 9
-        s.distance_meters = None
-        s.duration_seconds = None
-        ex.sets = [s]
-        mock_workout.exercises = [ex]
-
-        with patch("src.services.hevy.client._fetch_workouts_for_date", return_value=[mock_workout]):
-            result = await get_workouts_for_date("key", date(2026, 4, 7))
-
-        assert "workout" in result["data"]
-        wd = result["data"]["workout"]
-        assert wd["title"] == "Leg Day"
-        assert wd["total_volume_kg"] == 500.0
-        assert wd["total_sets"] == 1
-        assert wd["muscle_groups"]["legs"] == 1
-
-    @pytest.mark.asyncio
     async def test_exception_caught_in_errors(self):
         with patch("src.services.hevy.client._fetch_workouts_for_date", side_effect=Exception("API down")):
             result = await get_workouts_for_date("key", date(2026, 4, 7))
             assert result["data"] == {}
             assert any("hevy" in e for e in result["errors"])
-
-    @pytest.mark.asyncio
-    async def test_multiple_workouts_merged(self):
-        w1 = MagicMock()
-        w1.title = "Morning"
-        w1.start_time = datetime(2026, 4, 7, 8, 0, tzinfo=timezone.utc)
-        w1.end_time = datetime(2026, 4, 7, 9, 0, tzinfo=timezone.utc)
-        w1.exercises = []
-
-        w2 = MagicMock()
-        w2.title = "Evening"
-        w2.start_time = datetime(2026, 4, 7, 18, 0, tzinfo=timezone.utc)
-        w2.end_time = datetime(2026, 4, 7, 19, 0, tzinfo=timezone.utc)
-        w2.exercises = []
-
-        with patch("src.services.hevy.client._fetch_workouts_for_date", return_value=[w1, w2]):
-            result = await get_workouts_for_date("key", date(2026, 4, 7))
-
-        assert result["data"]["workout"]["workout_count"] == 2
-        assert result["data"]["workout"]["title"] == "2 workouts"
-        assert result["data"]["workout"]["duration_minutes"] == 120

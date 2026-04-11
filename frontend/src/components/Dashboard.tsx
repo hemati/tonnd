@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
 import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
+import MuscleMap from './MuscleMap'
 
 // Heroicons type
 type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
@@ -257,15 +258,6 @@ export default function Dashboard() {
           {syncProgress && <p className="text-white/80 text-sm animate-pulse">{syncProgress}</p>}
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex bg-white/[.04] rounded-lg p-1">
-            {[7, 14, 30].map(d => (
-              <button key={d} onClick={() => setDaysToShow(d)}
-                className={cn('px-3 py-1 text-sm rounded-md transition-colors',
-                  daysToShow === d ? 'bg-white/[.15] text-white' : 'text-white/40 hover:text-white')}>
-                {d}D
-              </button>
-            ))}
-          </div>
           <button onClick={handleHistoricalSync} disabled={syncMutation.isPending}
             className="bg-white/[.08] hover:bg-white/[.12] disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm">
             Sync 30 Days
@@ -278,59 +270,40 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Bento Grid: Top Row ─────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+      {/* ════════════════════════════════════════════════════════════
+          CURRENT — latest values, no time period toggle
+          ════════════════════════════════════════════════════════════ */}
 
-        {/* Recovery Score — Hero tile, always visible */}
-        <div className={cn(CARD, 'lg:col-span-6 p-6')}>
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <BoltSlashIcon className="h-5 w-5" /> Recovery Score
-          </h2>
-          {recoveryComponents ? (
-            <div className="flex items-center gap-8">
-              {/* Big score number */}
-              <div className="text-center flex-shrink-0">
-                <p className="text-5xl font-bold" style={{ color: recoveryColor(recoveryComponents.score) }}>
-                  {recoveryComponents.score}
-                </p>
-                <p className="text-white/40 text-xs mt-1">
-                  {recoveryComponents.score >= 85 ? 'High intensity' :
-                   recoveryComponents.score >= 75 ? 'Moderate' :
-                   recoveryComponents.score >= 50 ? 'Light activity' : 'Recovery day'}
-                </p>
-              </div>
-              {/* Factor breakdown */}
-              <div className="space-y-3 flex-1 min-w-0">
-                <FactorBar label="HRV" value={recoveryComponents.hrv} color={COLORS.purple} />
-                <FactorBar label="Sleep" value={recoveryComponents.sleep} color={SLEEP_COLORS.deep} />
-                <FactorBar label="Resting HR" value={recoveryComponents.rhr} color={COLORS.danger} />
-              </div>
+      {/* ── Recovery Score ──────────────────────────────────────── */}
+      <div className={cn(CARD, 'p-6')}>
+        <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <BoltSlashIcon className="h-5 w-5" /> Recovery Score
+        </h2>
+        {recoveryComponents ? (
+          <div className="flex items-center gap-8">
+            <div className="text-center flex-shrink-0">
+              <p className="text-5xl font-bold" style={{ color: recoveryColor(recoveryComponents.score) }}>
+                {recoveryComponents.score}
+              </p>
+              <p className="text-white/40 text-xs mt-1">
+                {recoveryComponents.score >= 85 ? 'High intensity' :
+                 recoveryComponents.score >= 75 ? 'Moderate' :
+                 recoveryComponents.score >= 50 ? 'Light activity' : 'Recovery day'}
+              </p>
             </div>
-          ) : (
-            <p className="text-white/40 text-center py-4">Need HRV, sleep, and heart rate data</p>
-          )}
-        </div>
-
-        {/* Weekly Summary (6 cols) */}
-        {weeklySummary && (
-          <div className={cn(CARD, 'lg:col-span-6 p-6')}>
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <ChartBarSquareIcon className="h-5 w-5" /> {daysToShow}-Day Summary
-            </h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
-              <SummaryCell value={weeklySummary.totalSteps.toLocaleString()} label="Total Steps" />
-              <SummaryCell value={weeklySummary.avgSteps.toLocaleString()} label="Avg Steps/Day" />
-              <SummaryCell value={weeklySummary.totalCalories.toLocaleString()} label="Total Calories" />
-              <SummaryCell value={weeklySummary.avgCalories.toLocaleString()} label="Avg Cal/Day" />
-              <SummaryCell value={String(weeklySummary.totalActiveMinutes)} label="Active Min" />
-              <SummaryCell value={`${Math.floor(weeklySummary.avgSleep / 60)}h ${weeklySummary.avgSleep % 60}m`} label="Avg Sleep" />
+            <div className="space-y-3 flex-1 min-w-0">
+              <FactorBar label="HRV" value={recoveryComponents.hrv} />
+              <FactorBar label="Sleep" value={recoveryComponents.sleep} />
+              <FactorBar label="Resting HR" value={recoveryComponents.rhr} />
             </div>
           </div>
+        ) : (
+          <p className="text-white/40 text-center py-4">Need HRV, sleep, and heart rate data</p>
         )}
       </div>
 
-      {/* ── Bento Grid: Stat Cards ──────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ── Stat Cards (latest values) ─────────────────────────── */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <StatCard icon={ScaleIcon} title="Weight"
           value={data?.latest_weight?.weight_kg ? `${Number(data.latest_weight.weight_kg).toFixed(1)} kg` : '--'}
           subtitle={data?.latest_weight?.body_fat_percent ? `Body Fat: ${Number(data.latest_weight.body_fat_percent).toFixed(1)}%` : undefined}
@@ -347,6 +320,10 @@ export default function Dashboard() {
           value={data?.today_heart_rate?.resting_heart_rate ? `${data.today_heart_rate.resting_heart_rate} bpm` : '--'}
           subtitle={data?.today_activity?.calories_burned ? `Calories: ${data.today_activity.calories_burned.toLocaleString()}` : undefined}
           staleLevel={staleness(data?.today_heart_rate?.date)} />
+        <StatCard icon={BoltIcon} title="Last Workout"
+          value={data?.latest_workout?.title || '--'}
+          subtitle={data?.latest_workout ? `${Math.round(data.latest_workout.total_volume_kg).toLocaleString()}kg · ${data.latest_workout.duration_minutes}min · ${data.latest_workout.total_sets} sets` : undefined}
+          staleLevel={staleness(data?.latest_workout?.date)} />
       </div>
 
       {/* ── Bento Grid: Health Vitals Row ───────────────────────── */}
@@ -412,9 +389,45 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Charts Grid ─────────────────────────────────────────── */}
+      {/* ════════════════════════════════════════════════════════════
+          TRENDS — time-period-dependent charts
+          ════════════════════════════════════════════════════════════ */}
+
       {data?.activity_history && data.activity_history.length > 0 && (
         <>
+          {/* ── Trends Header with Toggle + Period Summary ────── */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-4 border-t border-white/[.06]">
+            <h2 className="text-xl font-semibold text-white">Trends</h2>
+            <div className="flex items-center gap-3">
+              <div className="flex bg-white/[.04] rounded-lg p-1">
+                {[7, 14, 30].map(d => (
+                  <button key={d} onClick={() => setDaysToShow(d)}
+                    className={cn('px-3 py-1 text-sm rounded-md transition-colors',
+                      daysToShow === d ? 'bg-white/[.15] text-white' : 'text-white/40 hover:text-white')}>
+                    {d}D
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Period Summary */}
+          {weeklySummary && (
+            <div className={cn(CARD, 'p-6')}>
+              <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <ChartBarSquareIcon className="h-5 w-5" /> {daysToShow}-Day Summary
+              </h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
+                <SummaryCell value={weeklySummary.totalSteps.toLocaleString()} label="Total Steps" />
+                <SummaryCell value={weeklySummary.avgSteps.toLocaleString()} label="Avg Steps/Day" />
+                <SummaryCell value={weeklySummary.totalCalories.toLocaleString()} label="Total Calories" />
+                <SummaryCell value={weeklySummary.avgCalories.toLocaleString()} label="Avg Cal/Day" />
+                <SummaryCell value={String(weeklySummary.totalActiveMinutes)} label="Active Min" />
+                <SummaryCell value={`${Math.floor(weeklySummary.avgSleep / 60)}h ${weeklySummary.avgSleep % 60}m`} label="Avg Sleep" />
+              </div>
+            </div>
+          )}
+
           {/* Steps + Calories */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <ExpandableCard title="Steps Trend" icon={ChartBarIcon}
@@ -573,8 +586,95 @@ export default function Dashboard() {
         </>
       )}
 
+      {/* ── Workout Section ────────────────────────────────────── */}
+      {data?.workout_history && data.workout_history.length > 0 && (() => {
+        const workouts = data.workout_history
+        const aggregatedMuscles: Record<string, number> = {}
+        const exercisesByGroup: Record<string, string[]> = {}
+
+        for (const w of workouts) {
+          if (w.muscle_groups) {
+            for (const [group, sets] of Object.entries(w.muscle_groups)) {
+              aggregatedMuscles[group] = (aggregatedMuscles[group] || 0) + sets
+            }
+          }
+          for (const ex of w.exercises || []) {
+            const groups = new Set<string>()
+            if (ex.primary_muscle) groups.add(ex.primary_muscle)
+            for (const sec of ex.secondary_muscles || []) groups.add(sec)
+            if (groups.size === 0) groups.add('other')
+            for (const group of groups) {
+              if (!exercisesByGroup[group]) exercisesByGroup[group] = []
+              if (!exercisesByGroup[group].includes(ex.title)) {
+                exercisesByGroup[group].push(ex.title)
+              }
+            }
+          }
+        }
+
+        const volumeData = prepareChartData(workouts.map(w => ({
+          date: w.date,
+          volume: Math.round(w.total_volume_kg),
+          title: w.title,
+          duration: w.duration_minutes,
+        })))
+
+        const lastWorkout = workouts[0]
+        const exerciseData = lastWorkout?.exercises
+          ?.map(e => ({ name: e.title, volume: Math.round(e.volume_kg) }))
+          .sort((a, b) => b.volume - a.volume)
+          .slice(0, 8) || []
+
+
+
+        return (
+          <>
+            {/* Muscle Heatmap */}
+            <div className={cn(CARD, 'p-6')}>
+              <h2 className="text-lg font-semibold text-white mb-4">Muscle Heatmap</h2>
+              <MuscleMap muscleGroups={aggregatedMuscles} exercisesByGroup={exercisesByGroup} />
+            </div>
+
+            {/* Volume Trend */}
+            <ExpandableCard title="Volume Trend" icon={ArrowTrendingUpIcon}
+              preview={`${workouts.length} workouts · avg ${Math.round(workouts.reduce((s, w) => s + w.total_volume_kg, 0) / workouts.length).toLocaleString()}kg`}>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={volumeData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                  <XAxis dataKey="date" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                  <Tooltip {...tooltipStyle}
+                    formatter={(v) => [`${Number(v).toLocaleString()} kg`, 'Volume']}
+                    labelFormatter={(l, payload) => {
+                      const item = payload?.[0]?.payload
+                      return item ? `${l} · ${item.title} · ${item.duration}min` : l
+                    }} />
+                  <Bar dataKey="volume" fill="#22d3ee" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ExpandableCard>
+
+            {/* Exercise Breakdown */}
+            {exerciseData.length > 0 && (
+              <ExpandableCard title="Exercise Breakdown" icon={ChartBarIcon}
+                preview={`${lastWorkout.title} · ${exerciseData.length} exercises`}>
+                <ResponsiveContainer width="100%" height={Math.max(200, exerciseData.length * 36)}>
+                  <BarChart data={exerciseData} layout="vertical" margin={{ left: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                    <XAxis type="number" tick={{ fill: '#a1a1aa', fontSize: 11 }} />
+                    <YAxis type="category" dataKey="name" tick={{ fill: '#e5e5e5', fontSize: 11 }} width={80} />
+                    <Tooltip {...tooltipStyle} formatter={(v) => [`${Number(v).toLocaleString()} kg`, 'Volume']} />
+                    <Bar dataKey="volume" fill="#a78bfa" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ExpandableCard>
+            )}
+          </>
+        )
+      })()}
+
       {/* No Data */}
-      {!data?.latest_weight && !data?.latest_sleep && !data?.today_activity && (
+      {!data?.latest_weight && !data?.latest_sleep && !data?.today_activity && !data?.latest_workout && (
         <div className={cn(CARD, 'p-8 text-center')}>
           <ChartBarSquareIcon className="h-16 w-16 text-white/40 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">No Data Yet</h2>
@@ -606,15 +706,27 @@ function StaleBadge({ level }: { level: ReturnType<typeof staleness> }) {
 }
 
 /** US 2: Factor progress bar for recovery breakdown */
-function FactorBar({ label, value, color }: { label: string; value: number; color: string }) {
+function FactorBar({ label, value }: { label: string; value: number }) {
+  // Semantic dot color: green ≥70, amber 40-69, red <40
+  const dotColor = value >= 70 ? COLORS.success : value >= 40 ? COLORS.warning : COLORS.danger
+
   return (
     <div>
       <div className="flex justify-between text-xs mb-1">
-        <span className="text-white/50">{label}</span>
+        <span className="text-white/50 flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: dotColor }} />
+          {label}
+        </span>
         <span className="text-white/40">{value}%</span>
       </div>
-      <div className="h-2 bg-white/[.06] rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, value)}%`, backgroundColor: color }} />
+      <div className="h-1.5 bg-white/[.06] rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${Math.min(100, value)}%`,
+            background: 'linear-gradient(90deg, rgba(34,211,238,0.4), rgba(34,211,238,0.8))',
+          }}
+        />
       </div>
     </div>
   )

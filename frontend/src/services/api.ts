@@ -24,7 +24,7 @@ api.interceptors.response.use(
   (error: AxiosError<{ message?: string; detail?: string }>) => {
     if (error.response?.status === 401) {
       localStorage.removeItem(TOKEN_KEY)
-      window.location.href = '/'
+      window.location.href = '/login'
     }
     const message = error.response?.data?.detail || error.response?.data?.message || error.message
     return Promise.reject(new Error(message))
@@ -130,6 +130,33 @@ export interface ActiveZoneMinutesData {
   total_minutes?: number
 }
 
+export interface WorkoutExercise {
+  title: string
+  volume_kg: number
+  primary_muscle?: string
+  secondary_muscles?: string[]
+  sets: Array<{
+    type: string
+    weight_kg: number
+    reps: number
+    rpe: number | null
+    distance_meters: number | null
+    duration_seconds: number | null
+  }>
+}
+
+export interface WorkoutData {
+  date: string
+  workout_count: number
+  title: string
+  duration_minutes: number
+  total_volume_kg: number
+  total_sets: number
+  total_reps: number
+  exercises: WorkoutExercise[]
+  muscle_groups: Record<string, number>
+}
+
 export interface RecoveryData {
   date: string
   score: number
@@ -158,10 +185,13 @@ export interface DashboardData {
   temperature_history: TemperatureData[]
   today_active_zone_minutes: ActiveZoneMinutesData | null
   active_zone_minutes_history: ActiveZoneMinutesData[]
+  latest_workout: WorkoutData | null
+  workout_history: WorkoutData[]
   recovery_score: RecoveryData | null
   recovery_history: RecoveryData[]
   last_sync: string | null
   fitbit_connected: boolean
+  hevy_connected: boolean
 }
 
 // =============================================================================

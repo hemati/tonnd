@@ -187,7 +187,7 @@ export default function Sources() {
       )}
 
       {/* Skip */}
-      <button onClick={() => navigate('/')} className="w-full text-white/30 hover:text-white/50 text-sm transition-colors py-2">
+      <button onClick={() => navigate('/dashboard')} className="w-full text-white/30 hover:text-white/50 text-sm transition-colors py-2">
         Skip for now
       </button>
 

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon, ScaleIcon, FireIcon, BeakerIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
+import Body from '@mjcdev/react-body-highlighter'
 import { FitbitIcon, RenphoIcon, HevyIcon } from './SourceIcons'
 import { getAllPosts } from '../lib/blog'
 import SEO from './SEO'
@@ -16,49 +17,118 @@ const mockDays = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 
 function DashboardMock() {
   return (
-    <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-5 shadow-2xl">
+    <div className="rounded-xl border border-white/[.08] bg-white/[.02] p-4 shadow-2xl">
       {/* top bar */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-emerald-400" />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22d3ee' }} />
           <span className="text-[11px] font-medium tracking-wider uppercase text-white/40">Health Dashboard</span>
         </div>
         <span className="text-[10px] text-white/25 font-mono">tonnd.com</span>
       </div>
 
-      {/* metrics */}
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      {/* metrics row 1 */}
+      <div className="grid grid-cols-4 gap-2 mb-3">
         {[
-          { label: 'Weight', value: '70.7', unit: 'kg' },
+          { label: 'Weight', value: '76.3', unit: 'kg' },
           { label: 'Steps', value: '8,432', unit: '' },
           { label: 'Sleep', value: '7h 23m', unit: '' },
           { label: 'Heart', value: '62', unit: 'bpm' },
         ].map((m) => (
-          <div key={m.label} className="rounded-lg bg-white/[.03] border border-white/[.06] p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-white/30 mb-1">{m.label}</div>
-            <div className="text-sm font-semibold text-white/80">
+          <div key={m.label} className="rounded-lg bg-white/[.03] border border-white/[.06] p-2">
+            <div className="text-[8px] uppercase tracking-wider text-white/30 mb-0.5">{m.label}</div>
+            <div className="text-[13px] font-semibold text-white/80">
               {m.value}
-              {m.unit && <span className="text-[10px] font-normal text-white/30 ml-0.5">{m.unit}</span>}
+              {m.unit && <span className="text-[9px] font-normal text-white/30 ml-0.5">{m.unit}</span>}
             </div>
           </div>
         ))}
       </div>
 
-      {/* bar chart */}
-      <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-3">
-        <div className="text-[9px] uppercase tracking-wider text-white/30 mb-3">Weekly Steps</div>
-        <div className="flex items-end justify-between gap-1.5" style={{ height: 64 }}>
-          {mockBars.map((h, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
-              <div className="rounded-sm bg-white/30" style={{ height: `${(h / 100) * 52}px`, width: 32 }} />
-              <span className="text-[8px] text-white/25 self-center">{mockDays[i]}</span>
+      {/* row 2+3: left 61.8% (body comp, volume, steps) | right 38.2% (workout) — golden ratio */}
+      <div className="flex gap-2">
+        <div style={{ flex: '0 0 61.8%' }} className="space-y-2">
+          {/* Body Composition */}
+          <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-2.5">
+            <div className="text-[8px] uppercase tracking-wider text-white/30 mb-2">Body Comp</div>
+            <div className="space-y-1.5">
+              {[
+                { label: 'Body Fat', value: '18.2%' },
+                { label: 'Muscle', value: '35.1 kg' },
+                { label: 'BMI', value: '23.4' },
+              ].map((r) => (
+                <div key={r.label} className="flex justify-between">
+                  <span className="text-[9px] text-white/30">{r.label}</span>
+                  <span className="text-[10px] font-medium text-white/60">{r.value}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Volume Trend */}
+          <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-2.5">
+            <div className="text-[8px] uppercase tracking-wider text-white/30 mb-2">Volume</div>
+            <div className="flex items-end justify-between gap-1" style={{ height: 36 }}>
+              {[3200, 4100, 0, 4500, 0, 3800, 4200].map((v, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: '100%' }}>
+                  <div
+                    className="w-full rounded-sm"
+                    style={{
+                      height: v ? `${(v / 5000) * 30}px` : '0px',
+                      backgroundColor: v ? 'rgba(34,211,238,0.5)' : 'transparent',
+                    }}
+                  />
+                  <span className="text-[7px] text-white/20">{mockDays[i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Steps */}
+          <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-2.5">
+            <div className="text-[8px] uppercase tracking-wider text-white/30 mb-2">Weekly Steps</div>
+            <div className="flex items-end justify-between gap-1" style={{ height: 36 }}>
+              {mockBars.map((h, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center justify-end gap-0.5" style={{ height: '100%' }}>
+                  <div className="w-full rounded-sm bg-white/25" style={{ height: `${(h / 100) * 28}px` }} />
+                  <span className="text-[7px] text-white/20">{mockDays[i]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Workout body — right side, full height */}
+        <div className="rounded-lg bg-white/[.02] border border-white/[.05] p-2.5 flex-1 flex flex-col">
+          <div className="text-[8px] uppercase tracking-wider text-white/30 mb-1">Workout</div>
+          <div className="flex-1 flex items-center justify-center">
+            <div style={{ width: '100%', maxWidth: 130, marginRight: 0 }}>
+              <Body
+                data={[
+                  { slug: 'chest', intensity: 3 },
+                  { slug: 'upper-back', intensity: 3 },
+                  { slug: 'quadriceps', intensity: 2 },
+                  { slug: 'deltoids', intensity: 2 },
+                  { slug: 'abs', intensity: 2 },
+                  { slug: 'biceps', intensity: 1 },
+                  { slug: 'gluteal', intensity: 2 },
+                  { slug: 'hamstring', intensity: 1 },
+                  { slug: 'trapezius', intensity: 1 },
+                ]}
+                side="front"
+                gender="male"
+                scale={0.6}
+                colors={['#0c4a5e', '#0e7490', '#22d3ee']}
+                border="#1e293b"
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
   )
 }
+
 
 /* ─── component ──────────────────────────────────────────────────────────── */
 
@@ -76,7 +146,7 @@ export default function LandingPage() {
               '@type': 'WebPage',
               '@id': 'https://tonnd.com/',
               'name': 'TONND — Your health data in one dashboard',
-              'description': 'Open-source health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.',
+              'description': 'Open-source health dashboard. Connect Fitbit, Renpho, and Hevy to track sleep, weight, workouts, heart rate, HRV, and 15+ metrics in one place.',
               'url': 'https://tonnd.com/',
               'isPartOf': { '@id': 'https://tonnd.com/#website' },
               'about': { '@id': 'https://tonnd.com/#software' }
@@ -88,7 +158,7 @@ export default function LandingPage() {
               'url': 'https://tonnd.com/',
               'applicationCategory': 'HealthApplication',
               'operatingSystem': 'Web',
-              'description': 'Open-source health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, body composition, and more.',
+              'description': 'Open-source health dashboard. Connect Fitbit, Renpho, and Hevy to track sleep, weight, workouts, heart rate, HRV, and 15+ metrics.',
               'screenshot': 'https://tonnd.com/og-image.png',
               'license': 'https://github.com/hemati/tonnd/blob/main/LICENSE',
               'offers': {
@@ -153,7 +223,7 @@ export default function LandingPage() {
             </h1>
 
             <p className="text-[17px] text-white/45 leading-relaxed mb-10 max-w-md">
-              Connect Fitbit and Renpho. Track sleep, weight, heart rate, HRV, and body composition &mdash; all in one place. Use it on tonnd.com or self-host on your own server.
+              Connect Fitbit, Renpho, and Hevy. Track sleep, weight, workouts, heart rate, HRV, body composition, and 15+ metrics &mdash; all in one place. Use it on tonnd.com or self-host on your own server.
             </p>
 
             <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -188,7 +258,7 @@ export default function LandingPage() {
           <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Connect</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Bring your devices together.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
-            Link your Fitbit account and Renpho smart scale. Data flows automatically into your dashboard.
+            Link Fitbit, Renpho, and Hevy. Data flows automatically into your dashboard.
           </p>
           <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
             <div className="bg-[#0a0a0a] p-6">
@@ -226,21 +296,25 @@ export default function LandingPage() {
           <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Track</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Every metric that matters.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
-            All your health data in a single view. Trends over days, weeks, and months.
+            15+ health metrics in a single dashboard. Trends over days, weeks, and months.
           </p>
-          <div className="grid sm:grid-cols-2 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
             {[
-              { icon: MoonIcon, title: 'Sleep', desc: 'Deep, light, REM, awake. Nightly efficiency and trends over weeks.' },
-              { icon: BoltIcon, title: 'Activity', desc: 'Steps, calories, distance, active zone minutes, and floors.' },
-              { icon: HeartIcon, title: 'Heart Rate & HRV', desc: 'Resting HR, zones, and heart rate variability for recovery monitoring.' },
-              { icon: ChartBarSquareIcon, title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness score and blood oxygen saturation tracked over time.' },
+              { icon: MoonIcon, title: 'Sleep', desc: 'Stages, efficiency, and duration trends.' },
+              { icon: BoltIcon, title: 'Activity', desc: 'Steps, calories, distance, active zone minutes.' },
+              { icon: HeartIcon, title: 'Heart Rate & HRV', desc: 'Resting HR, zones, and recovery tracking.' },
+              { icon: ScaleIcon, title: 'Weight & Body Comp', desc: 'Weight, body fat, muscle mass, BMI.' },
+              { icon: FireIcon, title: 'Workouts', desc: 'Exercises, volume, muscle heatmap.' },
+              { icon: ChartBarSquareIcon, title: 'Recovery Score', desc: 'Composite from HRV, sleep, and resting HR.' },
+              { icon: BeakerIcon, title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness and blood oxygen.' },
+              { icon: BoltIcon, title: 'Breathing & Temp', desc: 'Breathing rate and skin temperature.' },
             ].map((f) => (
-              <div key={f.title} className="bg-[#0a0a0a] p-6">
-                <div className="flex items-start gap-4">
-                  <f.icon className="w-6 h-6 flex-shrink-0 text-white/40" />
+              <div key={f.title} className="bg-[#0a0a0a] p-5">
+                <div className="flex items-start gap-3">
+                  <f.icon className="w-5 h-5 flex-shrink-0 text-white/30 mt-0.5" />
                   <div>
-                    <h3 className="text-sm font-semibold text-white/80 mb-2">{f.title}</h3>
-                    <p className="text-sm text-white/40 leading-relaxed">{f.desc}</p>
+                    <h3 className="text-sm font-semibold text-white/80 mb-1">{f.title}</h3>
+                    <p className="text-[13px] text-white/35 leading-relaxed">{f.desc}</p>
                   </div>
                 </div>
               </div>

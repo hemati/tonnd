@@ -14,19 +14,22 @@ from hevy_api.models.model import Workout
 
 logger = logging.getLogger(__name__)
 
+SECONDARY_MUSCLE_WEIGHT = 0.4
+UNKNOWN_MUSCLE_GROUP = "other"
+
 
 class HevyAPIError(Exception):
     pass
 
 
-def _get_client(api_key: str) -> HevyClient:
+def get_client(api_key: str) -> HevyClient:
     return HevyClient(api_key=api_key)
 
 
 def _validate_api_key(api_key: str) -> bool:
     """Validate a Hevy API key by making a test request."""
     try:
-        client = _get_client(api_key)
+        client = get_client(api_key)
         response = client.get_workout_count()
         return response.is_success
     except Exception:
@@ -39,7 +42,7 @@ async def validate_hevy_api_key(api_key: str) -> bool:
 
 def _fetch_workouts_for_date(api_key: str, target_date: date) -> list[Workout]:
     """Fetch all workouts for a specific date."""
-    client = _get_client(api_key)
+    client = get_client(api_key)
     matching = []
     page = 1
 
@@ -63,13 +66,30 @@ def _fetch_workouts_for_date(api_key: str, target_date: date) -> list[Workout]:
     return matching
 
 
-def _workout_to_metrics(workout: Workout) -> dict:
+def _fetch_template_muscles(client: HevyClient, template_id: str, cache: dict) -> tuple[str, list[str]]:
+    """Get primary + secondary muscle groups for an exercise template. Uses cache."""
+    if template_id in cache:
+        return cache[template_id]
+
+    try:
+        resp = client.get_exercise_template(template_id)
+        t = resp.exercise_template
+        primary = t.primary_muscle_group or UNKNOWN_MUSCLE_GROUP
+        secondary = list(t.secondary_muscle_groups or [])
+        cache[template_id] = (primary, secondary)
+        return primary, secondary
+    except Exception:
+        cache[template_id] = (UNKNOWN_MUSCLE_GROUP, [])
+        return UNKNOWN_MUSCLE_GROUP, []
+
+
+def _workout_to_metrics(workout: Workout, template_cache: dict, hevy_client: HevyClient) -> dict:
     """Convert a Hevy Workout into metric data dicts for storage."""
-    exercises = []
+    exercises: list[dict] = []
     total_volume_kg = 0.0
     total_sets = 0
     total_reps = 0
-    muscle_groups: dict[str, int] = {}
+    muscle_groups: dict[str, float] = {}
 
     for ex in workout.exercises:
         ex_sets = []
@@ -94,17 +114,21 @@ def _workout_to_metrics(workout: Workout) -> dict:
 
         total_volume_kg += ex_volume
 
+        primary, secondary = _fetch_template_muscles(hevy_client, ex.exercise_template_id, template_cache)
+
         exercises.append({
             "title": ex.title,
             "exercise_template_id": ex.exercise_template_id,
             "sets": ex_sets,
             "volume_kg": round(ex_volume, 1),
+            "primary_muscle": primary,
+            "secondary_muscles": secondary,
         })
 
-        # Simple muscle group heuristic from exercise title
-        title_lower = (ex.title or "").lower()
-        group = _guess_muscle_group(title_lower)
-        muscle_groups[group] = muscle_groups.get(group, 0) + len(ex.sets)
+        n_sets = len(ex.sets)
+        muscle_groups[primary] = muscle_groups.get(primary, 0) + n_sets
+        for sec in secondary:
+            muscle_groups[sec] = round(muscle_groups.get(sec, 0) + n_sets * SECONDARY_MUSCLE_WEIGHT, 1)
 
     duration_minutes = 0
     if workout.start_time and workout.end_time:
@@ -125,70 +149,66 @@ def _workout_to_metrics(workout: Workout) -> dict:
     }
 
 
-def _guess_muscle_group(title: str) -> str:
-    """Best-effort muscle group from exercise name."""
-    mappings = {
-        "chest": ["bench press", "chest", "pec", "fly", "push-up", "pushup"],
-        "back": ["row", "pull-up", "pullup", "lat ", "deadlift", "back"],
-        "legs": ["squat", "leg", "lunge", "calf", "hamstring", "quad", "glute", "hip"],
-        "shoulders": ["shoulder", "overhead press", "lateral raise", "delt", "ohp"],
-        "biceps": ["bicep", "curl"],
-        "triceps": ["tricep", "pushdown", "skull", "dip"],
-        "core": ["ab ", "abs", "core", "plank", "crunch", "sit-up"],
-        "cardio": ["run", "bike", "cardio", "treadmill", "elliptical"],
-    }
-    for group, keywords in mappings.items():
-        if any(kw in title for kw in keywords):
-            return group
-    return "other"
 
-
-async def get_workouts_for_date(api_key: str, target_date: date) -> dict:
-    """
-    Fetch and process Hevy workouts for a date.
-
-    Returns: {"data": {"workout": {...}}, "errors": []}
-    """
+def _process_workouts(
+    api_key: str,
+    target_date: date,
+    hevy_client: HevyClient | None = None,
+    template_cache: dict | None = None,
+) -> dict:
+    """Fetch workouts for a date, enrich with template muscle data. Runs in thread."""
     result: dict = {"data": {}, "errors": []}
 
-    try:
-        workouts = await asyncio.to_thread(_fetch_workouts_for_date, api_key, target_date)
+    workouts = _fetch_workouts_for_date(api_key, target_date)
+    if not workouts:
+        return result
 
-        if not workouts:
-            return result
+    if hevy_client is None:
+        hevy_client = get_client(api_key)
+    if template_cache is None:
+        template_cache = {}
 
-        # Merge all workouts for the day into one metric
-        all_exercises = []
-        total_volume = 0.0
-        total_sets = 0
-        total_reps = 0
-        total_duration = 0
-        muscle_groups: dict[str, int] = {}
+    all_exercises = []
+    total_volume = 0.0
+    total_sets = 0
+    total_reps = 0
+    total_duration = 0
+    muscle_groups: dict[str, float] = {}
 
-        for w in workouts:
-            metrics = _workout_to_metrics(w)
-            wd = metrics["workout"]
-            all_exercises.extend(wd["exercises"])
-            total_volume += wd["total_volume_kg"]
-            total_sets += wd["total_sets"]
-            total_reps += wd["total_reps"]
-            total_duration += wd["duration_minutes"]
-            for group, sets in wd["muscle_groups"].items():
-                muscle_groups[group] = muscle_groups.get(group, 0) + sets
+    for w in workouts:
+        metrics = _workout_to_metrics(w, template_cache, hevy_client)
+        wd = metrics["workout"]
+        all_exercises.extend(wd["exercises"])
+        total_volume += wd["total_volume_kg"]
+        total_sets += wd["total_sets"]
+        total_reps += wd["total_reps"]
+        total_duration += wd["duration_minutes"]
+        for group, sets in wd["muscle_groups"].items():
+            muscle_groups[group] = muscle_groups.get(group, 0) + sets
 
-        result["data"]["workout"] = {
-            "workout_count": len(workouts),
-            "title": workouts[0].title if len(workouts) == 1 else f"{len(workouts)} workouts",
-            "duration_minutes": total_duration,
-            "total_volume_kg": round(total_volume, 1),
-            "total_sets": total_sets,
-            "total_reps": total_reps,
-            "exercises": all_exercises,
-            "muscle_groups": muscle_groups,
-        }
-
-    except Exception as e:
-        result["errors"].append(f"hevy: {e}")
-        logger.error(f"Hevy fetch failed: {e}")
+    result["data"]["workout"] = {
+        "workout_count": len(workouts),
+        "title": workouts[0].title if len(workouts) == 1 else f"{len(workouts)} workouts",
+        "duration_minutes": total_duration,
+        "total_volume_kg": round(total_volume, 1),
+        "total_sets": total_sets,
+        "total_reps": total_reps,
+        "exercises": all_exercises,
+        "muscle_groups": muscle_groups,
+    }
 
     return result
+
+
+async def get_workouts_for_date(
+    api_key: str,
+    target_date: date,
+    hevy_client: HevyClient | None = None,
+    template_cache: dict | None = None,
+) -> dict:
+    """Fetch and process Hevy workouts for a date."""
+    try:
+        return await asyncio.to_thread(_process_workouts, api_key, target_date, hevy_client, template_cache)
+    except Exception as e:
+        logger.error(f"Hevy fetch failed: {e}")
+        return {"data": {}, "errors": [f"hevy: {e}"]}

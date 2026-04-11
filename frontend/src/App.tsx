@@ -63,8 +63,9 @@ function App() {
         <Route path="/about" element={<Suspense fallback={<LoadingSpinner />}><About /></Suspense>} />
         <Route path="/blog" element={<Suspense fallback={<LoadingSpinner />}><BlogIndex /></Suspense>} />
         <Route path="/blog/:slug" element={<Suspense fallback={<LoadingSpinner />}><BlogPost /></Suspense>} />
+        <Route path="/" element={<LandingPage />} />
         <Route
-          path="/"
+          path="/dashboard"
           element={
             isAuthenticated ? (
               <Layout user={user}>
@@ -73,7 +74,7 @@ function App() {
                 </Suspense>
               </Layout>
             ) : (
-              <LandingPage />
+              <Navigate to="/login" replace />
             )
           }
         />
@@ -81,7 +82,7 @@ function App() {
           path="/login"
           element={
             isAuthenticated ? (
-              <Navigate to="/" replace />
+              <Navigate to="/dashboard" replace />
             ) : (
               <Login />
             )

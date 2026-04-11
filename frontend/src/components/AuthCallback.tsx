@@ -16,7 +16,7 @@ export default function AuthCallback() {
 
       if (errorParam) {
         setError(errorMessage || errorParam)
-        setTimeout(() => navigate('/'), 3000)
+        setTimeout(() => navigate('/login'), 3000)
         return
       }
 
@@ -26,7 +26,7 @@ export default function AuthCallback() {
       if (success === 'true' && fitbit === 'connected') {
         trackEvent('fitbit_connected')
         setMessage('Fitbit connected successfully! Redirecting...')
-        setTimeout(() => navigate('/'), 1500)
+        setTimeout(() => navigate('/dashboard'), 1500)
         return
       }
 
@@ -34,18 +34,18 @@ export default function AuthCallback() {
       const token = searchParams.get('access_token')
       if (token) {
         localStorage.setItem(TOKEN_KEY, token)
-        window.location.href = '/'
+        window.location.href = '/dashboard'
         return
       }
 
       // Email/password login callback (if any)
       if (localStorage.getItem(TOKEN_KEY)) {
-        window.location.href = '/'
+        window.location.href = '/dashboard'
         return
       }
 
       setError('Authentication failed. Please try again.')
-      setTimeout(() => navigate('/'), 3000)
+      setTimeout(() => navigate('/login'), 3000)
     }
 
     handleCallback()

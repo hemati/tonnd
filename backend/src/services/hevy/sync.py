@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import User
 from src.services.sync_utils import upsert_metric
-from src.services.hevy.client import get_workouts_for_date
+from src.services.hevy.client import HevyClient, get_workouts_for_date, get_client
 from src.services.token_encryption import decrypt_token
 
 logger = logging.getLogger(__name__)
@@ -17,6 +17,8 @@ async def sync_hevy_data(
     session: AsyncSession,
     user: User,
     target_date: date,
+    hevy_client: HevyClient | None = None,
+    template_cache: dict | None = None,
 ) -> dict:
     """
     Sync Hevy workout data for a single date.
@@ -32,7 +34,7 @@ async def sync_hevy_data(
     api_key = decrypt_token(user.hevy_api_key)
 
     try:
-        result = await get_workouts_for_date(api_key, target_date)
+        result = await get_workouts_for_date(api_key, target_date, hevy_client, template_cache)
 
         for metric_type, metric_data in result["data"].items():
             await upsert_metric(
