@@ -19,6 +19,7 @@ const TermsOfService = lazy(() => import('./components/TermsOfService').then(m =
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })))
 const CookiePolicy = lazy(() => import('./components/CookiePolicy').then(m => ({ default: m.CookiePolicy })))
 const Impressum = lazy(() => import('./components/Impressum').then(m => ({ default: m.Impressum })))
+const Settings = lazy(() => import('./components/Settings'))
 
 function LoadingSpinner() {
   return (
@@ -97,6 +98,20 @@ function App() {
               <Layout user={user}>
                 <Suspense fallback={<LoadingSpinner />}>
                   <Sources />
+                </Suspense>
+              </Layout>
+            ) : (
+              <Navigate to="/login" replace />
+            )
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            isAuthenticated ? (
+              <Layout user={user}>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <Settings />
                 </Suspense>
               </Layout>
             ) : (

@@ -37,7 +37,7 @@ Login (Email/Google)  →  Connect Sources  →  Dashboard
 | Component | Technology |
 |-----------|------------|
 | Framework | FastAPI + uvicorn |
-| Auth | fastapi-users (JWT + Google OAuth) |
+| Auth | fastapi-users (JWT + Google OAuth) + Personal Access Tokens |
 | Database | PostgreSQL + SQLAlchemy async |
 | ORM | SQLAlchemy 2.0 (Mapped columns) |
 | Encryption | cryptography (Fernet) for Fitbit tokens |
@@ -46,6 +46,8 @@ Login (Email/Google)  →  Connect Sources  →  Dashboard
 | Renpho | renpho-api (reverse-engineered cloud API) |
 | Hevy | hevy-api (workout tracking) |
 | Migrations | Alembic |
+| Rate Limiting | slowapi (token bucket, in-memory) |
+| MCP Server | fastmcp (stdio transport for Claude Desktop) |
 
 ### Frontend (TypeScript + React 18)
 
@@ -84,15 +86,40 @@ tonnd/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── app.py                      # FastAPI entry point + all routes
+│   ├── mcp_server.py               # MCP stdio server for Claude Desktop (fastmcp)
 │   ├── tests/                      # pytest test suite
 │   └── src/
 │       ├── database.py             # SQLAlchemy async engine
 │       ├── scheduler.py            # APScheduler daily sync (all sources)
+│       ├── api/v1/                  # Public API v1 (PAT + JWT auth)
+│       │   ├── router.py           # Aggregates all v1 sub-routers
+│       │   ├── vitals.py           # GET /api/v1/vitals
+│       │   ├── body.py             # GET /api/v1/body
+│       │   ├── sleep.py            # GET /api/v1/sleep
+│       │   ├── activity.py         # GET /api/v1/activity
+│       │   ├── workouts.py         # GET /api/v1/workouts
+│       │   ├── recovery.py         # GET /api/v1/recovery
+│       │   ├── metrics.py          # GET /api/v1/metrics (all raw data)
+│       │   ├── tokens.py           # Token CRUD (JWT only)
+│       │   └── audit.py            # Audit log (JWT only)
+│       ├── auth/
+│       │   ├── dependencies.py     # Dual auth: JWT + PAT
+│       │   └── scopes.py           # Scope definitions (read:vitals, etc.)
+│       ├── middleware/
+│       │   ├── security_headers.py # HSTS, CSP, X-Frame-Options, no-cache
+│       │   ├── rate_limit.py       # slowapi config (100/min PAT, 300 JWT)
+│       │   └── audit.py            # Audit logging (fire-and-forget)
 │       ├── models/
-│       │   └── db_models.py        # User, OAuthAccount, FitnessMetric
+│       │   ├── db_models.py        # User, OAuthAccount, FitnessMetric
+│       │   └── api_models.py       # APIToken, AuditLog
+│       ├── schemas/
+│       │   └── api_schemas.py      # Pydantic models for /api/v1/ responses
 │       ├── services/
 │       │   ├── user_service.py     # fastapi-users config + schemas
+│       │   ├── token_service.py    # PAT generate, hash (SHA-256), validate, revoke
 │       │   ├── token_encryption.py # Fernet encrypt/decrypt
+│       │   ├── data_service.py     # Shared query logic (used by /api/data + /api/v1/)
+│       │   ├── audit_service.py    # Audit log writer
 │       │   ├── sync_utils.py       # Shared upsert_metric helper
 │       │   ├── fitbit/
 │       │   │   ├── client.py       # Fitbit API wrapper
@@ -125,6 +152,7 @@ tonnd/
 │           ├── Dashboard.tsx       # Health dashboard (/dashboard)
 │           ├── MuscleMap.tsx       # Interactive muscle heatmap (react-body-highlighter)
 │           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy (/sources)
+│           ├── Settings.tsx        # API token management (/settings)
 │           ├── AuthCallback.tsx    # OAuth callback handler
 │           ├── Layout.tsx          # App shell (header/footer)
 │           ├── SEO.tsx             # React Helmet meta tags
@@ -175,6 +203,36 @@ tonnd/
 **Unique constraint**: `(user_id, date, metric_type, source)`
 **Indexes**: `(user_id, date)`, `(user_id, metric_type, date)`
 
+### Table: `api_tokens` (Personal Access Tokens)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| user_id | UUID | FK → user.id (CASCADE) |
+| name | String(128) | User-defined label |
+| token_hash | String(128) | SHA-256 of raw token (unique) |
+| token_prefix | String(12) | First 12 chars for display (tonnd_xxxxxx) |
+| scopes | JSON | e.g. ["read:vitals", "read:sleep"] |
+| expires_at | DateTime(tz) | Nullable (null = no expiry) |
+| last_used_at | DateTime(tz) | |
+| created_at | DateTime(tz) | |
+| revoked_at | DateTime(tz) | |
+| is_active | Boolean | |
+
+### Table: `audit_logs` (append-only)
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | Primary key |
+| user_id | UUID | FK → user.id (SET NULL) |
+| token_id | UUID | FK → api_tokens.id (SET NULL) |
+| action | String(64) | e.g. "api.get" |
+| resource | String(256) | e.g. "/api/v1/vitals" |
+| method | String(8) | GET, POST, etc. |
+| ip_address | String(45) | |
+| status_code | Integer | |
+| created_at | DateTime(tz) | |
+
 ### Metric Types
 
 | Type | Source | Data Fields |
@@ -196,10 +254,14 @@ tonnd/
 
 ## Security
 
-- **Auth**: fastapi-users with JWT (1h expiry). Secrets must be set via env vars — app refuses to start without `JWT_SECRET`, `RESET_PASSWORD_TOKEN_SECRET`, `VERIFICATION_TOKEN_SECRET`.
+- **Auth**: fastapi-users with JWT (1h expiry) + Personal Access Tokens (scoped, revocable, SHA-256 hashed). Secrets must be set via env vars — app refuses to start without `JWT_SECRET`, `RESET_PASSWORD_TOKEN_SECRET`, `VERIFICATION_TOKEN_SECRET`.
+- **PATs**: `tonnd_` prefix, 256-bit entropy, max 25 per user. Token hash stored (not raw). Scopes: `read:vitals`, `read:body`, `read:sleep`, `read:activity`, `read:workouts`, `read:recovery`, `read:all`.
 - **Encryption**: Fitbit OAuth tokens encrypted at rest with Fernet. `ENCRYPTION_KEY` required.
 - **OAuth State**: HMAC-SHA256 signed, 10-minute expiry.
-- **CORS**: Restricted to `FRONTEND_URL`.
+- **CORS**: Restricted to `FRONTEND_URL`, explicit `allow_headers` (Authorization, Content-Type).
+- **Rate Limiting**: slowapi — 100 req/min (PAT), 300 req/min (JWT), 10 req/min (unauth).
+- **Security Headers**: HSTS, CSP, X-Frame-Options DENY, no-cache on /api/ endpoints.
+- **Audit Logging**: All /api/v1/ access logged (append-only `audit_logs` table).
 
 ---
 
@@ -263,12 +325,16 @@ npx tsc --noEmit          # Type check
 | Working on... | Start with |
 |---------------|------------|
 | Auth | user_service.py, useAuth.ts |
+| Public API v1 | api/v1/router.py, auth/dependencies.py, auth/scopes.py |
+| API Tokens (PATs) | token_service.py, api/v1/tokens.py, Settings.tsx |
+| MCP Server | mcp_server.py |
 | Fitbit | fitbit/client.py, fitbit/sync.py, app.py |
 | Renpho | renpho/client.py, renpho/sync.py, app.py |
 | Hevy | hevy/client.py, hevy/sync.py, app.py |
-| Database | db_models.py, database.py |
+| Database | db_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
+| Security/Middleware | middleware/security_headers.py, middleware/rate_limit.py, middleware/audit.py |
 | Docker | docker-compose.yml, backend/Dockerfile |
 | Tests | backend/tests/, conftest.py |
 

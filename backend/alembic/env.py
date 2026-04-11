@@ -5,6 +5,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 
 from src.models.db_models import Base
+import src.models.api_models  # noqa: F401 — register APIToken + AuditLog with Base
 
 config = context.config
 

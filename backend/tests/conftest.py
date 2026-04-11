@@ -17,6 +17,7 @@ os.environ.setdefault("STATE_SECRET", "test-state-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite://")
 
 from src.models.db_models import Base
+import src.models.api_models  # noqa: F401 — register APIToken + AuditLog tables
 from src.database import get_async_session
 
 # Use SQLite for tests (in-memory)
@@ -43,12 +44,15 @@ async def override_get_session():
 @pytest_asyncio.fixture
 async def client():
     """Async test client for FastAPI app."""
+    from unittest.mock import patch
     # Import app after env vars are set
     from app import app
     app.dependency_overrides[get_async_session] = override_get_session
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
+    # Patch audit_service to use the test DB session maker instead of production
+    with patch("src.services.audit_service.async_session_maker", test_session_maker):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
 
     app.dependency_overrides.clear()

@@ -60,6 +60,9 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     fitness_metrics: Mapped[list["FitnessMetric"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    api_tokens: Mapped[list["APIToken"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class FitnessMetric(Base):

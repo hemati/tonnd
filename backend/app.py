@@ -7,13 +7,20 @@ from typing import Literal, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.v1.router import router as api_v1_router
 from src.database import engine, get_async_session
+from src.middleware.audit import AuditMiddleware
+from src.middleware.rate_limit import limiter
+from src.middleware.security_headers import SecurityHeadersMiddleware
 from src.models.db_models import Base, FitnessMetric, User
+import src.models.api_models  # noqa: F401 — register APIToken + AuditLog with Base
 from src.scheduler import daily_sync_all
 from src.services.fitbit.client import (
     FitbitClient,
@@ -55,7 +62,7 @@ async def lifespan(app: FastAPI):
 
     # Start daily sync scheduler
     scheduler = AsyncIOScheduler()
-    scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_fitbit_sync")
+    scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_sync_all")
     scheduler.start()
 
     yield
@@ -65,14 +72,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="TONND", version="1.0.0", lifespan=lifespan)
 
+# ─── Middleware (outermost first) ────────────────────────────────────────────
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(AuditMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=JWT_SECRET)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_URL],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
+
+# ─── Public API v1 ───────────────────────────────────────────────────────────
+
+app.include_router(api_v1_router)
 
 # ─── Auth routes (fastapi-users) ─────────────────────────────────────────────
 

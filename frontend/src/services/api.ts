@@ -218,3 +218,45 @@ export const syncFitbitData = async (params: { days?: number; date?: string } = 
   const { data } = await api.post<SyncResponse>('/api/sync', { days, ...(date && { date }) })
   return data
 }
+
+// =============================================================================
+// API Token Management
+// =============================================================================
+
+export interface APIToken {
+  id: string
+  name: string
+  token_prefix: string
+  scopes: string[]
+  expires_at: string | null
+  last_used_at: string | null
+  created_at: string
+  is_active: boolean
+}
+
+export interface APITokenCreateResponse {
+  token: string
+  id: string
+  name: string
+  scopes: string[]
+  expires_at: string | null
+  created_at: string
+}
+
+export const fetchTokens = async (): Promise<APIToken[]> => {
+  const { data } = await api.get<APIToken[]>('/api/v1/tokens')
+  return data
+}
+
+export const createToken = async (params: {
+  name: string
+  scopes: string[]
+  expires_at?: string | null
+}): Promise<APITokenCreateResponse> => {
+  const { data } = await api.post<APITokenCreateResponse>('/api/v1/tokens', params)
+  return data
+}
+
+export const revokeToken = async (tokenId: string): Promise<void> => {
+  await api.delete(`/api/v1/tokens/${tokenId}`)
+}
