@@ -146,7 +146,7 @@ class TONNDOAuthProvider(OAuthProvider):
 
             return self._complete_auth(session, user)
 
-        async def google_start(request: Request):
+        async def mcp_google_start(request: Request):
             sid = request.query_params.get("sid", "")
             csrf = request.query_params.get("csrf", "")
 
@@ -176,7 +176,7 @@ class TONNDOAuthProvider(OAuthProvider):
             )
             return RedirectResponse(google_url, status_code=302)
 
-        async def google_callback(request: Request):
+        async def mcp_google_callback(request: Request):
             google_code = request.query_params.get("code", "")
             google_state = request.query_params.get("state", "")
 
@@ -195,8 +195,8 @@ class TONNDOAuthProvider(OAuthProvider):
             return self._complete_auth(session, user)
 
         routes.append(Route(self.login_path, login_page, methods=["GET", "POST"]))
-        routes.append(Route("/google-start", google_start, methods=["GET"]))
-        routes.append(Route("/google-callback", google_callback, methods=["GET"]))
+        routes.append(Route("/google-start", mcp_google_start, methods=["GET"]))
+        routes.append(Route("/google-callback", mcp_google_callback, methods=["GET"]))
         return routes
 
     def _complete_auth(self, session: _AuthSession, user):
