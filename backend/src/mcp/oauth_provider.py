@@ -202,7 +202,11 @@ class TONNDOAuthProvider(OAuthProvider):
     def _complete_auth(self, session: _AuthSession, user):
         from starlette.responses import RedirectResponse
 
-        self._auth_sessions = {k: v for k, v in self._auth_sessions.items() if v is not session}
+        # Remove the used session by matching identity
+        for k, v in list(self._auth_sessions.items()):
+            if v is session:
+                del self._auth_sessions[k]
+                break
 
         code = secrets.token_urlsafe(32)
 
