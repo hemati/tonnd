@@ -10,27 +10,15 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 from fastmcp.server.auth import AccessToken, OAuthProvider
-from mcp.server.auth.provider import AuthorizationParams
-from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
-
+from mcp.server.auth.provider import AuthorizationCode, AuthorizationParams
 from mcp.server.auth.settings import ClientRegistrationOptions
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
 from src.database import async_session_maker
 from src.services.token_service import create_token, verify_token as verify_pat
 
 AUTH_CODE_TTL = timedelta(minutes=5)
 AUTH_SESSION_TTL = timedelta(minutes=10)
-
-
-@dataclass
-class AuthCodeEntry:
-    code: str
-    client_id: str
-    user_id: uuid.UUID
-    scopes: list[str]
-    code_challenge: str
-    redirect_uri: str
-    expires_at: float  # Unix timestamp — MCP SDK compares with time.time()
 
 
 @dataclass
@@ -42,17 +30,14 @@ class _Credentials:
 
 @dataclass
 class _AuthSession:
-    """Server-side session for an in-progress OAuth authorization.
-
-    Stores the validated OAuth params so the login form doesn't carry
-    redirect_uri or scopes in hidden fields (prevents tampering).
-    """
+    """Server-side session for an in-progress OAuth authorization."""
     client_id: str
     redirect_uri: str
     code_challenge: str
     state: str
     scopes: list[str]
     csrf_token: str
+    redirect_uri_provided_explicitly: bool
     expires_at: datetime
 
 
@@ -71,13 +56,17 @@ class TONNDOAuthProvider(OAuthProvider):
         )
         self.login_path = login_path
         self._clients: dict[str, OAuthClientInformationFull] = {}
-        self._auth_codes: dict[str, AuthCodeEntry] = {}
+        self._auth_codes: dict[str, AuthorizationCode] = {}
+        self._code_user_ids: dict[str, uuid.UUID] = {}  # code -> user_id
         self._auth_sessions: dict[str, _AuthSession] = {}
 
     def _cleanup_expired(self) -> None:
         now_ts = time.time()
         now_dt = datetime.now(timezone.utc)
-        self._auth_codes = {k: v for k, v in self._auth_codes.items() if v.expires_at > now_ts}
+        expired_codes = [k for k, v in self._auth_codes.items() if v.expires_at < now_ts]
+        for k in expired_codes:
+            del self._auth_codes[k]
+            self._code_user_ids.pop(k, None)
         self._auth_sessions = {k: v for k, v in self._auth_sessions.items() if v.expires_at > now_dt}
 
     # ─── Client Management ───────────────────────────────────────────────
@@ -93,18 +82,11 @@ class TONNDOAuthProvider(OAuthProvider):
     async def authorize(
         self, client: OAuthClientInformationFull, params: AuthorizationParams
     ) -> str:
-        """Create a server-side auth session and redirect to login form.
-
-        The login form only carries the session_id — all sensitive OAuth params
-        (redirect_uri, scopes, code_challenge) are stored server-side to prevent
-        tampering via hidden form fields.
-        """
         self._cleanup_expired()
 
         session_id = secrets.token_urlsafe(32)
         csrf_token = secrets.token_urlsafe(32)
 
-        # Validate redirect_uri against client's registered URIs
         redirect_uri = str(params.redirect_uri)
         if client.redirect_uris:
             allowed = [str(u) for u in client.redirect_uris]
@@ -119,6 +101,7 @@ class TONNDOAuthProvider(OAuthProvider):
             state=params.state or "",
             scopes=params.scopes or [],
             csrf_token=csrf_token,
+            redirect_uri_provided_explicitly=params.redirect_uri_provided_explicitly,
             expires_at=datetime.now(timezone.utc) + AUTH_SESSION_TTL,
         )
 
@@ -142,7 +125,6 @@ class TONNDOAuthProvider(OAuthProvider):
                     return HTMLResponse("Authorization session expired. Please try again.", status_code=400)
                 return HTMLResponse(_login_html(sid, csrf, str(self.base_url)))
 
-            # POST: authenticate
             form = await request.form()
             sid = str(form.get("sid", ""))
             csrf = str(form.get("csrf", ""))
@@ -178,7 +160,6 @@ class TONNDOAuthProvider(OAuthProvider):
             if not google_client_id:
                 return HTMLResponse("Google OAuth not configured", status_code=500)
 
-            # Encode sid into the Google state so we can recover after callback
             google_state = f"{sid}:{secrets.token_urlsafe(16)}"
 
             google_redirect = f"{self.base_url}/google-callback"
@@ -199,7 +180,6 @@ class TONNDOAuthProvider(OAuthProvider):
             google_code = request.query_params.get("code", "")
             google_state = request.query_params.get("state", "")
 
-            # Extract sid from state
             if ":" not in google_state:
                 return HTMLResponse("Invalid OAuth state", status_code=400)
             sid = google_state.split(":")[0]
@@ -220,22 +200,24 @@ class TONNDOAuthProvider(OAuthProvider):
         return routes
 
     def _complete_auth(self, session: _AuthSession, user):
-        """Generate auth code and redirect back to MCP client."""
         from starlette.responses import RedirectResponse
 
-        # Remove the auth session (single-use)
         self._auth_sessions = {k: v for k, v in self._auth_sessions.items() if v is not session}
 
         code = secrets.token_urlsafe(32)
-        self._auth_codes[code] = AuthCodeEntry(
+
+        # Use the official MCP SDK AuthorizationCode model
+        self._auth_codes[code] = AuthorizationCode(
             code=code,
             client_id=session.client_id,
-            user_id=user.id,
             scopes=session.scopes or ["read:all"],
             code_challenge=session.code_challenge,
             redirect_uri=session.redirect_uri,
+            redirect_uri_provided_explicitly=session.redirect_uri_provided_explicitly,
             expires_at=time.time() + AUTH_CODE_TTL.total_seconds(),
         )
+        # Store user_id separately (not part of the SDK model)
+        self._code_user_ids[code] = user.id
 
         sep = "&" if "?" in session.redirect_uri else "?"
         target = f"{session.redirect_uri}{sep}code={code}"
@@ -247,26 +229,33 @@ class TONNDOAuthProvider(OAuthProvider):
 
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
-    ) -> AuthCodeEntry | None:
+    ) -> AuthorizationCode | None:
         entry = self._auth_codes.get(authorization_code)
         if not entry:
             return None
         if entry.expires_at < time.time():
             del self._auth_codes[authorization_code]
+            self._code_user_ids.pop(authorization_code, None)
             return None
         if entry.client_id != client.client_id:
             return None
         return entry
 
     async def exchange_authorization_code(
-        self, client: OAuthClientInformationFull, authorization_code: AuthCodeEntry
+        self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
-        self._auth_codes.pop(authorization_code.code, None)
+        code_str = authorization_code.code
+        self._auth_codes.pop(code_str, None)
+        user_id = self._code_user_ids.pop(code_str, None)
+
+        if not user_id:
+            from mcp.server.auth.errors import TokenError
+            raise TokenError(error="invalid_grant", error_description="Unknown authorization code")
 
         async with async_session_maker() as session:
             token_record, raw_token = await create_token(
                 session,
-                user_id=authorization_code.user_id,
+                user_id=user_id,
                 name=f"MCP ({client.client_id[:8]})",
                 scopes=authorization_code.scopes or ["read:all"],
             )
