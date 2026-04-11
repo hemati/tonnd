@@ -35,6 +35,7 @@ export default function Footer() {
               <Link to="/terms" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Terms of Service</Link>
               <Link to="/privacy" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Privacy Policy</Link>
               <Link to="/cookies" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Cookie Policy</Link>
+              <Link to="/impressum" className="block text-[13px] text-white/40 hover:text-white/70 transition-colors">Impressum</Link>
             </div>
           </div>
         </div>

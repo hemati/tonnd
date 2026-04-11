@@ -1,11 +1,38 @@
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { GITHUB_URL, DISCORD_URL, LOGO_PATH } from '../config/theme'
 import SEO from './SEO'
 
 export default function About() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <SEO title="About" description="TONND is built by Wahed Hemati — a developer who has been tracking health data in spreadsheets since he was 12." path="/about" />
+      <SEO title="About" description="TONND is built by Dr. Wahed Hemati — a developer and researcher who has been tracking health data since he was 12. Open source, self-hosted, built in Frankfurt." path="/about" />
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'AboutPage',
+              '@id': 'https://tonnd.com/about',
+              'name': 'About TONND',
+              'url': 'https://tonnd.com/about',
+              'isPartOf': { '@id': 'https://tonnd.com/#website' },
+              'mainEntity': { '@id': 'https://tonnd.com/#person-wahed' }
+            },
+            {
+              '@type': 'Person',
+              '@id': 'https://tonnd.com/#person-wahed',
+              'name': 'Dr. Wahed Hemati',
+              'url': 'https://tonnd.com/about',
+              'jobTitle': 'Founder & Developer',
+              'worksFor': { '@id': 'https://tonnd.com/#organization' },
+              'sameAs': [
+                'https://github.com/hemati'
+              ]
+            }
+          ]
+        })}</script>
+      </Helmet>
 
       {/* nav */}
       <div className="max-w-3xl mx-auto px-5">
@@ -24,60 +51,97 @@ export default function About() {
         <h1 className="text-3xl font-bold mb-8">About TONND</h1>
 
         <div className="space-y-6 text-[15px] text-white/50 leading-relaxed">
+
+          <h2 className="text-xl font-bold text-white/90 pt-2">Why this exists</h2>
+
           <p>
-            TONND is built by <strong className="text-white/80">Wahed Hemati</strong>, a developer based in Germany.
+            I have a Fitbit on my wrist, a Renpho scale in the bathroom, and Hevy on my phone for workouts. Three devices, three apps, three dashboards. None of them talk to each other. I can't look at my sleep data next to my HRV next to my training volume and see what's actually going on.
           </p>
 
           <p>
-            The idea started simple: I've been tracking my body data in spreadsheets since I was 12.
-            Back then it was a bathroom scale and an Excel sheet. Today it's Fitbit, Renpho smart scales,
-            and a dozen health metrics that live in five different apps. The devices got better. The central
-            dashboard that ties it all together never got built. So I'm building it.
+            Then in July 2024, Google killed the Fitbit web dashboard. Millions of people lost the only way to look at their health data on a real screen. The phone app stayed, but the detailed analysis, the long-term trends, the stuff you actually need a monitor for? Gone.
           </p>
 
           <p>
-            TONND is an open-source, self-hosted health tracking platform. You connect your Fitbit and
-            Renpho scale, and everything shows up in one dashboard: weight, sleep, steps, heart rate, HRV,
-            VO&#x2082; Max, SpO&#x2082;, body composition. It runs on Docker, you own the data, and the source code is
-            on GitHub for anyone to read, fork, or contribute to.
+            So I built TONND. One dashboard for everything: sleep stages, HRV, VO&#x2082; Max, SpO&#x2082;, weight, body fat, muscle mass, workout volume, recovery scores. Connect your Fitbit, Renpho, and Hevy, and it all shows up in one place. You can look at 7 days or 30 days. You can see which muscles you worked this week as a heatmap on a body diagram.
+          </p>
+
+          <h2 className="text-xl font-bold text-white/90 pt-4">Who I am</h2>
+
+          <p>
+            I'm <strong className="text-white/80">Wahed Hemati</strong>. I have a PhD in computational linguistics (natural language processing, specifically) and I've been building software for a while. I live in Frankfurt.
           </p>
 
           <p>
-            The project is licensed under AGPL-3.0. If you modify or deploy it, you must make your
-            source code available.
+            I started tracking my weight in Excel when I was 12. Bathroom scale, manual entry, formulas to calculate weekly averages. I was a chubby kid trying to figure out what worked. The devices got better over the years but nobody ever built the thing that brings it all together. I kept waiting for Fitbit or Apple or Google to do it. They didn't. So here we are.
           </p>
 
-          <h2 className="text-xl font-bold text-white/90 pt-4">Where to find me</h2>
+          <p>
+            I also built <a href="https://www.ceve.guru" target="_blank" rel="noopener noreferrer" className="text-white/60 underline hover:text-white/80">ceve.guru</a>, an AI resume builder for the German job market.
+          </p>
+
+          <h2 className="text-xl font-bold text-white/90 pt-4">How it's built</h2>
+
+          <p>
+            The whole thing is open source (AGPL-3.0). Backend is FastAPI with PostgreSQL. Frontend is React and TypeScript. You deploy it with Docker Compose. Auth goes through fastapi-users (JWT + Google OAuth). Fitbit tokens are Fernet-encrypted at rest. There's a scheduler that syncs everything daily.
+          </p>
+
+          <p>
+            For the workout muscle data, I pull the actual muscle groups from the Hevy exercise template API instead of trying to guess from exercise names. Each exercise gets its real primary and secondary muscles, weighted proportionally. The result shows up as an interactive body heatmap you can click on.
+          </p>
+
+          <h2 className="text-xl font-bold text-white/90 pt-4">How I think about this project</h2>
+
+          <p>
+            Data is stored on EU servers in Frankfurt. I don't run ads, I don't sell data, I don't share it with anyone. If you want even more control, self-host the whole thing on your own hardware.
+          </p>
+
+          <p>
+            The code is on GitHub. All of it. The database is plain PostgreSQL, so you can export or back up your data whenever you want. There's no lock-in.
+          </p>
+
+          <p>
+            I don't do gamification. There are no streaks, no badges, no push notifications trying to get you to open the app. Just your data, your trends, and the context you need to make sense of them.
+          </p>
+
+          <h2 className="text-xl font-bold text-white/90 pt-4">What's next</h2>
+
+          <p>
+            Right now TONND pulls data from Fitbit, Renpho, and Hevy into a dashboard with recovery scores, body composition, and workout heatmaps. That's phase one.
+          </p>
+          <p>
+            Phase two is connecting the data to an LLM. Take 30 days of sleep, HRV, weight, and training data, feed it to Claude or GPT, and get back analysis that's actually about you. Not "drink more water" advice.
+          </p>
+          <p>
+            Phase three: the AI lives inside the dashboard. You open TONND and there's already a coach looking at your numbers.
+          </p>
+
+          <h2 className="text-xl font-bold text-white/90 pt-4">Get in touch</h2>
 
           <div className="space-y-2">
             <p>
-              <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="text-white/60 underline hover:text-white/80">GitHub</a> — Source code, issues, contributions
+              Email: <a href="mailto:info@tonnd.com" className="text-white/60 underline hover:text-white/80">info@tonnd.com</a>
             </p>
             <p>
-              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="text-white/60 underline hover:text-white/80">Discord</a> — Community, questions, feature requests
+              <a href={GITHUB_URL} target="_blank" rel="noopener noreferrer" className="text-white/60 underline hover:text-white/80">GitHub</a> for code, bugs, and contributions
+            </p>
+            <p>
+              <a href={DISCORD_URL} target="_blank" rel="noopener noreferrer" className="text-white/60 underline hover:text-white/80">Discord</a> for questions and feature ideas
+            </p>
+            <p>
+              Frankfurt am Main, Germany
+            </p>
+            <p className="text-white/30 text-sm pt-2">
+              <Link to="/impressum" className="underline hover:text-white/50">Impressum</Link> · <Link to="/privacy" className="underline hover:text-white/50">Privacy Policy</Link>
             </p>
           </div>
-
-          <h2 className="text-xl font-bold text-white/90 pt-4">The roadmap</h2>
-
-          <p>
-            Phase one (now): collect data from Fitbit and Renpho, display it in a unified dashboard
-            with trends, recovery scores, and body composition tracking.
-          </p>
-          <p>
-            Phase two: connect your health data to AI. Feed 30 days of sleep, HRV, activity, and
-            weight data to Claude or GPT and get back specific analysis — not generic advice.
-          </p>
-          <p>
-            Phase three: have the AI built directly into the platform. No copy-pasting, no switching tools.
-            Open your dashboard and the coach is already looking at your data.
-          </p>
         </div>
 
         <div className="mt-12 pt-6 border-t border-white/[.06] flex gap-6 text-[13px] text-white/30">
           <Link to="/" className="hover:text-white/60 transition-colors">Home</Link>
           <Link to="/terms" className="hover:text-white/60 transition-colors">Terms</Link>
           <Link to="/privacy" className="hover:text-white/60 transition-colors">Privacy</Link>
+          <Link to="/impressum" className="hover:text-white/60 transition-colors">Impressum</Link>
         </div>
       </div>
     </div>

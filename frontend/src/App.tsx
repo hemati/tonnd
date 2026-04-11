@@ -18,6 +18,7 @@ const About = lazy(() => import('./components/About'))
 const TermsOfService = lazy(() => import('./components/TermsOfService').then(m => ({ default: m.TermsOfService })))
 const PrivacyPolicy = lazy(() => import('./components/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })))
 const CookiePolicy = lazy(() => import('./components/CookiePolicy').then(m => ({ default: m.CookiePolicy })))
+const Impressum = lazy(() => import('./components/Impressum').then(m => ({ default: m.Impressum })))
 
 function LoadingSpinner() {
   return (
@@ -60,6 +61,7 @@ function App() {
         <Route path="/terms" element={<Suspense fallback={<LoadingSpinner />}><TermsOfService /></Suspense>} />
         <Route path="/privacy" element={<Suspense fallback={<LoadingSpinner />}><PrivacyPolicy /></Suspense>} />
         <Route path="/cookies" element={<Suspense fallback={<LoadingSpinner />}><CookiePolicy /></Suspense>} />
+        <Route path="/impressum" element={<Suspense fallback={<LoadingSpinner />}><Impressum /></Suspense>} />
         <Route path="/about" element={<Suspense fallback={<LoadingSpinner />}><About /></Suspense>} />
         <Route path="/blog" element={<Suspense fallback={<LoadingSpinner />}><BlogIndex /></Suspense>} />
         <Route path="/blog/:slug" element={<Suspense fallback={<LoadingSpinner />}><BlogPost /></Suspense>} />

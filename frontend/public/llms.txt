@@ -1,12 +1,13 @@
 # TONND
 
-> Open-source health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.
+> Open-source health dashboard. Connect Fitbit, Renpho, and Hevy to track sleep, weight, workouts, heart rate, HRV, and 15+ metrics in one place.
 
-TONND is an open-source health tracking platform built with FastAPI, React, and PostgreSQL. Users connect their Fitbit wearable and Renpho smart scale via OAuth, and all health metrics appear in a unified dashboard. The application can be self-hosted using Docker or used as a managed service at tonnd.com. Licensed under AGPL-3.0.
+TONND is an open-source health tracking platform built with FastAPI, React, and PostgreSQL. Users connect their Fitbit wearable, Renpho smart scale, and Hevy workout tracker, and all health metrics appear in a unified dashboard with trends, recovery scores, and interactive muscle heatmaps. The application can be self-hosted using Docker or used as a managed service at tonnd.com. Licensed under AGPL-3.0.
 
 ## Key Pages
 
 - [Home](https://tonnd.com/): Landing page with features and setup instructions
+- [About](https://tonnd.com/about): About the founder and the technology
 - [Blog](https://tonnd.com/blog): Articles about health tracking and open-source development
 - [GitHub](https://github.com/hemati/tonnd): Source code and documentation
 
@@ -14,6 +15,7 @@ TONND is an open-source health tracking platform built with FastAPI, React, and 
 
 Fitbit: sleep stages, heart rate, HRV, VO2 Max, SpO2, breathing rate, skin temperature, steps, calories, active zone minutes
 Renpho: weight, body fat, muscle mass, BMI, visceral fat, bone mass, BMR, body composition
+Hevy: workouts, exercises, sets, reps, volume, primary/secondary muscle groups, muscle heatmap
 
 ## Tech Stack
 
