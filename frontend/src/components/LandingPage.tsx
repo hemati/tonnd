@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
 import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
+import { FitbitIcon, RenphoIcon, HevyIcon } from './SourceIcons'
 import { getAllPosts } from '../lib/blog'
 import SEO from './SEO'
 import Logo from './Logo'
@@ -189,16 +190,10 @@ export default function LandingPage() {
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
             Link your Fitbit account and Renpho smart scale. Data flows automatically into your dashboard.
           </p>
-          <div className="grid sm:grid-cols-2 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
+          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
             <div className="bg-[#0a0a0a] p-6">
               <div className="flex items-start gap-4">
-                <svg className="w-8 h-8 flex-shrink-0 text-white/50" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="23.9" cy="24" r="2.56"/><circle cx="23.9" cy="16" r="2.56"/><circle cx="23.9" cy="8.06" r="2.56"/>
-                  <circle cx="23.9" cy="31.97" r="2.56"/><circle cx="23.9" cy="39.94" r="2.56"/>
-                  <circle cx="15.93" cy="24" r="2.13"/><circle cx="15.93" cy="16" r="2.13"/><circle cx="15.93" cy="31.97" r="2.13"/>
-                  <circle cx="31.87" cy="24" r="2.99"/><circle cx="31.87" cy="16" r="2.99"/><circle cx="31.87" cy="31.97" r="2.99"/>
-                  <circle cx="7.96" cy="24" r="1.71"/><circle cx="39.83" cy="24" r="3.42"/>
-                </svg>
+                <FitbitIcon className="w-8 h-8 flex-shrink-0" />
                 <div>
                   <h3 className="text-sm font-semibold text-white/80 mb-2">Fitbit</h3>
                   <p className="text-sm text-white/40 leading-relaxed">Sleep stages, heart rate zones, activity, HRV, SpO&#x2082;, VO&#x2082; Max, and 10+ metrics via OAuth.</p>
@@ -207,14 +202,19 @@ export default function LandingPage() {
             </div>
             <div className="bg-[#0a0a0a] p-6">
               <div className="flex items-start gap-4">
-                <svg className="w-8 h-8 flex-shrink-0 text-white/50" viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m5.83 42.5 18.17-17.69a12.45 12.45 0 0 0 9.94-3.36 10.59 10.59 0 0 0 3.19-9.42"/>
-                  <ellipse cx="23.74" cy="11.52" rx="6.18" ry="6.02"/>
-                  <path d="m42.17 42.49-10.37-10.1c-7.8 3.08-15.22-.35-15.22-.35"/>
-                </svg>
+                <RenphoIcon className="w-8 h-8 flex-shrink-0" />
                 <div>
                   <h3 className="text-sm font-semibold text-white/80 mb-2">Renpho Smart Scale</h3>
                   <p className="text-sm text-white/40 leading-relaxed">Weight, body fat, muscle mass, BMI, visceral fat, and full body composition.</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-[#0a0a0a] p-6">
+              <div className="flex items-start gap-4">
+                <HevyIcon className="w-8 h-8 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-white/80 mb-2">Hevy</h3>
+                  <p className="text-sm text-white/40 leading-relaxed">Workout tracking — exercises, sets, reps, volume, and muscle group analysis.</p>
                 </div>
               </div>
             </div>

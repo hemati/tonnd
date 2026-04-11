@@ -6,8 +6,8 @@ from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import User
-from src.services.fitbit_sync import upsert_metric
-from src.services.renpho_client import RenphoAPIError, get_measurements_for_date
+from src.services.sync_utils import upsert_metric
+from src.services.renpho.client import RenphoAPIError, get_measurements_for_date
 from src.services.token_encryption import decrypt_token
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,7 @@ async def sync_renpho_data(
             await upsert_metric(
                 session, user.id, target_date, metric_type, metric_data, source="renpho"
             )
-            synced_metrics.append(f"{target_date.isoformat()}#{metric_type}")
+            synced_metrics.append(f"renpho:{target_date.isoformat()}#{metric_type}")
 
         errors.extend(result.get("errors", []))
 

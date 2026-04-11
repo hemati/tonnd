@@ -8,7 +8,8 @@ import pytest
 from sqlalchemy import select
 
 from src.models.db_models import FitnessMetric, User
-from src.services.fitbit_sync import disconnect_fitbit, ensure_valid_token, upsert_metric
+from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
+from src.services.sync_utils import upsert_metric
 from src.services.token_encryption import decrypt_token, encrypt_token
 
 from tests.conftest import test_session_maker
@@ -43,7 +44,7 @@ class TestEnsureValidToken:
         far_future = int(datetime.now(timezone.utc).timestamp()) + 7200
         user = _make_user(fitbit_token_expires=far_future)
 
-        with patch("src.services.fitbit_sync.refresh_access_token", new_callable=AsyncMock) as mock_refresh:
+        with patch("src.services.fitbit.sync.refresh_access_token", new_callable=AsyncMock) as mock_refresh:
             token = await ensure_valid_token(user)
 
         mock_refresh.assert_not_called()
@@ -61,7 +62,7 @@ class TestEnsureValidToken:
             "expires_in": 3600,
         }
 
-        with patch("src.services.fitbit_sync.refresh_access_token", new_callable=AsyncMock, return_value=new_tokens):
+        with patch("src.services.fitbit.sync.refresh_access_token", new_callable=AsyncMock, return_value=new_tokens):
             token = await ensure_valid_token(user)
 
         assert token == "new-access"
@@ -82,7 +83,7 @@ class TestEnsureValidToken:
             "expires_in": 7200,
         }
 
-        with patch("src.services.fitbit_sync.refresh_access_token", new_callable=AsyncMock, return_value=new_tokens):
+        with patch("src.services.fitbit.sync.refresh_access_token", new_callable=AsyncMock, return_value=new_tokens):
             token = await ensure_valid_token(user)
 
         assert token == "refreshed"
@@ -92,7 +93,7 @@ class TestEnsureValidToken:
         """When fitbit_token_expires is None, the condition (None < X) is falsy, so no refresh."""
         user = _make_user(fitbit_token_expires=None)
 
-        with patch("src.services.fitbit_sync.refresh_access_token", new_callable=AsyncMock) as mock_refresh:
+        with patch("src.services.fitbit.sync.refresh_access_token", new_callable=AsyncMock) as mock_refresh:
             token = await ensure_valid_token(user)
 
         mock_refresh.assert_not_called()

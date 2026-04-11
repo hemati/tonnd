@@ -45,6 +45,9 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     renpho_email: Mapped[str | None] = mapped_column(Text, default=None)
     renpho_session_key: Mapped[str | None] = mapped_column(Text, default=None)
 
+    # Hevy (workout tracking — user provides their own API key)
+    hevy_api_key: Mapped[str | None] = mapped_column(Text, default=None)  # Fernet-encrypted
+
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

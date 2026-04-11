@@ -5,7 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart,
-  RadialBarChart, RadialBar, ReferenceLine,
+  ReferenceLine,
 } from 'recharts'
 import {
   ScaleIcon, MoonIcon, HeartIcon, ArrowPathIcon, BoltIcon,
@@ -114,7 +114,7 @@ export default function Dashboard() {
   const syncMutation = useSyncFitbit()
 
   useEffect(() => {
-    if (user && !user.fitbit_connected && !user.renpho_connected) {
+    if (user && !user.fitbit_connected && !user.renpho_connected && !user.hevy_connected) {
       navigate('/sources')
     }
   }, [user, navigate])

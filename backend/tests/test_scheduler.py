@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.models.db_models import User
-from src.services.fitbit_client import RateLimitError, TokenExpiredError
+from src.services.fitbit.client import RateLimitError, TokenExpiredError
 from src.services.token_encryption import encrypt_token
 
 from tests.conftest import test_session_maker

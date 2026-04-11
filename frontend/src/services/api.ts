@@ -41,6 +41,7 @@ export interface UserProfile {
   fitbit_connected: boolean
   fitbit_user_id: string | null
   renpho_connected: boolean
+  hevy_connected: boolean
   last_sync: string | null
 }
 

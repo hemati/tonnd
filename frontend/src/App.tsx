@@ -11,7 +11,7 @@ import NotFound from './components/NotFound'
 
 // Lazy-loaded routes for code splitting
 const Dashboard = lazy(() => import('./components/Dashboard'))
-const FitbitConnect = lazy(() => import('./components/FitbitConnect'))
+const Sources = lazy(() => import('./components/Sources'))
 const BlogIndex = lazy(() => import('./components/BlogIndex'))
 const BlogPost = lazy(() => import('./components/BlogPost'))
 const About = lazy(() => import('./components/About'))
@@ -93,7 +93,7 @@ function App() {
             isAuthenticated ? (
               <Layout user={user}>
                 <Suspense fallback={<LoadingSpinner />}>
-                  <FitbitConnect />
+                  <Sources />
                 </Suspense>
               </Layout>
             ) : (

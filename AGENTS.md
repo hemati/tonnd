@@ -13,18 +13,19 @@
 
 An open-source fitness tracking platform that:
 1. Authenticates users via **Email/Password** or **Google OAuth** (fastapi-users)
-2. Connects to **Fitbit API** to sync health data (weight, sleep, activity, HRV, SpO2, etc.)
-3. Stores encrypted fitness data in **PostgreSQL**
+2. Connects to **Fitbit**, **Renpho**, and **Hevy** to sync health & workout data
+3. Stores encrypted fitness data in **PostgreSQL** (multi-source, tagged by `source`)
 4. Provides a **React dashboard** for data visualization
 5. Runs **daily automated syncs** via APScheduler
 
 ### User Flow
 
 ```
-Login (Email/Google)  →  Connect Fitbit  →  Dashboard
+Login (Email/Google)  →  Connect Sources  →  Dashboard
          │                     │                │
-    fastapi-users         OAuth 2.0        React + Recharts
-    JWT tokens            Fitbit API       7/14/30 day views
+    fastapi-users         Fitbit OAuth     React + Recharts
+    JWT tokens            Renpho login     7/14/30 day views
+                          Hevy API key
 ```
 
 ---
@@ -42,7 +43,9 @@ Login (Email/Google)  →  Connect Fitbit  →  Dashboard
 | Encryption | cryptography (Fernet) for Fitbit tokens |
 | Scheduling | APScheduler (daily sync at 06:00 UTC) |
 | HTTP Client | httpx (async, for Fitbit API) |
-| Migrations | Alembic (not yet initialized) |
+| Renpho | renpho-api (reverse-engineered cloud API) |
+| Hevy | hevy-api (workout tracking) |
+| Migrations | Alembic |
 
 ### Frontend (TypeScript + React 18)
 
@@ -72,7 +75,7 @@ Login (Email/Google)  →  Connect Fitbit  →  Dashboard
 
 ```
 tonnd/
-├── AGENTS.md                       # This file
+├── AGENTS.md                       # This file (symlinked as CLAUDE.md)
 ├── README.md                       # User documentation
 ├── docker-compose.yml              # All services
 ├── .env.example                    # Required environment variables
@@ -81,21 +84,31 @@ tonnd/
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   ├── app.py                      # FastAPI entry point + all routes
+│   ├── tests/                      # pytest test suite
 │   └── src/
 │       ├── database.py             # SQLAlchemy async engine
-│       ├── scheduler.py            # APScheduler daily sync
+│       ├── scheduler.py            # APScheduler daily sync (all sources)
 │       ├── models/
-│       │   └── db_models.py        # User + FitnessMetric tables
+│       │   └── db_models.py        # User, OAuthAccount, FitnessMetric
 │       ├── services/
 │       │   ├── user_service.py     # fastapi-users config + schemas
-│       │   ├── fitbit_client.py    # Fitbit API wrapper
-│       │   ├── fitbit_sync.py      # Shared helpers (token refresh, upsert)
-│       │   └── token_encryption.py # Fernet encrypt/decrypt
+│       │   ├── token_encryption.py # Fernet encrypt/decrypt
+│       │   ├── sync_utils.py       # Shared upsert_metric helper
+│       │   ├── fitbit/
+│       │   │   ├── client.py       # Fitbit API wrapper
+│       │   │   └── sync.py         # Token refresh, disconnect
+│       │   ├── renpho/
+│       │   │   ├── client.py       # Renpho cloud API wrapper
+│       │   │   └── sync.py         # Renpho sync logic
+│       │   └── hevy/
+│       │       ├── client.py       # Hevy API wrapper
+│       │       └── sync.py         # Hevy sync logic
 │       └── utils/
 │           └── security.py         # OAuth state, input validation
 │
 ├── frontend/
-│   ├── Dockerfile
+│   ├── Dockerfile                  # Multi-stage: build + Nginx
+│   ├── nginx.conf                  # Nginx config for SPA routing
 │   ├── package.json
 │   └── src/
 │       ├── main.tsx                # Entry point
@@ -108,12 +121,18 @@ tonnd/
 │       │   └── api.ts              # Axios client + API functions
 │       └── components/
 │           ├── Login.tsx           # Google + Email/Password login
+│           ├── LandingPage.tsx     # Public landing page
 │           ├── Dashboard.tsx       # Health dashboard
-│           ├── FitbitConnect.tsx   # Fitbit OAuth flow
-│           ├── AuthCallback.tsx   # OAuth callback handler
-│           └── Layout.tsx         # App shell
+│           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy
+│           ├── AuthCallback.tsx    # OAuth callback handler
+│           ├── Layout.tsx          # App shell (header/footer)
+│           ├── SEO.tsx             # React Helmet meta tags
+│           ├── About.tsx           # About page
+│           ├── BlogIndex.tsx       # Blog listing
+│           └── BlogPost.tsx        # Blog article
 │
-└── .github/                        # (to be created)
+└── scripts/
+    └── migrate_from_dynamodb.py    # One-time DynamoDB → PostgreSQL migration
 ```
 
 ---
@@ -132,8 +151,13 @@ tonnd/
 | fitbit_access_token | Text | Fernet-encrypted |
 | fitbit_refresh_token | Text | Fernet-encrypted |
 | fitbit_token_expires | Integer | Unix timestamp |
+| renpho_email | Text | Renpho account email |
+| renpho_session_key | Text | Renpho session (encrypted) |
+| hevy_api_key | Text | Hevy API key (Fernet-encrypted) |
 | created_at | DateTime(tz) | |
 | last_sync | DateTime(tz) | |
+
+### Table: `oauth_account` (fastapi-users, Google OAuth tokens)
 
 ### Table: `fitness_metrics`
 
@@ -143,26 +167,29 @@ tonnd/
 | user_id | UUID | FK → user.id |
 | date | Date | |
 | metric_type | String(32) | weight, sleep, activity, etc. |
+| source | String(16) | fitbit, renpho, hevy |
 | data | JSON | Metric-specific fields |
 | synced_at | DateTime(tz) | |
 
-**Unique constraint**: `(user_id, date, metric_type)`
+**Unique constraint**: `(user_id, date, metric_type, source)`
 **Indexes**: `(user_id, date)`, `(user_id, metric_type, date)`
 
 ### Metric Types
 
-| Type | Data Fields |
-|------|-------------|
-| activity | steps, calories_burned, distance_km, active_minutes, floors |
-| sleep | total_minutes, deep_minutes, light_minutes, rem_minutes, awake_minutes, efficiency |
-| heart_rate | resting_heart_rate, zones |
-| weight | weight_kg, bmi, body_fat_percent |
-| hrv | daily_rmssd, deep_rmssd |
-| spo2 | avg, min, max |
-| breathing_rate | breathing_rate |
-| vo2_max | vo2_max |
-| temperature | relative_deviation |
-| active_zone_minutes | fat_burn_minutes, cardio_minutes, peak_minutes, total_minutes |
+| Type | Source | Data Fields |
+|------|--------|-------------|
+| activity | fitbit | steps, calories_burned, distance_km, active_minutes, floors |
+| sleep | fitbit | total_minutes, deep_minutes, light_minutes, rem_minutes, awake_minutes, efficiency |
+| heart_rate | fitbit | resting_heart_rate, zones |
+| weight | fitbit, renpho | weight_kg, bmi, body_fat_percent |
+| hrv | fitbit | daily_rmssd, deep_rmssd |
+| spo2 | fitbit | avg, min, max |
+| breathing_rate | fitbit | breathing_rate |
+| vo2_max | fitbit | vo2_max |
+| temperature | fitbit | relative_deviation |
+| active_zone_minutes | fitbit | fat_burn_minutes, cardio_minutes, peak_minutes, total_minutes |
+| body_composition | renpho | muscle_mass, body_fat, water, bone_mass, protein, etc. |
+| workout | hevy | exercise_name, sets, reps, weight_kg, duration, volume |
 
 ---
 
@@ -203,6 +230,19 @@ npm install
 npm run dev
 ```
 
+### Tests
+
+```bash
+# Backend (from backend/)
+source ../.venv/bin/activate
+pytest                    # All tests
+pytest -x                 # Stop on first failure
+pytest --cov              # With coverage
+
+# Frontend (from frontend/)
+npm test                  # Vitest
+```
+
 ### Code Quality
 
 ```bash
@@ -222,10 +262,14 @@ npx tsc --noEmit          # Type check
 | Working on... | Start with |
 |---------------|------------|
 | Auth | user_service.py, useAuth.ts |
-| Fitbit Sync | fitbit_client.py, fitbit_sync.py, app.py (sync endpoint) |
+| Fitbit | fitbit/client.py, fitbit/sync.py, app.py |
+| Renpho | renpho/client.py, renpho/sync.py, app.py |
+| Hevy | hevy/client.py, hevy/sync.py, app.py |
 | Database | db_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
+| Sources page | Sources.tsx, SourceIcons.tsx |
 | Docker | docker-compose.yml, backend/Dockerfile |
+| Tests | backend/tests/, conftest.py |
 
 ---
 

@@ -8,8 +8,8 @@ import pytest
 from sqlalchemy import select
 
 from src.models.db_models import FitnessMetric, User
-from src.services.renpho_client import RenphoAPIError
-from src.services.renpho_sync import disconnect_renpho, sync_renpho_data
+from src.services.renpho.client import RenphoAPIError
+from src.services.renpho.sync import disconnect_renpho, sync_renpho_data
 from src.services.token_encryption import encrypt_token
 
 from tests.conftest import test_session_maker
@@ -51,7 +51,7 @@ class TestSyncRenphoData:
             }
 
             with patch(
-                "src.services.renpho_sync.get_measurements_for_date",
+                "src.services.renpho.sync.get_measurements_for_date",
                 return_value=renpho_result,
             ):
                 result = await sync_renpho_data(session, user, date(2026, 4, 7))
@@ -103,7 +103,7 @@ class TestSyncRenphoData:
             await session.flush()
 
             with patch(
-                "src.services.renpho_sync.get_measurements_for_date",
+                "src.services.renpho.sync.get_measurements_for_date",
                 side_effect=RenphoAPIError("auth failed"),
             ):
                 result = await sync_renpho_data(session, user, date(2026, 4, 7))
@@ -120,7 +120,7 @@ class TestSyncRenphoData:
             await session.flush()
 
             with patch(
-                "src.services.renpho_sync.get_measurements_for_date",
+                "src.services.renpho.sync.get_measurements_for_date",
                 side_effect=RuntimeError("boom"),
             ):
                 result = await sync_renpho_data(session, user, date(2026, 4, 7))
@@ -142,7 +142,7 @@ class TestSyncRenphoData:
             }
 
             with patch(
-                "src.services.renpho_sync.get_measurements_for_date",
+                "src.services.renpho.sync.get_measurements_for_date",
                 return_value=renpho_result,
             ):
                 result = await sync_renpho_data(session, user, date(2026, 4, 7))

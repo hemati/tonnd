@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.services.fitbit_client import (
+from src.services.fitbit.client import (
     FitbitAPIError,
     FitbitClient,
     RateLimitError,
@@ -88,7 +88,7 @@ class TestExchangeCodeForTokens:
         mock_response.json.return_value = token_data
 
         mock_client = _make_async_client(mock_response)
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             result = await exchange_code_for_tokens("code123", "http://cb")
 
         assert result == token_data
@@ -103,7 +103,7 @@ class TestExchangeCodeForTokens:
         mock_response = MagicMock(status_code=400, text="invalid_code")
         mock_client = _make_async_client(mock_response)
 
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             with pytest.raises(Exception, match="Failed to exchange code"):
                 await exchange_code_for_tokens("bad", "http://cb")
 
@@ -122,7 +122,7 @@ class TestRefreshAccessToken:
         mock_response.json.return_value = token_data
 
         mock_client = _make_async_client(mock_response)
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             result = await refresh_access_token("old-rt")
 
         assert result == token_data
@@ -135,7 +135,7 @@ class TestRefreshAccessToken:
         mock_response = MagicMock(status_code=401, text="unauthorized")
         mock_client = _make_async_client(mock_response)
 
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             with pytest.raises(TokenExpiredError, match="invalid or expired"):
                 await refresh_access_token("bad-rt")
 
@@ -149,7 +149,7 @@ class TestRefreshAccessToken:
         )
         mock_client = _make_async_client(mock_response)
 
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             with pytest.raises(TokenExpiredError):
                 await refresh_access_token("bad-rt")
 
@@ -161,7 +161,7 @@ class TestRefreshAccessToken:
         mock_response = MagicMock(status_code=500, text="server error")
         mock_client = _make_async_client(mock_response)
 
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             with pytest.raises(FitbitAPIError, match="Failed to refresh token"):
                 await refresh_access_token("rt")
 
@@ -176,7 +176,7 @@ class TestRevokeToken:
         monkeypatch.setenv("FITBIT_CLIENT_SECRET", "csec")
 
         mock_client = _make_async_client(MagicMock(status_code=200))
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             result = await revoke_token("token-to-revoke")
 
         assert result is True
@@ -187,7 +187,7 @@ class TestRevokeToken:
         monkeypatch.setenv("FITBIT_CLIENT_SECRET", "csec")
 
         mock_client = _make_async_client(MagicMock(status_code=401))
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_client):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_client):
             result = await revoke_token("bad-token")
 
         assert result is False
@@ -203,7 +203,7 @@ class TestFitbitClientMakeRequest:
         mock_response.json.return_value = {"data": "ok"}
 
         mock_http = _make_async_client(mock_response)
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_http):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_http):
             client = FitbitClient("my-token")
             result = await client._make_request("/test/endpoint")
 
@@ -213,7 +213,7 @@ class TestFitbitClientMakeRequest:
     @pytest.mark.asyncio
     async def test_401_raises_token_expired(self):
         mock_http = _make_async_client(MagicMock(status_code=401))
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_http):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_http):
             client = FitbitClient("expired-token")
             with pytest.raises(TokenExpiredError):
                 await client._make_request("/test")
@@ -221,7 +221,7 @@ class TestFitbitClientMakeRequest:
     @pytest.mark.asyncio
     async def test_429_raises_rate_limit(self):
         mock_http = _make_async_client(MagicMock(status_code=429))
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_http):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_http):
             client = FitbitClient("token")
             with pytest.raises(RateLimitError):
                 await client._make_request("/test")
@@ -229,7 +229,7 @@ class TestFitbitClientMakeRequest:
     @pytest.mark.asyncio
     async def test_500_raises_fitbit_api_error(self):
         mock_http = _make_async_client(MagicMock(status_code=500, text="internal error"))
-        with patch("src.services.fitbit_client.httpx.AsyncClient", return_value=mock_http):
+        with patch("src.services.fitbit.client.httpx.AsyncClient", return_value=mock_http):
             client = FitbitClient("token")
             with pytest.raises(FitbitAPIError, match="API request failed"):
                 await client._make_request("/test")

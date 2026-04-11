@@ -15,16 +15,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.database import engine, get_async_session
 from src.models.db_models import Base, FitnessMetric, User
 from src.scheduler import daily_sync_all
-from src.services.fitbit_client import (
+from src.services.fitbit.client import (
     FitbitClient,
     RateLimitError,
     TokenExpiredError,
     exchange_code_for_tokens,
     get_authorization_url,
 )
-from src.services.fitbit_sync import disconnect_fitbit, ensure_valid_token, upsert_metric
-from src.services.renpho_client import RenphoAPIError, renpho_login
-from src.services.renpho_sync import disconnect_renpho, sync_renpho_data
+from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
+from src.services.sync_utils import upsert_metric
+from src.services.hevy.client import validate_hevy_api_key
+from src.services.hevy.sync import disconnect_hevy, sync_hevy_data
+from src.services.renpho.client import RenphoAPIError, renpho_login
+from src.services.renpho.sync import disconnect_renpho, sync_renpho_data
 from src.services.token_encryption import encrypt_token
 from src.services.user_service import (
     JWT_SECRET,
@@ -241,6 +244,40 @@ async def renpho_disconnect(
     return {"connected": False, "message": "Renpho disconnected"}
 
 
+# ─── Hevy ────────────────────────────────────────────────────────────────────
+
+
+@app.post("/auth/hevy/connect", tags=["hevy"])
+async def hevy_connect(
+    request: Request,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    body = await request.json()
+    api_key = body.get("api_key")
+    if not api_key:
+        raise HTTPException(status_code=400, detail="API key required")
+
+    is_valid = await validate_hevy_api_key(api_key)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail="Invalid Hevy API key. Make sure you have Hevy Pro.")
+
+    user.hevy_api_key = encrypt_token(api_key)
+    await session.commit()
+
+    return {"connected": True, "message": "Hevy connected successfully"}
+
+
+@app.delete("/auth/hevy/disconnect", tags=["hevy"])
+async def hevy_disconnect(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    disconnect_hevy(user)
+    await session.commit()
+    return {"connected": False, "message": "Hevy disconnected"}
+
+
 # ─── API routes ──────────────────────────────────────────────────────────────
 
 
@@ -252,6 +289,7 @@ async def get_user(user: User = Depends(current_active_user)):
         "fitbit_connected": user.fitbit_access_token is not None,
         "fitbit_user_id": user.fitbit_user_id,
         "renpho_connected": user.renpho_session_key is not None,
+        "hevy_connected": user.hevy_api_key is not None,
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
     }
 
@@ -306,7 +344,15 @@ async def sync_all_sources(
             synced_metrics.extend(renpho_result["synced_metrics"])
             errors.extend(renpho_result["errors"])
 
-    if not user.fitbit_access_token and not user.renpho_session_key:
+    # Sync Hevy
+    if user.hevy_api_key:
+        for i in range(days):
+            current_date = base_date - timedelta(days=i)
+            hevy_result = await sync_hevy_data(session, user, current_date)
+            synced_metrics.extend(hevy_result["synced_metrics"])
+            errors.extend(hevy_result["errors"])
+
+    if not user.fitbit_access_token and not user.renpho_session_key and not user.hevy_api_key:
         raise HTTPException(status_code=400, detail="No data sources connected")
 
     user.last_sync = datetime.now(timezone.utc)

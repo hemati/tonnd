@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.services.renpho_client import (
+from src.services.renpho.client import (
     RenphoAPIError,
     SessionExpiredError,
     get_measurements_for_date,
@@ -32,7 +32,7 @@ class TestExceptionHierarchy:
 # renpho_login
 # ---------------------------------------------------------------------------
 class TestRenphoLogin:
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_success(self, MockRenphoClient):
         mock_instance = MagicMock()
         mock_instance.login.return_value = None
@@ -47,7 +47,7 @@ class TestRenphoLogin:
         assert result["session_key"] == "session-key-abc"
         assert result["user_id"] == "12345"
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_login_failure_raises_renpho_api_error(self, MockRenphoClient):
         mock_instance = MagicMock()
         mock_instance.login.side_effect = Exception("Invalid credentials")
@@ -56,7 +56,7 @@ class TestRenphoLogin:
         with pytest.raises(RenphoAPIError, match="Renpho login failed"):
             renpho_login("bad@example.com", "wrong")
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_constructor_failure_raises_renpho_api_error(self, MockRenphoClient):
         MockRenphoClient.side_effect = Exception("connection refused")
 
@@ -68,7 +68,7 @@ class TestRenphoLogin:
 # get_measurements_for_date
 # ---------------------------------------------------------------------------
 class TestGetMeasurementsForDate:
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_matching_date_returns_data(self, MockRenphoClient):
         """When measurements contain a matching date, weight + body_composition are returned."""
         target = date(2026, 4, 7)
@@ -107,7 +107,7 @@ class TestGetMeasurementsForDate:
         assert result["data"]["body_composition"]["muscle_mass_percent"] == 42.0
         assert result["data"]["body_composition"]["heart_rate"] == 68
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_non_matching_date_returns_empty(self, MockRenphoClient):
         """Measurements from a different date are not included."""
         target = date(2026, 4, 7)
@@ -125,7 +125,7 @@ class TestGetMeasurementsForDate:
         assert result["data"] == {}
         assert result["errors"] == []
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_empty_measurements(self, MockRenphoClient):
         mock_instance = MagicMock()
         mock_instance.get_all_measurements.return_value = []
@@ -136,7 +136,7 @@ class TestGetMeasurementsForDate:
         assert result["data"] == {}
         assert result["errors"] == []
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_api_error_collected_in_errors(self, MockRenphoClient):
         """When RenphoClient raises, error is added to result['errors']."""
         MockRenphoClient.side_effect = Exception("network failure")
@@ -147,7 +147,7 @@ class TestGetMeasurementsForDate:
         assert "renpho" in result["errors"][0]
         assert result["data"] == {}
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_measurement_without_timestamp_skipped(self, MockRenphoClient):
         """Measurements missing both timeStamp and time_stamp are skipped."""
         mock_instance = MagicMock()
@@ -159,7 +159,7 @@ class TestGetMeasurementsForDate:
         result = get_measurements_for_date("u@test.com", "pw", date(2026, 4, 7))
         assert result["data"] == {}
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_time_stamp_alternative_key(self, MockRenphoClient):
         """The code also checks 'time_stamp' as an alternative key."""
         target = date(2026, 4, 7)
@@ -174,7 +174,7 @@ class TestGetMeasurementsForDate:
         result = get_measurements_for_date("u@test.com", "pw", target)
         assert result["data"]["weight"]["weight_kg"] == 82.0
 
-    @patch("src.services.renpho_client.RenphoClient")
+    @patch("src.services.renpho.client.RenphoClient")
     def test_zero_weight_not_added(self, MockRenphoClient):
         """Weight of 0 should not be added to data."""
         target = date(2026, 4, 7)

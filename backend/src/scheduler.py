@@ -10,9 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import async_session_maker
 from src.models.db_models import User
-from src.services.fitbit_client import FitbitClient, RateLimitError, TokenExpiredError
-from src.services.fitbit_sync import disconnect_fitbit, ensure_valid_token, upsert_metric
-from src.services.renpho_sync import sync_renpho_data
+from src.services.fitbit.client import FitbitClient, RateLimitError, TokenExpiredError
+from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
+from src.services.sync_utils import upsert_metric
+from src.services.hevy.sync import sync_hevy_data
+from src.services.renpho.sync import sync_renpho_data
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +59,14 @@ async def sync_user(session: AsyncSession, user: User) -> str:
             if renpho_result["errors"]:
                 logger.warning(f"Renpho errors for user {user.id}: {renpho_result['errors']}")
 
+    # Hevy
+    if user.hevy_api_key:
+        for days_ago in [1, 0]:
+            sync_date = date.today() - timedelta(days=days_ago)
+            hevy_result = await sync_hevy_data(session, user, sync_date)
+            if hevy_result["errors"]:
+                logger.warning(f"Hevy errors for user {user.id}: {hevy_result['errors']}")
+
     user.last_sync = datetime.now(timezone.utc)
     await session.commit()
     return status
@@ -72,6 +82,7 @@ async def daily_sync_all():
             or_(
                 User.fitbit_access_token.isnot(None),
                 User.renpho_session_key.isnot(None),
+                User.hevy_api_key.isnot(None),
             )
         )
         result = await session.execute(stmt)
