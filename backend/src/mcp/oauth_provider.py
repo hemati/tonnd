@@ -12,6 +12,8 @@ from fastmcp.server.auth import AccessToken, OAuthProvider
 from mcp.server.auth.provider import AuthorizationParams
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
+from mcp.server.auth.settings import ClientRegistrationOptions
+
 from src.database import async_session_maker
 from src.services.token_service import create_token, verify_token as verify_pat
 
@@ -57,7 +59,15 @@ class TONNDOAuthProvider(OAuthProvider):
     """OAuth 2.1 provider backed by fastapi-users (email/password + Google)."""
 
     def __init__(self, base_url: str, login_path: str = "/login"):
-        super().__init__(base_url=base_url)
+        super().__init__(
+            base_url=base_url,
+            client_registration_options=ClientRegistrationOptions(
+                enabled=True,
+                valid_scopes=["read:all", "read:vitals", "read:body", "read:sleep",
+                              "read:activity", "read:workouts", "read:recovery"],
+                default_scopes=["read:all"],
+            ),
+        )
         self.login_path = login_path
         self._clients: dict[str, OAuthClientInformationFull] = {}
         self._auth_codes: dict[str, AuthCodeEntry] = {}
