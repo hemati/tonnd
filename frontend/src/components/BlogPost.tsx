@@ -18,6 +18,12 @@ export default function BlogPost() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
       <SEO title={meta.title} description={meta.description} path={`/blog/${meta.slug}`} ogType="article" />
+      {meta.image && (
+        <Helmet>
+          <meta property="og:image" content={`https://tonnd.com${meta.image}`} />
+          <meta name="twitter:image" content={`https://tonnd.com${meta.image}`} />
+        </Helmet>
+      )}
       <Helmet>
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',
@@ -28,7 +34,7 @@ export default function BlogPost() {
               description: meta.description,
               datePublished: meta.date,
               dateModified: meta.date,
-              image: 'https://tonnd.com/og-image.png',
+              image: meta.image ? `https://tonnd.com${meta.image}` : 'https://tonnd.com/og-image.png',
               author: { '@type': 'Person', name: meta.author, url: 'https://tonnd.com/' },
               publisher: { '@id': 'https://tonnd.com/#organization' },
               mainEntityOfPage: `https://tonnd.com/blog/${meta.slug}`,

@@ -5,6 +5,7 @@ export interface BlogPostMeta {
   slug: string
   tags: string[]
   author: string
+  image?: string
 }
 
 interface MdxModule {
@@ -27,6 +28,7 @@ export function getAllPosts(): BlogPostMeta[] {
         slug,
         tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
         author: String(fm.author || 'Wahed Hemati'),
+        image: fm.image ? String(fm.image) : undefined,
       }
     })
     .filter((p) => p.title && p.date)
