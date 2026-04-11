@@ -30,7 +30,7 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_ENDPOINT: ${VITE_API_ENDPOINT:-http://localhost:8080}
+        VITE_API_ENDPOINT: ${VITE_API_ENDPOINT:-}
         VITE_GA4_MEASUREMENT_ID: ${VITE_GA4_MEASUREMENT_ID:-}
     ports:
       - "5173:5173"
