@@ -59,7 +59,7 @@ export default function BlogPost() {
       </div>
 
       <article className="flex-1 max-w-5xl mx-auto px-5 py-16 w-full">
-        <Link to="/blog" className="text-[13px] text-white/30 hover:text-white/60 transition-colors">&larr; All posts</Link>
+        <Link to="/blog" className="text-[13px] text-white/45 hover:text-white/70 transition-colors">&larr; All posts</Link>
 
         <header className="mt-6 mb-10">
           <h1 className="text-3xl font-bold mb-3">{meta.title}</h1>
@@ -71,7 +71,7 @@ export default function BlogPost() {
           {meta.tags.length > 0 && (
             <div className="flex gap-2 mt-3">
               {meta.tags.map((tag) => (
-                <span key={tag} className="text-[11px] text-white/25 border border-white/[.08] rounded px-2 py-0.5">{tag}</span>
+                <span key={tag} className="text-[11px] text-white/40 border border-white/[.08] rounded px-2 py-0.5">{tag}</span>
               ))}
             </div>
           )}

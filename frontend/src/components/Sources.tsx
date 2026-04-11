@@ -124,7 +124,7 @@ export default function Sources() {
             <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[.06] text-white/60 rounded-md text-sm">
               <CheckIcon /> Connected
             </span>
-            <button onClick={() => handleDisconnect('renpho')} className="text-white/30 hover:text-white/60 text-sm transition-colors">
+            <button onClick={() => handleDisconnect('renpho')} className="text-white/45 hover:text-white/70 text-sm transition-colors">
               Disconnect
             </button>
           </div>
@@ -135,7 +135,7 @@ export default function Sources() {
             <button type="submit" disabled={isConnectingRenpho} className={BTN_CONNECT}>
               {isConnectingRenpho ? 'Connecting...' : 'Connect Renpho'}
             </button>
-            <p className="text-xs text-white/25">Uses your Renpho app credentials. May log you out of the mobile app.</p>
+            <p className="text-xs text-white/40">Uses your Renpho app credentials. May log you out of the mobile app.</p>
           </form>
         )}
       </div>
@@ -154,7 +154,7 @@ export default function Sources() {
             <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[.06] text-white/60 rounded-md text-sm">
               <CheckIcon /> Connected
             </span>
-            <button onClick={() => handleDisconnect('hevy')} className="text-white/30 hover:text-white/60 text-sm transition-colors">
+            <button onClick={() => handleDisconnect('hevy')} className="text-white/45 hover:text-white/70 text-sm transition-colors">
               Disconnect
             </button>
           </div>
@@ -164,7 +164,7 @@ export default function Sources() {
             <button type="submit" disabled={isConnectingHevy} className={BTN_CONNECT}>
               {isConnectingHevy ? 'Connecting...' : 'Connect Hevy'}
             </button>
-            <p className="text-xs text-white/25">
+            <p className="text-xs text-white/40">
               Requires Hevy Pro.{' '}
               <a href="https://hevy.com/settings?developer" target="_blank" rel="noopener noreferrer" className="text-white/40 hover:text-white/60 underline">
                 Get your API key
@@ -191,7 +191,7 @@ export default function Sources() {
         Skip for now
       </button>
 
-      <p className="text-center text-xs text-white/20 pb-4">
+      <p className="text-center text-xs text-white/35 pb-4">
         Your credentials are encrypted and never shared with third parties.
       </p>
     </div>

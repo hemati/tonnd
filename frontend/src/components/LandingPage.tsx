@@ -214,7 +214,7 @@ export default function LandingPage() {
       <section className="max-w-5xl mx-auto px-5 pt-20 pb-16 lg:pt-28 lg:pb-24">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="lp-appear">
-            <p className="text-[13px] text-white/30 font-medium tracking-wide mb-5">
+            <p className="text-[13px] text-white/45 font-medium tracking-wide mb-5">
               Open source &middot; All your metrics in one place
             </p>
 
@@ -222,7 +222,7 @@ export default function LandingPage() {
               The open-source dashboard for your health data.
             </h1>
 
-            <p className="text-[17px] text-white/45 leading-relaxed mb-10 max-w-md">
+            <p className="text-[17px] text-white/65 leading-relaxed mb-10 max-w-md">
               Connect Fitbit, Renpho, and Hevy. Track sleep, weight, workouts, heart rate, HRV, body composition, and 15+ metrics &mdash; all in one place. Use it on tonnd.com or self-host on your own server.
             </p>
 
@@ -236,7 +236,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <p className="text-[13px] text-white/25">
+            <p className="text-[13px] text-white/40">
               No credit card required.
             </p>
           </div>
@@ -251,10 +251,10 @@ export default function LandingPage() {
       <section className="max-w-5xl mx-auto px-5 py-16">
         <div className="lp-appear">
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">What is TONND?</h2>
-          <p className="text-[15px] text-white/40 leading-relaxed mb-4">
+          <p className="text-[15px] text-white/55 leading-relaxed mb-4">
             TONND is a free, open-source health dashboard that pulls data from Fitbit wearables, Renpho smart scales, and Hevy workout logs into a single interface. It tracks over 15 metrics including sleep stages, heart rate variability (HRV), VO&#x2082; Max, SpO&#x2082;, weight, body fat percentage, muscle mass, workout volume, and recovery scores. Users can view trends over 7, 14, or 30 days and see which muscle groups they trained as an interactive heatmap.
           </p>
-          <p className="text-[15px] text-white/40 leading-relaxed">
+          <p className="text-[15px] text-white/55 leading-relaxed">
             The project was started in 2024 after Google shut down the Fitbit web dashboard, leaving millions of users without a way to view their health data on a full screen. TONND runs on Docker and can be self-hosted on any server, or used as a managed service at tonnd.com. It is licensed under AGPL-3.0 and built with FastAPI, PostgreSQL, and React.
           </p>
         </div>
@@ -268,7 +268,7 @@ export default function LandingPage() {
 
         {/* Connect */}
         <div className="mb-20">
-          <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Connect</p>
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Connect</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Bring your devices together.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
             Link Fitbit, Renpho, and Hevy. Data flows automatically into your dashboard.
@@ -306,7 +306,7 @@ export default function LandingPage() {
 
         {/* Track */}
         <div className="mb-20">
-          <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Track</p>
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Track</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Every metric that matters.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
             15+ health metrics in a single dashboard. Trends over days, weeks, and months.
@@ -337,7 +337,7 @@ export default function LandingPage() {
 
         {/* Own */}
         <div>
-          <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Open source</p>
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Open source</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your data, your rules.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
             TONND is fully open source. Use our managed cloud or run it on your own server &mdash; you always own your data.
@@ -362,7 +362,7 @@ export default function LandingPage() {
 
       {/* ═══ HOW IT WORKS ═══ */}
       <section id="how-it-works" className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">How it works</p>
+        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">How it works</p>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-12 lp-appear">Up and running in three steps.</h2>
 
         <div className="grid md:grid-cols-3 gap-12 lp-appear">
@@ -385,7 +385,7 @@ export default function LandingPage() {
 
       {/* ═══ WHY TONND ═══ */}
       <section className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3 lp-appear">Why TONND</p>
+        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Why TONND</p>
         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your health data is personal.</h2>
         <p className="text-[15px] text-white/40 mb-12 max-w-lg lp-appear">
           TONND gives you full control over your health data. Use our cloud or self-host &mdash; either way, your data stays yours.
@@ -416,7 +416,7 @@ export default function LandingPage() {
             <section className="max-w-5xl mx-auto px-5 py-20">
               <div className="flex items-baseline justify-between mb-8">
                 <div>
-                  <p className="text-[13px] text-white/25 font-medium tracking-wide mb-3">From the blog</p>
+                  <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">From the blog</p>
                   <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90">Latest posts</h2>
                 </div>
                 <Link to="/blog" className="text-[13px] text-white/40 hover:text-white/70 transition-colors">View all &rarr;</Link>

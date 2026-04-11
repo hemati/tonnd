@@ -10,7 +10,7 @@ interface LayoutProps {
 }
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `text-[13px] transition-colors ${isActive ? 'text-white' : 'text-white/35 hover:text-white/60'}`
+  `text-[13px] transition-colors ${isActive ? 'text-white' : 'text-white/50 hover:text-white/80'}`
 
 export default function Layout({ children, user }: LayoutProps) {
   const { signOut } = useAuth()
@@ -36,7 +36,7 @@ export default function Layout({ children, user }: LayoutProps) {
           </div>
 
           <div className="flex items-center gap-4">
-            <span className="text-[13px] text-white/35 hidden sm:block">{user?.email}</span>
+            <span className="text-[13px] text-white/50 hidden sm:block">{user?.email}</span>
             <button onClick={handleSignOut} className={theme.btnGhost}>
               Sign out
             </button>
