@@ -53,7 +53,7 @@ export default function Dashboard() {
   // Redirect if no data source connected
   useEffect(() => {
     if (user && !user.fitbit_connected && !user.renpho_connected) {
-      navigate('/connect-fitbit')
+      navigate('/sources')
     }
   }, [user, navigate])
 

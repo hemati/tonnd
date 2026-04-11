@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /auth/
-Disallow: /connect-fitbit
+Disallow: /sources
 
 # AI Search Crawlers
 User-agent: GPTBot

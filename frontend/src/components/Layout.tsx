@@ -1,4 +1,5 @@
 import { ReactNode } from 'react'
+import { NavLink } from 'react-router-dom'
 import { useAuth, User } from '../hooks/useAuth'
 import { theme, DISCORD_URL } from '../config/theme'
 import Logo from './Logo'
@@ -7,6 +8,9 @@ interface LayoutProps {
   children: ReactNode
   user: User | null
 }
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `text-[13px] transition-colors ${isActive ? 'text-white' : 'text-white/35 hover:text-white/60'}`
 
 export default function Layout({ children, user }: LayoutProps) {
   const { signOut } = useAuth()
@@ -22,7 +26,13 @@ export default function Layout({ children, user }: LayoutProps) {
       {/* header */}
       <header className={theme.navBg}>
         <div className={theme.navContainer}>
-          <Logo />
+          <div className="flex items-center gap-6">
+            <Logo />
+            <nav className="flex items-center gap-4">
+              <NavLink to="/" end className={navLinkClass}>Dashboard</NavLink>
+              <NavLink to="/sources" className={navLinkClass}>Sources</NavLink>
+            </nav>
+          </div>
 
           <div className="flex items-center gap-4">
             <span className="text-[13px] text-white/35 hidden sm:block">{user?.email}</span>

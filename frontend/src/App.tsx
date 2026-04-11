@@ -88,7 +88,7 @@ function App() {
           }
         />
         <Route
-          path="/connect-fitbit"
+          path="/sources"
           element={
             isAuthenticated ? (
               <Layout user={user}>
