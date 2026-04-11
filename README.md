@@ -12,7 +12,7 @@ Open-source, self-hosted health dashboard. Connect Fitbit, Renpho, and Hevy — 
 - **Google + Email/Password Login** via fastapi-users
 - **Fitbit Integration** - Sleep, activity, heart rate, HRV, SpO2, VO2 Max, breathing rate, skin temperature, active zone minutes
 - **Renpho Integration** - Weight, body composition (body fat, muscle mass, water, bone mass)
-- **Hevy Integration** - Workout tracking (exercises, sets, reps, volume)
+- **Hevy Integration** - Workout tracking (exercises, sets, reps, volume, muscle heatmap)
 - **Recovery Score** - Calculated from HRV, sleep efficiency, and resting heart rate
 - **Daily Auto-Sync** - APScheduler runs at 06:00 UTC
 - **Historical Sync** - Up to 30 days retroactively

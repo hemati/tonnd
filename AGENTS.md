@@ -121,9 +121,10 @@ tonnd/
 │       │   └── api.ts              # Axios client + API functions
 │       └── components/
 │           ├── Login.tsx           # Google + Email/Password login
-│           ├── LandingPage.tsx     # Public landing page
-│           ├── Dashboard.tsx       # Health dashboard
-│           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy
+│           ├── LandingPage.tsx     # Public landing page (/)
+│           ├── Dashboard.tsx       # Health dashboard (/dashboard)
+│           ├── MuscleMap.tsx       # Interactive muscle heatmap (react-body-highlighter)
+│           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy (/sources)
 │           ├── AuthCallback.tsx    # OAuth callback handler
 │           ├── Layout.tsx          # App shell (header/footer)
 │           ├── SEO.tsx             # React Helmet meta tags
@@ -189,7 +190,7 @@ tonnd/
 | temperature | fitbit | relative_deviation |
 | active_zone_minutes | fitbit | fat_burn_minutes, cardio_minutes, peak_minutes, total_minutes |
 | body_composition | renpho | muscle_mass, body_fat, water, bone_mass, protein, etc. |
-| workout | hevy | exercise_name, sets, reps, weight_kg, duration, volume |
+| workout | hevy | exercises (with primary_muscle, secondary_muscles), volume, muscle_groups (weighted) |
 
 ---
 
