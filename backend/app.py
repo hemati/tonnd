@@ -1,3 +1,4 @@
+import contextlib
 import os
 import uuid
 from contextlib import asynccontextmanager
@@ -54,20 +55,31 @@ from src.utils.security import (
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
+# ─── MCP Remote Server (HTTP transport for claude.ai) ────────────────────────
+
+from src.mcp.remote_server import mcp as health_mcp
+
+MCP_PATH = "/mcp"
+health_mcp_app = health_mcp.http_app(path=MCP_PATH)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Start MCP session manager
+    async with contextlib.AsyncExitStack() as stack:
+        await stack.enter_async_context(health_mcp_app.router.lifespan_context(app))
 
-    # Start daily sync scheduler
-    scheduler = AsyncIOScheduler()
-    scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_sync_all")
-    scheduler.start()
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
-    yield
+        # Start daily sync scheduler
+        scheduler = AsyncIOScheduler()
+        scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_sync_all")
+        scheduler.start()
 
-    scheduler.shutdown()
+        yield
+
+        scheduler.shutdown()
 
 
 app = FastAPI(title="TONND", version="1.0.0", lifespan=lifespan)
@@ -86,6 +98,15 @@ app.add_middleware(
     allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# ─── MCP HTTP Transport (claude.ai connector) ───────────────────────────────
+
+app.mount("/mcp", health_mcp_app)
+
+# .well-known discovery routes must be at root level (RFC 8414/9728)
+if health_mcp.auth:
+    for route in health_mcp.auth.get_well_known_routes(mcp_path=MCP_PATH):
+        app.routes.append(route)
 
 # ─── Public API v1 ───────────────────────────────────────────────────────────
 

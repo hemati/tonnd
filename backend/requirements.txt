@@ -43,7 +43,7 @@ aiosqlite>=0.22.1
 slowapi>=0.1.9
 
 # MCP server
-fastmcp>=2.14.6
+fastmcp>=3.0.0
 
 # Utilities
 python-dateutil>=2.9.0
