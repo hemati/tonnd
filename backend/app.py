@@ -59,7 +59,7 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
 from src.mcp.remote_server import mcp as health_mcp
 
-MCP_PATH = "/mcp"
+MCP_PATH = "/"
 health_mcp_app = health_mcp.http_app(path=MCP_PATH)
 
 
