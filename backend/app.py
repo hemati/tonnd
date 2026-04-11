@@ -81,7 +81,7 @@ app.add_middleware(AuditMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=JWT_SECRET)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[FRONTEND_URL],
+    allow_origins=list({FRONTEND_URL, FRONTEND_URL.replace("://www.", "://"), FRONTEND_URL.replace("://", "://www.")}),
     allow_credentials=True,
     allow_methods=["GET", "POST", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
