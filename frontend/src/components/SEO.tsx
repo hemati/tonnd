@@ -5,6 +5,7 @@ interface SEOProps {
   description?: string
   path?: string
   noindex?: boolean
+  ogType?: string
 }
 
 const BASE_URL = 'https://tonnd.com'
@@ -12,7 +13,7 @@ const OG_IMAGE = `${BASE_URL}/og-image.png`
 const DEFAULT_TITLE = 'TONND — Self-host your health dashboard'
 const DEFAULT_DESC = 'Open-source, self-hosted health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.'
 
-export default function SEO({ title, description, path = '/', noindex }: SEOProps) {
+export default function SEO({ title, description, path = '/', noindex, ogType = 'website' }: SEOProps) {
   const fullTitle = title ? `${title} — TONND` : DEFAULT_TITLE
   const desc = description || DEFAULT_DESC
   const url = `${BASE_URL}${path}`
@@ -26,7 +27,7 @@ export default function SEO({ title, description, path = '/', noindex }: SEOProp
       <meta property="og:title" content={fullTitle} />
       <meta property="og:description" content={desc} />
       <meta property="og:url" content={url} />
-      <meta property="og:type" content="website" />
+      <meta property="og:type" content={ogType} />
       <meta property="og:image" content={OG_IMAGE} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="630" />

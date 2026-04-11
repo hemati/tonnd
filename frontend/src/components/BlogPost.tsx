@@ -17,7 +17,7 @@ export default function BlogPost() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
-      <SEO title={meta.title} description={meta.description} path={`/blog/${meta.slug}`} />
+      <SEO title={meta.title} description={meta.description} path={`/blog/${meta.slug}`} ogType="article" />
       <Helmet>
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',

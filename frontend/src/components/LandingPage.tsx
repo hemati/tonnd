@@ -247,6 +247,19 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ═══ WHAT IS TONND ═══ */}
+      <section className="max-w-5xl mx-auto px-5 py-16">
+        <div className="max-w-2xl lp-appear">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">What is TONND?</h2>
+          <p className="text-[15px] text-white/40 leading-relaxed mb-4">
+            TONND is a free, open-source health dashboard that pulls data from Fitbit wearables, Renpho smart scales, and Hevy workout logs into a single interface. It tracks over 15 metrics including sleep stages, heart rate variability (HRV), VO&#x2082; Max, SpO&#x2082;, weight, body fat percentage, muscle mass, workout volume, and recovery scores. Users can view trends over 7, 14, or 30 days and see which muscle groups they trained as an interactive heatmap.
+          </p>
+          <p className="text-[15px] text-white/40 leading-relaxed">
+            The project was started in 2024 after Google shut down the Fitbit web dashboard, leaving millions of users without a way to view their health data on a full screen. TONND runs on Docker and can be self-hosted on any server, or used as a managed service at tonnd.com. It is licensed under AGPL-3.0 and built with FastAPI, PostgreSQL, and React.
+          </p>
+        </div>
+      </section>
+
       {/* ═══ DIVIDER ═══ */}
       <div className="border-t border-white/[.06]" />
 

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { Helmet } from 'react-helmet-async'
 import { getAllPosts } from '../lib/blog'
 import SEO from './SEO'
 import Logo from './Logo'
@@ -10,6 +11,28 @@ export default function BlogIndex() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       <SEO title="Blog" description="Articles about self-hosted health tracking, fitness data, and open-source development." path="/blog" />
+      <Helmet>
+        <script type="application/ld+json">{JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'CollectionPage',
+              '@id': 'https://tonnd.com/blog',
+              'name': 'Blog — TONND',
+              'description': 'Articles about self-hosted health tracking, fitness data, and open-source development.',
+              'url': 'https://tonnd.com/blog',
+              'isPartOf': { '@id': 'https://tonnd.com/#website' }
+            },
+            {
+              '@type': 'BreadcrumbList',
+              'itemListElement': [
+                { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://tonnd.com/' },
+                { '@type': 'ListItem', 'position': 2, 'name': 'Blog', 'item': 'https://tonnd.com/blog' }
+              ]
+            }
+          ]
+        })}</script>
+      </Helmet>
 
       <div className="max-w-5xl mx-auto px-5">
         <div className="h-14 flex items-center">
