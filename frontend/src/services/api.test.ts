@@ -118,7 +118,7 @@ describe('api module', () => {
 
       await expect(getResponseErrorHandler()(error)).rejects.toThrow('Unauthorized')
       expect(localStorage.getItem('access_token')).toBeNull()
-      expect(window.location.href).toBe('/')
+      expect(window.location.href).toBe('/login')
     })
 
     it('extracts detail message from error response', async () => {
