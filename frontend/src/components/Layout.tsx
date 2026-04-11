@@ -29,8 +29,9 @@ export default function Layout({ children, user }: LayoutProps) {
           <div className="flex items-center gap-6">
             <Logo />
             <nav className="flex items-center gap-4">
-              <NavLink to="/" end className={navLinkClass}>Dashboard</NavLink>
+              <NavLink to="/dashboard" className={navLinkClass}>Dashboard</NavLink>
               <NavLink to="/sources" className={navLinkClass}>Sources</NavLink>
+              <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>
             </nav>
           </div>
 
