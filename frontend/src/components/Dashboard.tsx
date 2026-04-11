@@ -1,16 +1,17 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { format, parseISO } from 'date-fns'
+import { format, parseISO, differenceInHours } from 'date-fns'
 import { trackEvent } from '../lib/analytics'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area, PieChart, Pie, Cell, Legend, ComposedChart,
+  RadialBarChart, RadialBar, ReferenceLine,
 } from 'recharts'
 import {
   ScaleIcon, MoonIcon, HeartIcon, ArrowPathIcon, BoltIcon,
   ChartBarIcon, ExclamationCircleIcon, FireIcon, CloudIcon,
   SunIcon, BoltSlashIcon, ArrowTrendingUpIcon, ChartBarSquareIcon,
-  EllipsisHorizontalCircleIcon,
+  EllipsisHorizontalCircleIcon, ChevronDownIcon, ChevronUpIcon,
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
 import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
@@ -18,7 +19,10 @@ import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
 // Heroicons type
 type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
 
-// Color palette — monochrome with subtle accents
+// =============================================================================
+// Design Tokens
+// =============================================================================
+
 const COLORS = {
   primary: '#ffffff',
   success: '#4ade80',
@@ -35,11 +39,70 @@ const HR_ZONE_COLORS: Record<string, string> = {
   'Out of Range': '#6b7280', 'Fat Burn': '#4ade80', 'Cardio': '#fbbf24', 'Peak': '#f87171',
 }
 
-// Tooltip style for recharts
 const tooltipStyle = {
   contentStyle: { backgroundColor: '#141414', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px' },
   labelStyle: { color: '#e5e5e5' },
 }
+
+const CARD = 'bg-white/[.02] rounded-xl border border-white/[.06]'
+
+// =============================================================================
+// Utility Functions
+// =============================================================================
+
+function prepareChartData<T extends { date: string }>(data: T[]): (T & { date: string })[] {
+  return [...data].reverse().map(d => ({ ...d, date: format(parseISO(d.date), 'MMM d') }))
+}
+
+/** Exponentially Weighted Moving Average */
+function ewma(values: number[], span: number = 7): number[] {
+  const alpha = 2 / (span + 1)
+  const result: number[] = []
+  let prev = values[0]
+  for (const v of values) {
+    prev = alpha * v + (1 - alpha) * prev
+    result.push(Math.round(prev * 10) / 10)
+  }
+  return result
+}
+
+/** Pearson correlation coefficient */
+function pearsonR(x: number[], y: number[]): number | null {
+  const n = Math.min(x.length, y.length)
+  if (n < 5) return null
+  const xs = x.slice(0, n), ys = y.slice(0, n)
+  const mx = xs.reduce((a, b) => a + b, 0) / n
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  let num = 0, dx2 = 0, dy2 = 0
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my
+    num += dx * dy; dx2 += dx * dx; dy2 += dy * dy
+  }
+  const denom = Math.sqrt(dx2 * dy2)
+  return denom === 0 ? null : Math.round((num / denom) * 100) / 100
+}
+
+/** Staleness level from a date string */
+function staleness(dateStr: string | null | undefined): 'fresh' | 'aging' | 'stale' | 'very-stale' | 'none' {
+  if (!dateStr) return 'none'
+  try {
+    const hours = differenceInHours(new Date(), parseISO(dateStr))
+    if (hours < 6) return 'fresh'
+    if (hours < 48) return 'aging'
+    if (hours < 168) return 'stale'
+    return 'very-stale'
+  } catch { return 'none' }
+}
+
+function recoveryColor(score: number) {
+  if (score >= 85) return COLORS.success
+  if (score >= 70) return COLORS.warning
+  return COLORS.danger
+}
+
+// =============================================================================
+// Dashboard
+// =============================================================================
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -50,7 +113,6 @@ export default function Dashboard() {
   const { data, isLoading, error, refetch } = useDashboard(30)
   const syncMutation = useSyncFitbit()
 
-  // Redirect if no data source connected
   useEffect(() => {
     if (user && !user.fitbit_connected && !user.renpho_connected) {
       navigate('/sources')
@@ -64,7 +126,6 @@ export default function Dashboard() {
 
   const handleHistoricalSync = async () => {
     if (!confirm('Sync last 30 days? This will be done in 10 batches.')) return
-    
     for (let i = 0; i < 10; i++) {
       setSyncProgress(`Syncing batch ${i + 1}/10...`)
       const startDate = new Date()
@@ -76,21 +137,21 @@ export default function Dashboard() {
     refetch()
   }
 
-  const formatLastSync = (lastSync: string | null) => {
-    if (!lastSync) return 'Never'
-    try { return format(parseISO(lastSync), 'MMM d, yyyy h:mm a') } catch { return lastSync }
+  const formatLastSync = (ls: string | null) => {
+    if (!ls) return 'Never'
+    try { return format(parseISO(ls), 'MMM d, yyyy h:mm a') } catch { return ls }
   }
 
-  const getFilteredData = <T,>(arr: T[] | undefined): T[] => arr?.slice(0, daysToShow) ?? []
+  const getFiltered = <T,>(arr: T[] | undefined): T[] => arr?.slice(0, daysToShow) ?? []
 
-  // Calculate stats
+  // Computed values
   const weeklySummary = data?.activity_history ? (() => {
-    const recent = getFilteredData(data.activity_history)
+    const recent = getFiltered(data.activity_history)
     if (!recent.length) return null
     const totalSteps = recent.reduce((s, d) => s + (d.steps || 0), 0)
     const totalCalories = recent.reduce((s, d) => s + (d.calories_burned || 0), 0)
     const totalActiveMinutes = recent.reduce((s, d) => s + (d.active_minutes || 0), 0)
-    const sleepDays = getFilteredData(data.sleep_history)
+    const sleepDays = getFiltered(data.sleep_history)
     const avgSleep = sleepDays.length ? Math.round(sleepDays.reduce((s, d) => s + (d.total_minutes || 0), 0) / sleepDays.length) : 0
     return {
       totalSteps, totalCalories, totalActiveMinutes,
@@ -113,6 +174,57 @@ export default function Dashboard() {
       })).filter(z => z.minutes > 0)
     : null
 
+  // Recovery score — backend returns a plain number, components computed locally
+  const recoveryScoreValue = typeof data?.recovery_score === 'number'
+    ? data.recovery_score
+    : (data?.recovery_score as any)?.score ?? null
+
+  const recoveryComponents = recoveryScoreValue !== null ? {
+    score: recoveryScoreValue as number,
+    hrv: Math.round(Math.min(100, (Number(data?.latest_hrv?.daily_rmssd ?? 0) / 100) * 100)),
+    sleep: data?.latest_sleep?.efficiency ?? 0,
+    rhr: Math.round(Math.max(0, Math.min(100, (100 - Number(data?.today_heart_rate?.resting_heart_rate ?? 70)) * 2))),
+  } : null
+
+  // EWMA weight data
+  const weightWithEwma = (() => {
+    const raw = getFiltered(data?.weight_trend)?.filter(d => d.weight_kg)
+    if (!raw || raw.length < 2) return null
+    const reversed = [...raw].reverse()
+    const weights = reversed.map(d => Number(d.weight_kg))
+    const smoothed = ewma(weights)
+    return reversed.map((d, i) => ({
+      date: format(parseISO(d.date), 'MMM d'),
+      raw: Number(d.weight_kg),
+      trend: smoothed[i],
+      body_fat: d.body_fat_percent ? Number(d.body_fat_percent) : undefined,
+    }))
+  })()
+
+  // Sleep-HRV correlation data
+  const sleepHrvCorrelation = (() => {
+    const sleep = getFiltered(data?.sleep_history)
+    const hrv = getFiltered(data?.hrv_history)
+    if (!sleep?.length || !hrv?.length) return null
+
+    const hrvByDate = new Map(hrv.map(h => [h.date, h.daily_rmssd]))
+    const paired = sleep
+      .filter(s => s.efficiency && hrvByDate.has(s.date))
+      .map(s => ({
+        date: format(parseISO(s.date), 'MMM d'),
+        sleepEfficiency: s.efficiency!,
+        hrv: Number(hrvByDate.get(s.date)!),
+      }))
+      .reverse()
+
+    if (paired.length < 3) return null
+    const r = pearsonR(paired.map(p => p.sleepEfficiency), paired.map(p => p.hrv))
+    return { data: paired, r }
+  })()
+
+  const syncStaleness = staleness(data?.last_sync)
+
+  // Loading / Error states
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -127,20 +239,21 @@ export default function Dashboard() {
         <ExclamationCircleIcon className="h-16 w-16 text-white/50 mx-auto mb-4" />
         <h2 className="text-xl font-semibold text-white mb-2">Error Loading Data</h2>
         <p className="text-white/40 mb-4">{error.message}</p>
-        <button onClick={() => refetch()} className="bg-white text-black hover:bg-white/90 px-4 py-2 rounded-lg">
-          Try Again
-        </button>
+        <button onClick={() => refetch()} className="bg-white text-black hover:bg-white/90 px-4 py-2 rounded-lg">Try Again</button>
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-white">Health Dashboard</h1>
-          <p className="text-white/40 text-sm">Last synced: {formatLastSync(data?.last_sync || null)}</p>
+          <p className="text-white/40 text-sm flex items-center gap-2">
+            Last synced: {formatLastSync(data?.last_sync || null)}
+            <StaleBadge level={syncStaleness} />
+          </p>
           {syncProgress && <p className="text-white/80 text-sm animate-pulse">{syncProgress}</p>}
         </div>
         <div className="flex items-center gap-3">
@@ -165,61 +278,81 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Weekly Summary */}
-      {weeklySummary && (
-        <div className="rounded-xl p-6 border border-white/[.06] bg-white/[.02]">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <ChartBarSquareIcon className="h-5 w-5" /> {daysToShow}-Day Summary
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 text-center">
-            <div><p className="text-2xl font-bold text-white/80">{weeklySummary.totalSteps.toLocaleString()}</p><p className="text-white/40 text-sm">Total Steps</p></div>
-            <div><p className="text-2xl font-bold text-white/70">{weeklySummary.avgSteps.toLocaleString()}</p><p className="text-white/40 text-sm">Avg Steps/Day</p></div>
-            <div><p className="text-2xl font-bold text-white/70">{weeklySummary.totalCalories.toLocaleString()}</p><p className="text-white/40 text-sm">Total Calories</p></div>
-            <div><p className="text-2xl font-bold text-white/60">{weeklySummary.avgCalories.toLocaleString()}</p><p className="text-white/40 text-sm">Avg Cal/Day</p></div>
-            <div><p className="text-2xl font-bold text-white/60">{weeklySummary.totalActiveMinutes}</p><p className="text-white/40 text-sm">Active Min</p></div>
-            <div><p className="text-2xl font-bold text-white/80">{Math.floor(weeklySummary.avgSleep / 60)}h {weeklySummary.avgSleep % 60}m</p><p className="text-white/40 text-sm">Avg Sleep</p></div>
-          </div>
-        </div>
-      )}
+      {/* ── Bento Grid: Top Row ─────────────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
 
-      {/* Today's Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={ScaleIcon} iconBg="bg-white/[.06]" title="Weight"
-          value={data?.latest_weight?.weight_kg ? `${Number(data.latest_weight.weight_kg).toFixed(1)} kg` : '--'}
-          subtitle={data?.latest_weight?.body_fat_percent ? `Body Fat: ${Number(data.latest_weight.body_fat_percent).toFixed(1)}%` : undefined} />
-        <StatCard icon={MoonIcon} iconBg="bg-white/[.06]" title="Last Night Sleep"
-          value={data?.latest_sleep?.total_minutes ? `${Math.floor(data.latest_sleep.total_minutes / 60)}h ${data.latest_sleep.total_minutes % 60}m` : '--'}
-          subtitle={data?.latest_sleep?.efficiency ? `Efficiency: ${data.latest_sleep.efficiency}%` : undefined} />
-        <StatCard icon={ChartBarIcon} iconBg="bg-white/[.06]" title="Steps Today"
-          value={data?.today_activity?.steps?.toLocaleString() || '--'}
-          subtitle={data?.today_activity?.distance_km ? `Distance: ${Number(data.today_activity.distance_km).toFixed(1)} km` : undefined} />
-        <StatCard icon={HeartIcon} iconBg="bg-white/[.06]" title="Resting Heart Rate"
-          value={data?.today_heart_rate?.resting_heart_rate ? `${data.today_heart_rate.resting_heart_rate} bpm` : '--'}
-          subtitle={data?.today_activity?.calories_burned ? `Calories: ${data.today_activity.calories_burned.toLocaleString()}` : undefined} />
+        {/* Recovery Score — Hero tile, always visible */}
+        <div className={cn(CARD, 'lg:col-span-6 p-6')}>
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <BoltSlashIcon className="h-5 w-5" /> Recovery Score
+          </h2>
+          {recoveryComponents ? (
+            <div className="flex items-center gap-8">
+              {/* Big score number */}
+              <div className="text-center flex-shrink-0">
+                <p className="text-5xl font-bold" style={{ color: recoveryColor(recoveryComponents.score) }}>
+                  {recoveryComponents.score}
+                </p>
+                <p className="text-white/40 text-xs mt-1">
+                  {recoveryComponents.score >= 85 ? 'High intensity' :
+                   recoveryComponents.score >= 75 ? 'Moderate' :
+                   recoveryComponents.score >= 50 ? 'Light activity' : 'Recovery day'}
+                </p>
+              </div>
+              {/* Factor breakdown */}
+              <div className="space-y-3 flex-1 min-w-0">
+                <FactorBar label="HRV" value={recoveryComponents.hrv} color={COLORS.purple} />
+                <FactorBar label="Sleep" value={recoveryComponents.sleep} color={SLEEP_COLORS.deep} />
+                <FactorBar label="Resting HR" value={recoveryComponents.rhr} color={COLORS.danger} />
+              </div>
+            </div>
+          ) : (
+            <p className="text-white/40 text-center py-4">Need HRV, sleep, and heart rate data</p>
+          )}
+        </div>
+
+        {/* Weekly Summary (6 cols) */}
+        {weeklySummary && (
+          <div className={cn(CARD, 'lg:col-span-6 p-6')}>
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+              <ChartBarSquareIcon className="h-5 w-5" /> {daysToShow}-Day Summary
+            </h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-center">
+              <SummaryCell value={weeklySummary.totalSteps.toLocaleString()} label="Total Steps" />
+              <SummaryCell value={weeklySummary.avgSteps.toLocaleString()} label="Avg Steps/Day" />
+              <SummaryCell value={weeklySummary.totalCalories.toLocaleString()} label="Total Calories" />
+              <SummaryCell value={weeklySummary.avgCalories.toLocaleString()} label="Avg Cal/Day" />
+              <SummaryCell value={String(weeklySummary.totalActiveMinutes)} label="Active Min" />
+              <SummaryCell value={`${Math.floor(weeklySummary.avgSleep / 60)}h ${weeklySummary.avgSleep % 60}m`} label="Avg Sleep" />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Health Vitals Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recovery Score */}
-        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BoltSlashIcon className="h-5 w-5" /> Recovery Score</h2>
-          {data?.recovery_score ? (
-            <div className="text-center">
-              <div className={cn('inline-flex items-center justify-center w-24 h-24 rounded-full text-3xl font-bold',
-                data.recovery_score.score >= 75 ? 'bg-white/[.06] text-white/70' :
-                data.recovery_score.score >= 50 ? 'bg-white/[.06] text-white/50' : 'bg-white/[.06] text-white/60')}>
-                {data.recovery_score.score}
-              </div>
-              <p className="text-white/40 text-sm mt-3">
-                {data.recovery_score.score >= 75 ? '✨ Ready for high intensity' :
-                 data.recovery_score.score >= 50 ? '⚡ Light activity recommended' : '💤 Focus on recovery'}
-              </p>
-            </div>
-          ) : <p className="text-white/40 text-center">No data</p>}
-        </div>
+      {/* ── Bento Grid: Stat Cards ──────────────────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon={ScaleIcon} title="Weight"
+          value={data?.latest_weight?.weight_kg ? `${Number(data.latest_weight.weight_kg).toFixed(1)} kg` : '--'}
+          subtitle={data?.latest_weight?.body_fat_percent ? `Body Fat: ${Number(data.latest_weight.body_fat_percent).toFixed(1)}%` : undefined}
+          staleLevel={staleness(data?.latest_weight?.date)} />
+        <StatCard icon={MoonIcon} title="Last Night Sleep"
+          value={data?.latest_sleep?.total_minutes ? `${Math.floor(data.latest_sleep.total_minutes / 60)}h ${data.latest_sleep.total_minutes % 60}m` : '--'}
+          subtitle={data?.latest_sleep?.efficiency ? `Efficiency: ${data.latest_sleep.efficiency}%` : undefined}
+          staleLevel={staleness(data?.latest_sleep?.date)} />
+        <StatCard icon={ChartBarIcon} title="Steps Today"
+          value={data?.today_activity?.steps?.toLocaleString() || '--'}
+          subtitle={data?.today_activity?.distance_km ? `Distance: ${Number(data.today_activity.distance_km).toFixed(1)} km` : undefined}
+          staleLevel={staleness(data?.today_activity?.date)} />
+        <StatCard icon={HeartIcon} title="Resting Heart Rate"
+          value={data?.today_heart_rate?.resting_heart_rate ? `${data.today_heart_rate.resting_heart_rate} bpm` : '--'}
+          subtitle={data?.today_activity?.calories_burned ? `Calories: ${data.today_activity.calories_burned.toLocaleString()}` : undefined}
+          staleLevel={staleness(data?.today_heart_rate?.date)} />
+      </div>
 
-        {/* Health Vitals */}
-        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
+      {/* ── Bento Grid: Health Vitals Row ───────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Vitals */}
+        <div className={cn(CARD, 'p-6')}>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><FireIcon className="h-5 w-5" /> Health Vitals</h2>
           <div className="space-y-4">
             <VitalRow icon={EllipsisHorizontalCircleIcon} label="Blood Oxygen" value={data?.latest_spo2?.avg ? `${Number(data.latest_spo2.avg).toFixed(1)}%` : '--'}
@@ -233,7 +366,7 @@ export default function Dashboard() {
         </div>
 
         {/* VO2 Max */}
-        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
+        <div className={cn(CARD, 'p-6')}>
           <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><ArrowTrendingUpIcon className="h-5 w-5" /> Cardio Fitness</h2>
           {data?.latest_vo2_max?.vo2_max ? (() => {
             const v = Number(data.latest_vo2_max.vo2_max)
@@ -243,8 +376,8 @@ export default function Dashboard() {
                   <span className="text-3xl font-bold text-white/80">{v.toFixed(0)}</span>
                 </div>
                 <p className="text-white/50 mt-2">VO₂ Max <span className="text-white/30 text-sm">ml/kg/min</span></p>
-                <div className="mt-4 bg-white/[.04] rounded-lg p-3">
-                  <p className={cn('font-semibold', v >= 50 ? 'text-white/80' : v >= 40 ? 'text-white/60' : v >= 30 ? 'text-white/50' : 'text-white/40')}>
+                <div className="mt-3 bg-white/[.04] rounded-lg p-2">
+                  <p className={cn('font-semibold text-sm', v >= 50 ? 'text-white/80' : v >= 40 ? 'text-white/60' : 'text-white/50')}>
                     {v >= 50 ? 'Excellent' : v >= 40 ? 'Good' : v >= 30 ? 'Fair' : 'Needs Improvement'}
                   </p>
                 </div>
@@ -252,112 +385,136 @@ export default function Dashboard() {
             )
           })() : <p className="text-white/40 text-center">No data</p>}
         </div>
-      </div>
 
-      {/* Active Zone Minutes */}
-      {data?.today_active_zone_minutes && (
-        <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
-          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BoltIcon className="h-5 w-5" /> Active Zone Minutes (Today)</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div className="bg-white/[.03] rounded-lg p-4">
-              <p className="text-3xl font-bold text-white/80">{data.today_active_zone_minutes.total_minutes || 0}</p>
-              <p className="text-white/40 text-sm">Total</p>
-            </div>
-            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
-              <p className="text-2xl font-bold text-white/70">{data.today_active_zone_minutes.fat_burn_minutes || 0}</p>
-              <p className="text-white/40 text-sm">Fat Burn</p>
-            </div>
-            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
-              <p className="text-2xl font-bold text-white/50">{data.today_active_zone_minutes.cardio_minutes || 0}</p>
-              <p className="text-white/40 text-sm">Cardio</p>
-            </div>
-            <div className="bg-white/[.03] rounded-lg p-4 border border-white/[.06]">
-              <p className="text-2xl font-bold text-white/60">{data.today_active_zone_minutes.peak_minutes || 0}</p>
-              <p className="text-white/40 text-sm">Peak</p>
+        {/* Active Zone Minutes */}
+        {data?.today_active_zone_minutes && (
+          <div className={cn(CARD, 'p-6')}>
+            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2"><BoltIcon className="h-5 w-5" /> Active Zone Min</h2>
+            <div className="grid grid-cols-2 gap-3 text-center">
+              <div className="bg-white/[.03] rounded-lg p-3">
+                <p className="text-2xl font-bold text-white/80">{data.today_active_zone_minutes.total_minutes || 0}</p>
+                <p className="text-white/40 text-xs">Total</p>
+              </div>
+              <div className="bg-white/[.03] rounded-lg p-3">
+                <p className="text-xl font-bold text-white/70">{data.today_active_zone_minutes.fat_burn_minutes || 0}</p>
+                <p className="text-white/40 text-xs">Fat Burn</p>
+              </div>
+              <div className="bg-white/[.03] rounded-lg p-3">
+                <p className="text-xl font-bold text-white/50">{data.today_active_zone_minutes.cardio_minutes || 0}</p>
+                <p className="text-white/40 text-xs">Cardio</p>
+              </div>
+              <div className="bg-white/[.03] rounded-lg p-3">
+                <p className="text-xl font-bold text-white/60">{data.today_active_zone_minutes.peak_minutes || 0}</p>
+                <p className="text-white/40 text-xs">Peak</p>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Charts */}
+      {/* ── Charts Grid ─────────────────────────────────────────── */}
       {data?.activity_history && data.activity_history.length > 0 && (
         <>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <ChartCard title="Steps Trend" icon={ChartBarIcon}>
+          {/* Steps + Calories */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <ExpandableCard title="Steps Trend" icon={ChartBarIcon}
+              preview={<span className="text-white/60 text-sm">{weeklySummary?.avgSteps.toLocaleString()} avg/day</span>}>
               <ResponsiveContainer width="100%" height={256}>
-                <BarChart data={prepareChartData(getFilteredData(data.activity_history))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                  <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
+                <BarChart data={prepareChartData(getFiltered(data.activity_history))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                  <YAxis stroke="#9CA3AF" fontSize={11} tickFormatter={v => `${(v/1000).toFixed(0)}k`} />
                   <Tooltip {...tooltipStyle} formatter={(v: any) => [v.toLocaleString(), 'Steps']} />
                   <Bar dataKey="steps" fill={COLORS.success} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
-            </ChartCard>
+            </ExpandableCard>
 
-            <ChartCard title="Calories Burned" icon={FireIcon}>
+            <ExpandableCard title="Calories Burned" icon={FireIcon}
+              preview={<span className="text-white/60 text-sm">{weeklySummary?.avgCalories.toLocaleString()} avg/day</span>}>
               <ResponsiveContainer width="100%" height={256}>
-                <AreaChart data={prepareChartData(getFilteredData(data.activity_history))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                  <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                  <YAxis stroke="#94a3b8" fontSize={11} />
+                <AreaChart data={prepareChartData(getFiltered(data.activity_history))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                  <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                  <YAxis stroke="#9CA3AF" fontSize={11} />
                   <Tooltip {...tooltipStyle} formatter={(v: any) => [v.toLocaleString(), 'Calories']} />
-                  <Area type="monotone" dataKey="calories_burned" stroke={COLORS.warning} fill={COLORS.warning} fillOpacity={0.3} />
+                  <Area type="monotone" dataKey="calories_burned" stroke={COLORS.warning} fill={COLORS.warning} fillOpacity={0.15} />
                 </AreaChart>
               </ResponsiveContainer>
-            </ChartCard>
+            </ExpandableCard>
           </div>
 
-          {/* HRV & Recovery */}
-          {data.hrv_history?.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <ChartCard title="HRV Trend" icon={HeartIcon}>
+          {/* HRV + Sleep-HRV Correlation */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {data.hrv_history?.length > 0 && (
+              <ExpandableCard title="HRV Trend" icon={HeartIcon}
+                preview={data.latest_hrv?.daily_rmssd
+                  ? <span className="text-white/60 text-sm">{Number(data.latest_hrv.daily_rmssd).toFixed(0)} ms</span>
+                  : undefined}>
                 <ResponsiveContainer width="100%" height={256}>
-                  <LineChart data={prepareChartData(getFilteredData(data.hrv_history).filter(d => d.daily_rmssd))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                    <YAxis stroke="#94a3b8" fontSize={11} domain={['dataMin - 5', 'dataMax + 5']} />
-                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v.toFixed(1)} ms`, 'HRV']} />
+                  <LineChart data={prepareChartData(getFiltered(data.hrv_history).filter(d => d.daily_rmssd))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                    <YAxis stroke="#9CA3AF" fontSize={11} domain={['dataMin - 5', 'dataMax + 5']} />
+                    <Tooltip {...tooltipStyle} formatter={(v: any) => [`${Number(v).toFixed(1)} ms`, 'HRV']} />
                     <Line type="monotone" dataKey="daily_rmssd" stroke={COLORS.purple} strokeWidth={2} dot={{ fill: COLORS.purple, r: 3 }} />
                   </LineChart>
                 </ResponsiveContainer>
-              </ChartCard>
+              </ExpandableCard>
+            )}
 
-              {data.recovery_history?.length > 0 && (
-                <ChartCard title="Recovery Score Trend" icon={BoltSlashIcon}>
-                  <ResponsiveContainer width="100%" height={256}>
-                    <AreaChart data={prepareChartData(getFilteredData(data.recovery_history))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                      <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                      <YAxis stroke="#94a3b8" fontSize={11} domain={[0, 100]} />
-                      <Tooltip {...tooltipStyle} formatter={(v: any) => [v, 'Score']} />
-                      <Area type="monotone" dataKey="score" stroke={COLORS.success} fill={COLORS.success} fillOpacity={0.3} />
-                    </AreaChart>
+            {/* US 6: Sleep-HRV Correlation */}
+            {sleepHrvCorrelation && (
+              <ExpandableCard title="Sleep ↔ HRV Correlation" icon={MoonIcon}
+                preview={sleepHrvCorrelation.r !== null
+                  ? <span className="text-white/60 text-sm">r = {sleepHrvCorrelation.r.toFixed(2)}</span>
+                  : undefined}>
+                <div>
+                  {sleepHrvCorrelation.r !== null && (
+                    <p className="text-white/40 text-xs mb-3">
+                      Pearson r = {sleepHrvCorrelation.r.toFixed(2)} — {
+                        Math.abs(sleepHrvCorrelation.r) >= 0.7 ? 'Strong' :
+                        Math.abs(sleepHrvCorrelation.r) >= 0.4 ? 'Moderate' : 'Weak'
+                      } correlation ({sleepHrvCorrelation.data.length} days)
+                    </p>
+                  )}
+                  <ResponsiveContainer width="100%" height={240}>
+                    <ComposedChart data={sleepHrvCorrelation.data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                      <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                      <YAxis yAxisId="sleep" stroke="#9CA3AF" fontSize={11} domain={[60, 100]} tickFormatter={v => `${v}%`} />
+                      <YAxis yAxisId="hrv" orientation="right" stroke="#9CA3AF" fontSize={11} domain={['dataMin - 5', 'dataMax + 5']} />
+                      <Tooltip {...tooltipStyle} />
+                      <Bar yAxisId="sleep" dataKey="sleepEfficiency" name="Sleep Eff %" fill={SLEEP_COLORS.deep} fillOpacity={0.4} radius={[3, 3, 0, 0]} />
+                      <Line yAxisId="hrv" type="monotone" dataKey="hrv" name="HRV (ms)" stroke={COLORS.purple} strokeWidth={2} dot={{ fill: COLORS.purple, r: 3 }} />
+                    </ComposedChart>
                   </ResponsiveContainer>
-                </ChartCard>
-              )}
-            </div>
-          )}
+                </div>
+              </ExpandableCard>
+            )}
+          </div>
 
           {/* Sleep Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {data.sleep_history?.length > 0 && (
-              <ChartCard title="Sleep Duration" icon={MoonIcon}>
+              <ExpandableCard title="Sleep Duration" icon={MoonIcon}
+                preview={data.latest_sleep ? <span className="text-white/60 text-sm">{Math.floor(data.latest_sleep.total_minutes / 60)}h {data.latest_sleep.total_minutes % 60}m last night</span> : undefined}>
                 <ResponsiveContainer width="100%" height={256}>
-                  <ComposedChart data={prepareChartData(getFilteredData(data.sleep_history)).map(d => ({ ...d, hours: Number((d.total_minutes / 60).toFixed(1)) }))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                    <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={v => `${v}h`} domain={[0, 12]} />
+                  <ComposedChart data={prepareChartData(getFiltered(data.sleep_history)).map(d => ({ ...d, hours: Number((d.total_minutes / 60).toFixed(1)) }))} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                    <YAxis stroke="#9CA3AF" fontSize={11} tickFormatter={v => `${v}h`} domain={[0, 12]} />
                     <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v} hours`, 'Sleep']} />
                     <Bar dataKey="hours" fill={COLORS.purple} radius={[4, 4, 0, 0]} />
-                    <Line type="monotone" dataKey={() => 8} stroke="#22c55e" strokeDasharray="5 5" dot={false} />
+                    <ReferenceLine y={8} stroke="#22c55e" strokeDasharray="5 5" label={{ value: '8h goal', fill: '#22c55e', fontSize: 10, position: 'right' }} />
                   </ComposedChart>
                 </ResponsiveContainer>
-              </ChartCard>
+              </ExpandableCard>
             )}
 
             {sleepBreakdown && sleepBreakdown.length > 0 && (
-              <ChartCard title="Last Night Sleep Stages" icon={MoonIcon}>
+              <ExpandableCard title="Last Night Sleep Stages" icon={MoonIcon}
+                preview={<span className="text-white/60 text-sm">{sleepBreakdown.find(s => s.name === 'Deep')?.value ?? 0}m deep</span>}>
                 <ResponsiveContainer width="100%" height={256}>
                   <PieChart>
                     <Pie data={sleepBreakdown} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value">
@@ -367,40 +524,50 @@ export default function Dashboard() {
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
-              </ChartCard>
+              </ExpandableCard>
             )}
           </div>
 
-          {/* Heart Rate & Weight */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Heart Rate + Weight */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {heartRateZones && heartRateZones.length > 0 && (
-              <ChartCard title="Heart Rate Zones (Today)" icon={HeartIcon}>
+              <ExpandableCard title="Heart Rate Zones (Today)" icon={HeartIcon}
+                preview={<span className="text-white/60 text-sm">{data.today_heart_rate?.resting_heart_rate} bpm resting</span>}>
                 <ResponsiveContainer width="100%" height={256}>
                   <BarChart data={heartRateZones} layout="vertical" margin={{ top: 5, right: 30, left: 80, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis type="number" stroke="#94a3b8" fontSize={11} tickFormatter={v => `${v}m`} />
-                    <YAxis type="category" dataKey="name" stroke="#94a3b8" fontSize={11} width={75} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis type="number" stroke="#9CA3AF" fontSize={11} tickFormatter={v => `${v}m`} />
+                    <YAxis type="category" dataKey="name" stroke="#9CA3AF" fontSize={11} width={75} />
                     <Tooltip {...tooltipStyle} formatter={(v: any) => [`${v} min`, 'Time']} />
                     <Bar dataKey="minutes" radius={[0, 4, 4, 0]}>
                       {heartRateZones.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-              </ChartCard>
+              </ExpandableCard>
             )}
 
-            {data.weight_trend?.length > 0 && (
-              <ChartCard title="Weight Trend" icon={ScaleIcon}>
+            {/* US 3: Weight with EWMA */}
+            {weightWithEwma && weightWithEwma.length > 0 && (
+              <ExpandableCard title="Weight Trend" icon={ScaleIcon}
+                preview={<span className="text-white/60 text-sm">{weightWithEwma[weightWithEwma.length - 1].trend} kg trend</span>}>
                 <ResponsiveContainer width="100%" height={256}>
-                  <LineChart data={prepareChartData(getFilteredData(data.weight_trend).filter(d => d.weight_kg))} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                    <XAxis dataKey="date" stroke="#94a3b8" fontSize={11} />
-                    <YAxis stroke="#94a3b8" fontSize={11} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={v => `${v}kg`} />
+                  <ComposedChart data={weightWithEwma} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+                    <YAxis yAxisId="weight" stroke="#9CA3AF" fontSize={11} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={v => `${v}kg`} />
+                    {weightWithEwma.some(d => d.body_fat !== undefined) && (
+                      <YAxis yAxisId="fat" orientation="right" stroke="#9CA3AF" fontSize={11} tickFormatter={v => `${v}%`} />
+                    )}
                     <Tooltip {...tooltipStyle} />
-                    <Line type="monotone" dataKey="weight_kg" name="Weight" stroke={COLORS.cyan} strokeWidth={2} dot={{ fill: COLORS.cyan }} />
-                  </LineChart>
+                    <Line yAxisId="weight" type="monotone" dataKey="raw" name="Daily" stroke={COLORS.cyan} strokeWidth={1} strokeDasharray="3 3" dot={{ fill: COLORS.cyan, r: 2 }} />
+                    <Line yAxisId="weight" type="monotone" dataKey="trend" name="Trend (EWMA)" stroke={COLORS.cyan} strokeWidth={2.5} dot={false} />
+                    {weightWithEwma.some(d => d.body_fat !== undefined && d.body_fat > 0) && (
+                      <Line yAxisId="fat" type="monotone" dataKey="body_fat" name="Body Fat %" stroke={COLORS.warning} strokeWidth={1.5} dot={{ fill: COLORS.warning, r: 2 }} />
+                    )}
+                  </ComposedChart>
                 </ResponsiveContainer>
-              </ChartCard>
+              </ExpandableCard>
             )}
           </div>
         </>
@@ -408,10 +575,10 @@ export default function Dashboard() {
 
       {/* No Data */}
       {!data?.latest_weight && !data?.latest_sleep && !data?.today_activity && (
-        <div className="bg-white/[.02] rounded-xl p-8 border border-white/[.06] text-center">
+        <div className={cn(CARD, 'p-8 text-center')}>
           <ChartBarSquareIcon className="h-16 w-16 text-white/40 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-white mb-2">No Data Yet</h2>
-          <p className="text-white/40 mb-4">Click "Sync Now" to fetch your Fitbit data</p>
+          <p className="text-white/40 mb-4">Click "Sync Now" to fetch your health data</p>
           <button onClick={handleSync} disabled={syncMutation.isPending}
             className="bg-white text-black hover:bg-white/90 disabled:opacity-50 px-6 py-2 rounded-lg">
             {syncMutation.isPending ? 'Syncing...' : 'Sync Now'}
@@ -423,20 +590,60 @@ export default function Dashboard() {
 }
 
 // =============================================================================
-// Helper Components
+// Sub-components
 // =============================================================================
 
-function StatCard({ icon: Icon, iconBg, title, value, subtitle }: {
-  icon: HeroIcon, iconBg: string, title: string, value: string, subtitle?: string
+/** US 4: Staleness indicator */
+function StaleBadge({ level }: { level: ReturnType<typeof staleness> }) {
+  if (level === 'none') return null
+  const styles = {
+    'fresh': 'bg-green-500',
+    'aging': 'bg-amber-500',
+    'stale': 'bg-amber-600',
+    'very-stale': 'bg-red-500',
+  }
+  return <span className={cn('inline-block w-2 h-2 rounded-full', styles[level])} />
+}
+
+/** US 2: Factor progress bar for recovery breakdown */
+function FactorBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-xs mb-1">
+        <span className="text-white/50">{label}</span>
+        <span className="text-white/40">{value}%</span>
+      </div>
+      <div className="h-2 bg-white/[.06] rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, value)}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  )
+}
+
+function SummaryCell({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <p className="text-2xl font-bold text-white/80">{value}</p>
+      <p className="text-white/40 text-sm">{label}</p>
+    </div>
+  )
+}
+
+/** US 4: Stat card with staleness indicator */
+function StatCard({ icon: Icon, title, value, subtitle, staleLevel }: {
+  icon: HeroIcon; title: string; value: string; subtitle?: string; staleLevel?: ReturnType<typeof staleness>
 }) {
   return (
-    <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
-      <div className="flex items-center gap-3 mb-4">
-        <div className={cn('w-10 h-10 rounded-full flex items-center justify-center', iconBg)}>
+    <div className={cn(CARD, 'p-6', staleLevel === 'stale' && 'opacity-60', staleLevel === 'very-stale' && 'opacity-40')}>
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-10 h-10 rounded-full bg-white/[.06] flex items-center justify-center">
           <Icon className="h-5 w-5" />
         </div>
-        <div>
-          <p className="text-white/40 text-sm">{title}</p>
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <p className="text-white/40 text-sm">{title}</p>
+            {staleLevel && <StaleBadge level={staleLevel} />}
+          </div>
           <p className="text-2xl font-bold text-white">{value}</p>
         </div>
       </div>
@@ -446,7 +653,7 @@ function StatCard({ icon: Icon, iconBg, title, value, subtitle }: {
 }
 
 function VitalRow({ icon: Icon, label, value, color }: {
-  icon: HeroIcon, label: string, value: string, color: string
+  icon: HeroIcon; label: string; value: string; color: string
 }) {
   return (
     <div className="flex items-center justify-between">
@@ -459,19 +666,31 @@ function VitalRow({ icon: Icon, label, value, color }: {
   )
 }
 
-function ChartCard({ title, icon: Icon, children }: {
-  title: string, icon: HeroIcon, children: React.ReactNode
+/** US 5: Expandable card with progressive disclosure */
+function ExpandableCard({ title, icon: Icon, preview, children, className }: {
+  title: string; icon: HeroIcon; preview?: ReactNode; children: ReactNode; className?: string
 }) {
+  const [expanded, setExpanded] = useState(false)
   return (
-    <div className="bg-white/[.02] rounded-xl p-6 border border-white/[.06]">
-      <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-        <Icon className="h-5 w-5" /> {title}
-      </h2>
-      {children}
+    <div className={cn(CARD, 'overflow-hidden', className)}>
+      <button onClick={() => setExpanded(!expanded)}
+        className="w-full p-6 flex items-center justify-between text-left hover:bg-white/[.01] transition-colors">
+        <div className="flex items-center gap-2">
+          <Icon className="h-5 w-5 text-white/60" />
+          <h2 className="text-lg font-semibold text-white">{title}</h2>
+        </div>
+        <div className="flex items-center gap-3">
+          {!expanded && preview}
+          {expanded
+            ? <ChevronUpIcon className="h-4 w-4 text-white/30" />
+            : <ChevronDownIcon className="h-4 w-4 text-white/30" />}
+        </div>
+      </button>
+      <div className={cn('transition-all duration-300 ease-in-out', expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden')}>
+        <div className="px-6 pb-6">
+          {children}
+        </div>
+      </div>
     </div>
   )
-}
-
-function prepareChartData<T extends { date: string }>(data: T[]): (T & { date: string })[] {
-  return [...data].reverse().map(d => ({ ...d, date: format(parseISO(d.date), 'MMM d') }))
 }
