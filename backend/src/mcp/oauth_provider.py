@@ -3,6 +3,7 @@
 import html
 import os
 import secrets
+import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -29,7 +30,7 @@ class AuthCodeEntry:
     scopes: list[str]
     code_challenge: str
     redirect_uri: str
-    expires_at: datetime
+    expires_at: float  # Unix timestamp — MCP SDK compares with time.time()
 
 
 @dataclass
@@ -74,9 +75,10 @@ class TONNDOAuthProvider(OAuthProvider):
         self._auth_sessions: dict[str, _AuthSession] = {}
 
     def _cleanup_expired(self) -> None:
-        now = datetime.now(timezone.utc)
-        self._auth_codes = {k: v for k, v in self._auth_codes.items() if v.expires_at > now}
-        self._auth_sessions = {k: v for k, v in self._auth_sessions.items() if v.expires_at > now}
+        now_ts = time.time()
+        now_dt = datetime.now(timezone.utc)
+        self._auth_codes = {k: v for k, v in self._auth_codes.items() if v.expires_at > now_ts}
+        self._auth_sessions = {k: v for k, v in self._auth_sessions.items() if v.expires_at > now_dt}
 
     # ─── Client Management ───────────────────────────────────────────────
 
@@ -232,7 +234,7 @@ class TONNDOAuthProvider(OAuthProvider):
             scopes=session.scopes or ["read:all"],
             code_challenge=session.code_challenge,
             redirect_uri=session.redirect_uri,
-            expires_at=datetime.now(timezone.utc) + AUTH_CODE_TTL,
+            expires_at=time.time() + AUTH_CODE_TTL.total_seconds(),
         )
 
         sep = "&" if "?" in session.redirect_uri else "?"
@@ -249,7 +251,7 @@ class TONNDOAuthProvider(OAuthProvider):
         entry = self._auth_codes.get(authorization_code)
         if not entry:
             return None
-        if entry.expires_at < datetime.now(timezone.utc):
+        if entry.expires_at < time.time():
             del self._auth_codes[authorization_code]
             return None
         if entry.client_id != client.client_id:
