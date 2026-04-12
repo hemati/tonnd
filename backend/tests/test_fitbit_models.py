@@ -15,6 +15,16 @@ from src.models.fitbit_models import (
     HourlyIntraday,
     UserContext,
 )
+from src.services.fitbit_sync_utils import (
+    upsert_daily_activity,
+    upsert_daily_activity_azm,
+    upsert_daily_body,
+    upsert_daily_sleep,
+    upsert_daily_vitals,
+    upsert_exercise_log,
+    upsert_hourly_intraday,
+    upsert_user_context,
+)
 
 from tests.conftest import test_session_maker
 
@@ -136,3 +146,98 @@ class TestUserContext:
                 height_cm=180.0, timezone="Europe/Berlin",
             ))
             await session.commit()
+
+
+# ─── Upsert function tests ───────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestUpsertDailyVitals:
+    async def test_insert_new(self):
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            await upsert_daily_vitals(session, uid, date(2026, 4, 10), "fitbit",
+                                      resting_heart_rate=62.0, daily_rmssd=45.0)
+            await session.commit()
+            from sqlalchemy import select
+            row = (await session.execute(
+                select(DailyVitals).where(DailyVitals.user_id == uid)
+            )).scalar_one()
+            assert row.resting_heart_rate == 62.0
+            assert row.daily_rmssd == 45.0
+
+    async def test_update_existing(self):
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            await upsert_daily_vitals(session, uid, date(2026, 4, 10), "fitbit",
+                                      resting_heart_rate=62.0)
+            await session.commit()
+            await upsert_daily_vitals(session, uid, date(2026, 4, 10), "fitbit",
+                                      resting_heart_rate=64.0, spo2_avg=97.0)
+            await session.commit()
+            from sqlalchemy import select
+            row = (await session.execute(
+                select(DailyVitals).where(DailyVitals.user_id == uid)
+            )).scalar_one()
+            assert row.resting_heart_rate == 64.0
+            assert row.spo2_avg == 97.0
+
+
+@pytest.mark.asyncio
+class TestUpsertDailyActivitySeparate:
+    async def test_activity_and_azm_write_same_row(self):
+        """Activity upsert + AZM upsert target same row without overwriting each other."""
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            d = date(2026, 4, 10)
+            await upsert_daily_activity(session, uid, d, "fitbit",
+                                        steps=10000, calories_burned=2500)
+            await session.commit()
+            await upsert_daily_activity_azm(session, uid, d, "fitbit",
+                                            fat_burn_azm=30, cardio_azm=15,
+                                            peak_azm=5, total_azm=50)
+            await session.commit()
+            from sqlalchemy import select
+            row = (await session.execute(
+                select(DailyActivity).where(DailyActivity.user_id == uid)
+            )).scalar_one()
+            assert row.steps == 10000
+            assert row.fat_burn_azm == 30
+
+    async def test_azm_failure_leaves_activity_intact(self):
+        """If AZM never runs, activity fields are still present."""
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            d = date(2026, 4, 10)
+            await upsert_daily_activity(session, uid, d, "fitbit",
+                                        steps=8000, active_minutes=45)
+            await session.commit()
+            from sqlalchemy import select
+            row = (await session.execute(
+                select(DailyActivity).where(DailyActivity.user_id == uid)
+            )).scalar_one()
+            assert row.steps == 8000
+            assert row.fat_burn_azm is None
+
+
+@pytest.mark.asyncio
+class TestUpsertExerciseLog:
+    async def test_upsert_by_external_id(self):
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            await upsert_exercise_log(session, uid, "fb_123", "fitbit",
+                                      date=date(2026, 4, 10),
+                                      activity_name="Run", duration_minutes=30)
+            await session.commit()
+            await upsert_exercise_log(session, uid, "fb_123", "fitbit",
+                                      date=date(2026, 4, 10),
+                                      activity_name="Run", duration_minutes=32,
+                                      avg_heart_rate=155)
+            await session.commit()
+            from sqlalchemy import select
+            rows = (await session.execute(
+                select(ExerciseLog).where(ExerciseLog.user_id == uid)
+            )).scalars().all()
+            assert len(rows) == 1
+            assert rows[0].duration_minutes == 32
+            assert rows[0].avg_heart_rate == 155
