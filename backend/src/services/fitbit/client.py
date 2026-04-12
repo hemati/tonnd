@@ -27,7 +27,10 @@ SCOPES = [
     "oxygen_saturation",  # For SpO2
     "cardio_fitness",  # For VO2 Max
     "temperature",  # For skin temperature
+    "settings",  # For device settings & user preferences
 ]
+
+CURRENT_SCOPES_VERSION = 2
 
 # Get environment from Lambda env var
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
@@ -354,9 +357,11 @@ class FitbitClient:
                     summary.get("veryActiveMinutes", 0)
                     + summary.get("fairlyActiveMinutes", 0)
                 ),
+                "sedentary_minutes": summary.get("sedentaryMinutes"),
+                "lightly_active_minutes": summary.get("lightlyActiveMinutes"),
                 "floors": summary.get("floors"),
+                "calories_bmr": summary.get("caloriesBMR"),
             }
-            # Calculate total distance
             distances = summary.get("distances", [])
             for d in distances:
                 if d.get("activity") == "total":
@@ -369,24 +374,29 @@ class FitbitClient:
         try:
             sleep_data = await self.get_sleep(date)
             if sleep_data.get("sleep"):
-                # Get main sleep log
-                main_sleep = None
-                for s in sleep_data["sleep"]:
-                    if s.get("isMainSleep"):
-                        main_sleep = s
-                        break
+                from src.services.fitbit.stages import compute_stages_summary
 
-                if main_sleep:
-                    levels = main_sleep.get("levels", {}).get("summary", {})
-                    data["sleep"] = {
-                        "total_minutes": main_sleep.get("duration", 0)
-                        // 60000,  # ms to min
+                sleep_entries = []
+                for s in sleep_data["sleep"]:
+                    levels = s.get("levels", {}).get("summary", {})
+                    levels_data = s.get("levels", {}).get("data", [])
+                    sleep_entries.append({
+                        "external_id": str(s.get("logId", "")),
+                        "date_of_sleep": s.get("dateOfSleep"),
+                        "is_main_sleep": s.get("isMainSleep", False),
+                        "start_time": s.get("startTime"),
+                        "end_time": s.get("endTime"),
+                        "total_minutes": s.get("duration", 0) // 60000,
                         "deep_minutes": levels.get("deep", {}).get("minutes"),
                         "light_minutes": levels.get("light", {}).get("minutes"),
                         "rem_minutes": levels.get("rem", {}).get("minutes"),
                         "awake_minutes": levels.get("wake", {}).get("minutes"),
-                        "efficiency": main_sleep.get("efficiency"),
-                    }
+                        "efficiency": s.get("efficiency"),
+                        "minutes_to_fall_asleep": s.get("minutesToFallAsleep"),
+                        "time_in_bed": s.get("timeInBed"),
+                        "stages_30s_summary": compute_stages_summary(levels_data),
+                    })
+                data["sleep"] = sleep_entries
         except Exception as e:
             errors.append(f"sleep: {str(e)}")
             logger.warning(f"Failed to fetch sleep data: {e}")

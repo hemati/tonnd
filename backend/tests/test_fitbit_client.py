@@ -5,6 +5,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.services.fitbit.client import (
+    CURRENT_SCOPES_VERSION,
+    SCOPES,
     FitbitAPIError,
     FitbitClient,
     RateLimitError,
@@ -370,7 +372,10 @@ class TestGetAllDataForDate:
                         "caloriesOut": 2500,
                         "veryActiveMinutes": 30,
                         "fairlyActiveMinutes": 20,
+                        "sedentaryMinutes": 600,
+                        "lightlyActiveMinutes": 150,
                         "floors": 10,
+                        "caloriesBMR": 1700,
                         "distances": [{"activity": "total", "distance": 7.5}],
                     }
                 }
@@ -378,16 +383,26 @@ class TestGetAllDataForDate:
                 return {
                     "sleep": [
                         {
+                            "logId": 12345,
+                            "dateOfSleep": "2026-04-07",
                             "isMainSleep": True,
+                            "startTime": "2026-04-06T23:00:00.000",
+                            "endTime": "2026-04-07T07:00:00.000",
                             "duration": 28800000,
                             "efficiency": 92,
+                            "minutesToFallAsleep": 8,
+                            "timeInBed": 490,
                             "levels": {
                                 "summary": {
                                     "deep": {"minutes": 90},
                                     "light": {"minutes": 200},
                                     "rem": {"minutes": 100},
                                     "wake": {"minutes": 30},
-                                }
+                                },
+                                "data": [
+                                    {"dateTime": "2026-04-06T23:08:00.000", "level": "light", "seconds": 1800},
+                                    {"dateTime": "2026-04-06T23:38:00.000", "level": "deep", "seconds": 3600},
+                                ],
                             },
                         }
                     ]
@@ -438,8 +453,10 @@ class TestGetAllDataForDate:
         assert data["weight"]["weight_kg"] == 80.5
         assert data["activity"]["steps"] == 10000
         assert data["activity"]["distance_km"] == 7.5
-        assert data["sleep"]["total_minutes"] == 480
-        assert data["sleep"]["efficiency"] == 92
+        assert isinstance(data["sleep"], list)
+        assert len(data["sleep"]) == 1
+        assert data["sleep"][0]["total_minutes"] == 480
+        assert data["sleep"][0]["efficiency"] == 92
         assert data["heart_rate"]["resting_heart_rate"] == 62
         assert data["hrv"]["daily_rmssd"] == 45.2
         assert data["spo2"]["avg"] == 97
@@ -502,19 +519,30 @@ class TestGetAllDataForDate:
         assert "weight" not in result["data"]
 
     @pytest.mark.asyncio
-    async def test_sleep_no_main_sleep(self):
-        """When sleep data has no isMainSleep entry, no sleep key in data."""
+    async def test_sleep_no_main_sleep_still_included(self):
+        """Non-main sleep entries (naps) are now included in the list."""
         client = FitbitClient("tok")
 
         async def mock_request(endpoint):
             if "sleep" in endpoint:
-                return {"sleep": [{"isMainSleep": False, "duration": 1800000}]}
+                return {
+                    "sleep": [
+                        {
+                            "logId": 999,
+                            "isMainSleep": False,
+                            "duration": 1800000,
+                            "levels": {"summary": {}, "data": []},
+                        }
+                    ]
+                }
             return {}
 
         with patch.object(client, "_make_request", side_effect=mock_request):
             result = await client.get_all_data_for_date("2026-04-07")
 
-        assert "sleep" not in result["data"]
+        assert "sleep" in result["data"]
+        assert len(result["data"]["sleep"]) == 1
+        assert result["data"]["sleep"][0]["is_main_sleep"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -529,3 +557,213 @@ class TestExceptionHierarchy:
 
     def test_fitbit_api_error_is_exception(self):
         assert issubclass(FitbitAPIError, Exception)
+
+
+# ---------------------------------------------------------------------------
+# SCOPES and version constant
+# ---------------------------------------------------------------------------
+class TestScopesAndVersion:
+    def test_settings_scope_present(self):
+        assert "settings" in SCOPES
+
+    def test_scopes_version(self):
+        assert CURRENT_SCOPES_VERSION == 2
+
+
+# ---------------------------------------------------------------------------
+# Sleep parsing — extended fields and multi-entry (main + naps)
+# ---------------------------------------------------------------------------
+class TestSleepParsingExtended:
+    @pytest.mark.asyncio
+    async def test_sleep_returns_list_with_extended_fields(self):
+        """Sleep parsing returns a list of dicts with all extended fields."""
+        client = FitbitClient("tok")
+
+        async def mock_request(endpoint):
+            if "sleep" in endpoint:
+                return {
+                    "sleep": [
+                        {
+                            "logId": 44444,
+                            "dateOfSleep": "2026-04-07",
+                            "isMainSleep": True,
+                            "startTime": "2026-04-06T23:15:00.000",
+                            "endTime": "2026-04-07T07:05:00.000",
+                            "duration": 28200000,
+                            "efficiency": 91,
+                            "minutesToFallAsleep": 12,
+                            "timeInBed": 475,
+                            "levels": {
+                                "summary": {
+                                    "deep": {"minutes": 85},
+                                    "light": {"minutes": 190},
+                                    "rem": {"minutes": 95},
+                                    "wake": {"minutes": 25},
+                                },
+                                "data": [
+                                    {"dateTime": "2026-04-06T23:27:00.000", "level": "light", "seconds": 600},
+                                    {"dateTime": "2026-04-06T23:37:00.000", "level": "deep", "seconds": 1800},
+                                    {"dateTime": "2026-04-07T00:07:00.000", "level": "rem", "seconds": 900},
+                                ],
+                            },
+                        }
+                    ]
+                }
+            return {}
+
+        with patch.object(client, "_make_request", side_effect=mock_request):
+            result = await client.get_all_data_for_date("2026-04-07")
+
+        sleep = result["data"]["sleep"]
+        assert isinstance(sleep, list)
+        assert len(sleep) == 1
+
+        entry = sleep[0]
+        assert entry["external_id"] == "44444"
+        assert entry["date_of_sleep"] == "2026-04-07"
+        assert entry["is_main_sleep"] is True
+        assert entry["start_time"] == "2026-04-06T23:15:00.000"
+        assert entry["end_time"] == "2026-04-07T07:05:00.000"
+        assert entry["total_minutes"] == 470  # 28200000 // 60000
+        assert entry["deep_minutes"] == 85
+        assert entry["light_minutes"] == 190
+        assert entry["rem_minutes"] == 95
+        assert entry["awake_minutes"] == 25
+        assert entry["efficiency"] == 91
+        assert entry["minutes_to_fall_asleep"] == 12
+        assert entry["time_in_bed"] == 475
+        # stages_30s_summary should be computed from levels.data
+        summary = entry["stages_30s_summary"]
+        assert summary["transition_count"] == 3
+        assert "light" in summary["avg_stage_duration_minutes"]
+        assert "deep" in summary["avg_stage_duration_minutes"]
+        assert "rem" in summary["avg_stage_duration_minutes"]
+
+    @pytest.mark.asyncio
+    async def test_sleep_includes_naps(self):
+        """Sleep parsing includes both main sleep and naps."""
+        client = FitbitClient("tok")
+
+        async def mock_request(endpoint):
+            if "sleep" in endpoint:
+                return {
+                    "sleep": [
+                        {
+                            "logId": 11111,
+                            "dateOfSleep": "2026-04-07",
+                            "isMainSleep": True,
+                            "startTime": "2026-04-06T23:00:00.000",
+                            "endTime": "2026-04-07T07:00:00.000",
+                            "duration": 28800000,
+                            "efficiency": 90,
+                            "minutesToFallAsleep": 5,
+                            "timeInBed": 485,
+                            "levels": {"summary": {"deep": {"minutes": 80}}, "data": []},
+                        },
+                        {
+                            "logId": 22222,
+                            "dateOfSleep": "2026-04-07",
+                            "isMainSleep": False,
+                            "startTime": "2026-04-07T14:00:00.000",
+                            "endTime": "2026-04-07T14:30:00.000",
+                            "duration": 1800000,
+                            "efficiency": 85,
+                            "minutesToFallAsleep": 3,
+                            "timeInBed": 32,
+                            "levels": {"summary": {}, "data": []},
+                        },
+                    ]
+                }
+            return {}
+
+        with patch.object(client, "_make_request", side_effect=mock_request):
+            result = await client.get_all_data_for_date("2026-04-07")
+
+        sleep = result["data"]["sleep"]
+        assert len(sleep) == 2
+        assert sleep[0]["external_id"] == "11111"
+        assert sleep[0]["is_main_sleep"] is True
+        assert sleep[0]["total_minutes"] == 480
+        assert sleep[1]["external_id"] == "22222"
+        assert sleep[1]["is_main_sleep"] is False
+        assert sleep[1]["total_minutes"] == 30
+
+    @pytest.mark.asyncio
+    async def test_sleep_empty_list_when_no_data(self):
+        """When sleep endpoint returns empty sleep array, no sleep key in data."""
+        client = FitbitClient("tok")
+
+        async def mock_request(endpoint):
+            if "sleep" in endpoint:
+                return {"sleep": []}
+            return {}
+
+        with patch.object(client, "_make_request", side_effect=mock_request):
+            result = await client.get_all_data_for_date("2026-04-07")
+
+        assert "sleep" not in result["data"]
+
+
+# ---------------------------------------------------------------------------
+# Activity parsing — new fields (sedentary, lightly_active, calories_bmr)
+# ---------------------------------------------------------------------------
+class TestActivityParsingExtended:
+    @pytest.mark.asyncio
+    async def test_activity_includes_new_fields(self):
+        """Activity parsing includes sedentary_minutes, lightly_active_minutes, calories_bmr."""
+        client = FitbitClient("tok")
+
+        async def mock_request(endpoint):
+            if "activities/date" in endpoint:
+                return {
+                    "summary": {
+                        "steps": 8500,
+                        "caloriesOut": 2200,
+                        "veryActiveMinutes": 25,
+                        "fairlyActiveMinutes": 15,
+                        "sedentaryMinutes": 720,
+                        "lightlyActiveMinutes": 180,
+                        "floors": 8,
+                        "caloriesBMR": 1650,
+                        "distances": [{"activity": "total", "distance": 6.2}],
+                    }
+                }
+            return {}
+
+        with patch.object(client, "_make_request", side_effect=mock_request):
+            result = await client.get_all_data_for_date("2026-04-07")
+
+        activity = result["data"]["activity"]
+        assert activity["steps"] == 8500
+        assert activity["calories_burned"] == 2200
+        assert activity["active_minutes"] == 40
+        assert activity["sedentary_minutes"] == 720
+        assert activity["lightly_active_minutes"] == 180
+        assert activity["calories_bmr"] == 1650
+        assert activity["floors"] == 8
+        assert activity["distance_km"] == 6.2
+
+    @pytest.mark.asyncio
+    async def test_activity_new_fields_none_when_missing(self):
+        """New activity fields are None when not present in API response."""
+        client = FitbitClient("tok")
+
+        async def mock_request(endpoint):
+            if "activities/date" in endpoint:
+                return {
+                    "summary": {
+                        "steps": 100,
+                        "veryActiveMinutes": 0,
+                        "fairlyActiveMinutes": 0,
+                        "distances": [],
+                    }
+                }
+            return {}
+
+        with patch.object(client, "_make_request", side_effect=mock_request):
+            result = await client.get_all_data_for_date("2026-04-07")
+
+        activity = result["data"]["activity"]
+        assert activity["sedentary_minutes"] is None
+        assert activity["lightly_active_minutes"] is None
+        assert activity["calories_bmr"] is None
