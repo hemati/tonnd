@@ -6,6 +6,8 @@ from fastapi_users.db import (
     SQLAlchemyBaseUserTableUUID,
 )
 from sqlalchemy import (
+    Boolean,
+    Integer,
     JSON,
     Date,
     DateTime,
@@ -47,6 +49,10 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
 
     # Hevy (workout tracking — user provides their own API key)
     hevy_api_key: Mapped[str | None] = mapped_column(Text, default=None)  # Fernet-encrypted
+
+    # Fitbit capability flags
+    fitbit_intraday_available: Mapped[bool | None] = mapped_column(Boolean, default=None)
+    fitbit_scopes_version: Mapped[int | None] = mapped_column(Integer, default=1)
 
     # Metadata
     created_at: Mapped[datetime] = mapped_column(
