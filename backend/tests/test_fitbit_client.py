@@ -767,3 +767,85 @@ class TestActivityParsingExtended:
         assert activity["sedentary_minutes"] is None
         assert activity["lightly_active_minutes"] is None
         assert activity["calories_bmr"] is None
+
+
+# ---------------------------------------------------------------------------
+# Exercise logs parsing
+# ---------------------------------------------------------------------------
+from src.services.fitbit.exercise_logs import parse_exercise_logs
+from src.services.fitbit.context import parse_profile, parse_devices
+
+
+class TestParseExerciseLogs:
+    def test_parses_activity_list(self):
+        api_response = {
+            "activities": [
+                {
+                    "logId": 111,
+                    "activityName": "Run",
+                    "startTime": "2026-04-10T07:00:00.000+02:00",
+                    "activeDuration": 1800000,
+                    "averageHeartRate": 155,
+                    "calories": 350,
+                    "distance": 5.2,
+                    "distanceUnit": "Kilometer",
+                    "elevationGain": 45.0,
+                    "speed": 10.4,
+                    "logType": "auto_detected",
+                    "heartRateZones": [
+                        {"name": "Fat Burn", "min": 100, "max": 140, "minutes": 5},
+                        {"name": "Cardio", "min": 140, "max": 170, "minutes": 20},
+                        {"name": "Peak", "min": 170, "max": 220, "minutes": 5},
+                    ],
+                }
+            ]
+        }
+        logs = parse_exercise_logs(api_response)
+        assert len(logs) == 1
+        log = logs[0]
+        assert log["external_id"] == "111"
+        assert log["activity_name"] == "Run"
+        assert log["duration_minutes"] == 30
+        assert log["avg_heart_rate"] == 155
+        assert log["speed_kmh"] == 10.4
+        assert log["log_type"] == "auto_detected"
+        assert log["ended_at"] is not None
+        assert len(log["hr_zones"]) == 3
+
+    def test_empty_response(self):
+        assert parse_exercise_logs({"activities": []}) == []
+        assert parse_exercise_logs({}) == []
+
+
+class TestParseProfile:
+    def test_parses_profile(self):
+        api_response = {
+            "user": {
+                "dateOfBirth": "1990-05-15",
+                "gender": "MALE",
+                "height": 180.0,
+                "timezone": "Europe/Berlin",
+                "offsetFromUTCMillis": 7200000,
+                "strideLengthWalking": 75.5,
+                "strideLengthRunning": 95.0,
+            }
+        }
+        result = parse_profile(api_response)
+        assert result["date_of_birth"] == "1990-05-15"
+        assert result["gender"] == "MALE"
+        assert result["height_cm"] == 180.0
+        assert result["timezone"] == "Europe/Berlin"
+
+
+class TestParseDevices:
+    def test_picks_most_recent(self):
+        api_response = [
+            {"deviceVersion": "Charge 5", "batteryLevel": 80, "lastSyncTime": "2026-04-10T06:00:00"},
+            {"deviceVersion": "Versa 4", "batteryLevel": 45, "lastSyncTime": "2026-04-10T08:00:00"},
+        ]
+        result = parse_devices(api_response)
+        assert result["device_model"] == "Versa 4"
+        assert result["device_battery"] == 45
+
+    def test_empty_list(self):
+        assert parse_devices([]) == {}

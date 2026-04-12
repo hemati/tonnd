@@ -317,6 +317,16 @@ class FitbitClient:
             f"/1/user/-/activities/active-zone-minutes/date/{date}/1d.json"
         )
 
+    async def get_exercise_logs(self, after_date: str, limit: int = 20) -> dict:
+        """GET /1/user/-/activities/list.json — per-exercise sessions."""
+        return await self._make_request(
+            f"/1/user/-/activities/list.json?afterDate={after_date}&sort=asc&limit={limit}&offset=0"
+        )
+
+    async def get_devices(self) -> list:
+        """GET /1/user/-/devices.json — device info."""
+        return await self._make_request("/1/user/-/devices.json")
+
     async def get_all_data_for_date(self, date: str) -> dict:
         """
         Fetch all fitness data for a specific date.
