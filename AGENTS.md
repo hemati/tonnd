@@ -94,7 +94,7 @@ tonnd/
 │       ├── api/v1/                  # Public API v1 (PAT + JWT auth)
 │       │   ├── router.py           # Aggregates all v1 sub-routers
 │       │   ├── vitals.py           # GET /api/v1/vitals (typed daily_vitals table)
-│       │   ├── body.py             # GET /api/v1/body (typed daily_body table)
+│       │   ├── body.py             # GET /api/v1/body (typed body_measurements table)
 │       │   ├── sleep.py            # GET /api/v1/sleep (typed daily_sleep table)
 │       │   ├── activity.py         # GET /api/v1/activity (typed daily_activity table)
 │       │   ├── intraday.py         # GET /api/v1/intraday (hourly_intraday table)
@@ -103,7 +103,6 @@ tonnd/
 │       │   ├── workouts.py         # GET /api/v1/workouts (typed workouts table)
 │       │   ├── routines.py         # GET /api/v1/routines (typed routines table)
 │       │   ├── recovery.py         # GET /api/v1/recovery
-│       │   ├── metrics.py          # GET /api/v1/metrics (legacy, Renpho only)
 │       │   ├── tokens.py           # Token CRUD (JWT only)
 │       │   └── audit.py            # Audit log (JWT only)
 │       ├── auth/
@@ -114,9 +113,10 @@ tonnd/
 │       │   ├── rate_limit.py       # slowapi config (100/min PAT, 300 JWT)
 │       │   └── audit.py            # Audit logging (fire-and-forget)
 │       ├── models/
-│       │   ├── db_models.py        # User, OAuthAccount, FitnessMetric
-│       │   ├── fitbit_models.py    # 8 typed Fitbit tables (daily_vitals, daily_sleep, etc.)
+│       │   ├── db_models.py        # User, OAuthAccount, Base
+│       │   ├── fitbit_models.py    # 7 typed Fitbit tables (daily_vitals, daily_sleep, etc.)
 │       │   ├── hevy_models.py      # 3 typed Hevy tables (workouts, workout_exercises, routines)
+│       │   ├── body_models.py      # BodyMeasurement (Renpho + Fitbit weight)
 │       │   └── api_models.py       # APIToken, AuditLog
 │       ├── schemas/
 │       │   └── api_schemas.py      # Pydantic models for /api/v1/ responses
@@ -126,9 +126,10 @@ tonnd/
 │       │   ├── token_encryption.py # Fernet encrypt/decrypt
 │       │   ├── data_service.py     # Shared query logic (typed tables + legacy)
 │       │   ├── audit_service.py    # Audit log writer
-│       │   ├── sync_utils.py       # Shared _upsert generic + legacy upsert_metric (Renpho)
+│       │   ├── sync_utils.py       # Shared _upsert generic helper
 │       │   ├── fitbit_sync_utils.py # Typed upsert functions for Fitbit tables
 │       │   ├── hevy_sync_utils.py  # Typed upsert functions for Hevy tables
+│       │   ├── body_sync_utils.py  # Upsert for body_measurements table
 │       │   ├── fitbit/
 │       │   │   ├── client.py       # Fitbit API wrapper + data parsing
 │       │   │   ├── sync.py         # Token refresh, disconnect
@@ -211,8 +212,6 @@ tonnd/
 
 **`daily_activity`** — `(user_id, date, source)` unique. Columns: steps, calories_burned, distance_km, active_minutes, sedentary_minutes, lightly_active_minutes, floors, calories_bmr, fat_burn/cardio/peak/total_azm.
 
-**`daily_body`** — `(user_id, date, source)` unique. Columns: weight_kg, bmi, body_fat_percent.
-
 **`daily_nutrition`** — Reserved (sync not implemented). Columns: calories_in, carbs/fat/protein/fiber_g, water_ml.
 
 **`hourly_intraday`** — `(user_id, date, hour, metric_type, source)` unique. Columns: avg_value, min_value, max_value, sample_count, extra (JSONB).
@@ -229,19 +228,9 @@ tonnd/
 
 **`routines`** — `(user_id, external_id, source)` unique. Planned workout templates. Columns: title, folder_id, exercises (JSONB with target sets/reps/weight).
 
-### Table: `fitness_metrics` (legacy — Renpho only)
+### `body_measurements` (Renpho + Fitbit weight — consolidated)
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → user.id |
-| date | Date | |
-| metric_type | String(32) | body_composition |
-| source | String(16) | renpho |
-| data | JSON | Metric-specific fields |
-| synced_at | DateTime(tz) | |
-
-**Note**: Fitbit and Hevy data now use typed tables. This table will be removed after Renpho gets its own typed tables.
+`(user_id, source, measured_at)` unique. Supports intra-day measurements (morning + evening weigh-ins). Columns: weight_kg, bmi, body_fat_percent, body_water_percent, muscle_mass_percent, bone_mass_kg, bmr_kcal, visceral_fat, subcutaneous_fat_percent, protein_percent, body_age, lean_body_mass_kg, fat_free_weight_kg, heart_rate, cardiac_index, body_shape, sport_flag. Renpho fills all fields; Fitbit fills only weight_kg/bmi/body_fat_percent. `to_dict()` omits NULL fields for compact responses.
 
 ### Table: `api_tokens` (Personal Access Tokens)
 
@@ -280,7 +269,6 @@ tonnd/
 | daily_vitals | resting_heart_rate, hr_zones, daily_rmssd, deep_rmssd, spo2_avg/min/max, breathing_rate, vo2_max, temp_relative_deviation |
 | daily_sleep | start_time, end_time, total/deep/light/rem/awake_minutes, efficiency, minutes_to_fall_asleep, time_in_bed, is_main_sleep, stages_30s_summary |
 | daily_activity | steps, calories_burned, distance_km, active/sedentary/lightly_active_minutes, floors, calories_bmr, fat_burn/cardio/peak/total_azm |
-| daily_body | weight_kg, bmi, body_fat_percent |
 | hourly_intraday | Hourly avg/min/max for heart_rate, hrv, spo2, steps, azm (opt-in, requires intraday API access) |
 | exercise_logs | Fitbit activity logs with avg_heart_rate, hr_zones, speed_kmh, log_type, started_at, ended_at |
 | user_context | date_of_birth, gender, height_cm, timezone, device_model, device_battery |
@@ -293,11 +281,12 @@ tonnd/
 | workout_exercises | exercise_index, title, exercise_type, is_custom, supersets_id, notes, volume_kg, primary_muscle, secondary_muscles, sets |
 | routines | title, folder_id, exercises (JSONB with planned sets/reps/weight) |
 
-### Legacy Metric Types (fitness_metrics table — Renpho only)
+### Body Data (body_measurements table — Renpho + Fitbit)
 
-| Type | Source | Data Fields |
-|------|--------|-------------|
-| body_composition | renpho | muscle_mass, body_fat, water, bone_mass, protein, etc. |
+| Source | Fields |
+|--------|--------|
+| renpho | weight_kg, bmi, body_fat_percent, body_water_percent, muscle_mass_percent, bone_mass_kg, bmr_kcal, visceral_fat, subcutaneous_fat_percent, protein_percent, body_age, lean_body_mass_kg, fat_free_weight_kg, heart_rate, cardiac_index, body_shape, sport_flag |
+| fitbit | weight_kg, bmi, body_fat_percent |
 
 ---
 
@@ -380,11 +369,12 @@ npx tsc --noEmit          # Type check
 | Fitbit sync | scheduler.py (sync functions), fitbit/client.py, fitbit_sync_utils.py |
 | Fitbit models | fitbit_models.py (8 typed tables), data_service.py (queries) |
 | Fitbit parsing | fitbit/stages.py, fitbit/intraday.py, fitbit/exercise_logs.py, fitbit/context.py |
-| Renpho | renpho/client.py, renpho/sync.py, app.py |
+| Renpho sync | renpho/client.py, renpho/sync.py, body_sync_utils.py |
+| Body models | body_models.py (BodyMeasurement), data_service.py (query_body_measurements) |
 | Hevy sync | scheduler.py (sync functions), hevy/client.py, hevy_sync_utils.py |
 | Hevy models | hevy_models.py (3 typed tables), data_service.py (queries) |
 | Hevy parsing | hevy/routines.py, hevy/client.py (_workout_to_metrics, _fetch_template_info) |
-| Database | db_models.py, fitbit_models.py, hevy_models.py, api_models.py, database.py |
+| Database | db_models.py, fitbit_models.py, hevy_models.py, body_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
 | Security/Middleware | middleware/security_headers.py, middleware/rate_limit.py, middleware/audit.py |

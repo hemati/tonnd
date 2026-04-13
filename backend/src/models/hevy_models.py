@@ -1,7 +1,4 @@
-"""Typed tables for Hevy workout data.
-
-Replaces JSON-blob rows in fitness_metrics (source='hevy').
-"""
+"""Typed tables for Hevy workout data."""
 
 import uuid
 from datetime import date as date_type
