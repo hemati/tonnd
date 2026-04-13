@@ -17,8 +17,8 @@ from src.mcp.oauth_provider import TONNDOAuthProvider
 from src.services.data_service import (
     compute_recovery_score,
     metric_to_dict,
+    query_body_measurements,
     query_daily_activity,
-    query_daily_body,
     query_daily_sleep,
     query_daily_vitals,
     query_exercise_logs,
@@ -124,9 +124,10 @@ async def get_body_composition(
     source: str | None = None,
     limit: int = 30,
 ) -> dict:
-    """Get body composition: weight (kg), BMI, body fat %, muscle mass.
+    """Get body composition: weight, BMI, body fat %, muscle mass, and more.
 
-    Sources: fitbit (weight only from typed table), renpho (full body composition from legacy table).
+    Renpho provides full body composition (17+ fields). Fitbit provides weight/BMI/body fat only.
+    NULL fields are omitted from the response for compactness.
 
     Args:
         start_date: Start date (YYYY-MM-DD).
@@ -136,40 +137,12 @@ async def get_body_composition(
     """
     user_id = _get_user_id("read:body")
     sd, ed = _parse_dates(start_date, end_date)
-    clamped = _clamp_limit(limit)
-    results: list[dict] = []
-
     async with async_session_maker() as session:
-        # Fitbit weight from typed table
-        if source is None or source == "fitbit":
-            body_rows = await query_daily_body(
-                session, user_id, start_date=sd, end_date=ed,
-                source="fitbit", limit=clamped,
-            )
-            results.extend(
-                {
-                    "date": r.date.isoformat(),
-                    "source": r.source,
-                    "weight_kg": r.weight_kg,
-                    "bmi": r.bmi,
-                    "body_fat_percent": r.body_fat_percent,
-                }
-                for r in body_rows
-            )
-
-        # Renpho body composition from legacy fitness_metrics table
-        if source is None or source == "renpho":
-            renpho_rows = await query_metrics(
-                session, user_id, metric_types=["body_composition"],
-                start_date=sd, end_date=ed, source="renpho", limit=clamped,
-            )
-            results.extend(metric_to_dict(r) for r in renpho_rows)
-
-    # Sort combined results by date descending and trim to limit
-    results.sort(key=lambda d: d.get("date", ""), reverse=True)
-    results = results[:clamped]
-
-    return {"count": len(results), "data": results}
+        rows = await query_body_measurements(
+            session, user_id, start_date=sd, end_date=ed,
+            source=source, limit=_clamp_limit(limit),
+        )
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
 
 @mcp.tool()

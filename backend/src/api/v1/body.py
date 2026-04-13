@@ -1,4 +1,4 @@
-"""GET /api/v1/body — body metrics from typed daily_body table."""
+"""GET /api/v1/body — body measurements from all sources."""
 
 from datetime import date
 
@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 
 from src.auth.dependencies import AuthResult, require_scope
 from src.database import get_async_session
-from src.services.data_service import query_daily_body
+from src.services.data_service import query_body_measurements
 
 router = APIRouter(prefix="/body", tags=["body"])
 
@@ -21,7 +21,7 @@ async def get_body(
     auth: AuthResult = Depends(require_scope("read:body")),
     session=Depends(get_async_session),
 ):
-    rows = await query_daily_body(
+    rows = await query_body_measurements(
         session, auth.user.id,
         start_date=start_date, end_date=end_date, source=source,
         limit=limit, offset=offset,

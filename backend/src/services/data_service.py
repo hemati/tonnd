@@ -9,9 +9,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import FitnessMetric
+from src.models.body_models import BodyMeasurement
 from src.models.fitbit_models import (
     DailyActivity,
-    DailyBody,
     DailySleep,
     DailyVitals,
     ExerciseLog,
@@ -161,8 +161,24 @@ async def query_daily_activity(session, user_id, **kw):
     return await _query_typed(session, DailyActivity, user_id, **kw)
 
 
-async def query_daily_body(session, user_id, **kw):
-    return await _query_typed(session, DailyBody, user_id, **kw)
+async def query_body_measurements(session, user_id, **kw):
+    """Query body measurements from all sources."""
+    stmt = select(BodyMeasurement).where(BodyMeasurement.user_id == user_id)
+    start_date = kw.get("start_date")
+    end_date = kw.get("end_date")
+    source = kw.get("source")
+    limit = kw.get("limit", 100)
+    offset = kw.get("offset", 0)
+    order = kw.get("order", "desc")
+    if start_date:
+        stmt = stmt.where(BodyMeasurement.date >= start_date)
+    if end_date:
+        stmt = stmt.where(BodyMeasurement.date <= end_date)
+    if source:
+        stmt = stmt.where(BodyMeasurement.source == source)
+    stmt = stmt.order_by(BodyMeasurement.date.asc() if order == "asc" else BodyMeasurement.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def query_exercise_logs(session, user_id, **kw):

@@ -1,12 +1,13 @@
 """Tests for /api/v1/ public API endpoints — auth, scopes, data access, tokens."""
 
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 
+from src.models.body_models import BodyMeasurement
 from src.models.db_models import FitnessMetric
-from src.models.fitbit_models import DailyActivity, DailyBody, DailySleep, DailyVitals
+from src.models.fitbit_models import DailyActivity, DailySleep, DailyVitals
 from src.models.hevy_models import Workout, WorkoutExercise
 from src.services.token_service import create_token, hash_token
 
@@ -43,7 +44,7 @@ async def seed_metrics(user_id: str):
             # Typed tables (used by /api/v1/vitals, sleep, body, activity)
             session.add(DailyVitals(user_id=uid, date=d, source="fitbit", resting_heart_rate=60.0 + i, daily_rmssd=30.0 + i, spo2_avg=96.5))
             session.add(DailySleep(user_id=uid, date=d, source="fitbit", external_id=f"sleep_{i}", total_minutes=400 + i * 10, efficiency=85 + i))
-            session.add(DailyBody(user_id=uid, date=d, source="renpho", weight_kg=75.0 - i * 0.1))
+            session.add(BodyMeasurement(user_id=uid, date=d, source="renpho", measured_at=datetime(d.year, d.month, d.day, 8, 0, tzinfo=timezone.utc), weight_kg=75.0 - i * 0.1))
             session.add(DailyActivity(user_id=uid, date=d, source="fitbit", steps=8000 + i * 100))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="workout", source="hevy", data={"title": "Full Body", "total_volume_kg": 4500, "total_sets": 24}))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="spo2", source="fitbit", data={"avg": 96.5}))

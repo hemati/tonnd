@@ -32,8 +32,8 @@ from src.services.fitbit.client import (
 )
 from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
 from src.services.data_service import (
-    query_daily_activity, query_daily_body, query_daily_sleep,
-    query_daily_vitals, query_metrics,
+    query_body_measurements, query_daily_activity, query_daily_sleep,
+    query_daily_vitals,
     query_workouts, workout_with_exercises,
 )
 from src.services.hevy.client import validate_hevy_api_key
@@ -441,39 +441,13 @@ async def get_data(
     vitals = await query_daily_vitals(session, user.id, start_date=start_date, limit=days + 1)
     sleep_rows = await query_daily_sleep(session, user.id, start_date=start_date, limit=days * 3)
     activity_rows = await query_daily_activity(session, user.id, start_date=start_date, limit=days + 1)
-    body_rows = await query_daily_body(session, user.id, start_date=start_date, limit=days + 1)
-
-    # Query fitness_metrics for Renpho body_composition only
-    legacy_metrics = await query_metrics(
-        session, user.id,
-        metric_types=["body_composition"],
-        start_date=start_date,
-        limit=days * 5,
-    )
+    body_rows = await query_body_measurements(session, user.id, start_date=start_date, limit=days * 5)
 
     # Serialize typed rows
     vitals_list = [v.to_dict() for v in vitals]
     sleep_list = [s.to_dict() for s in sleep_rows]
     activity_list = [a.to_dict() for a in activity_rows]
     body_list = [b.to_dict() for b in body_rows]
-
-    # Group legacy metrics by type
-    legacy_by_type: dict[str, list[dict]] = {}
-    for m in legacy_metrics:
-        entry = {"date": m.date.isoformat(), "source": m.source, **m.data}
-        legacy_by_type.setdefault(m.metric_type, []).append(entry)
-
-    # Merge Renpho body_composition weight into body_list for weight_trend
-    renpho_body = legacy_by_type.get("body_composition", [])
-    # Convert Renpho body_composition to body-like dicts for weight trend
-    for rb in renpho_body:
-        body_list.append({
-            "date": rb["date"], "source": rb.get("source", "renpho"),
-            "weight_kg": rb.get("weight_kg"), "bmi": rb.get("bmi"),
-            "body_fat_percent": rb.get("body_fat_percent"),
-        })
-    # Re-sort body_list by date descending after merge
-    body_list.sort(key=lambda x: x["date"], reverse=True)
 
     # Workout history from typed Hevy tables
     hevy_workouts = await query_workouts(session, user.id, start_date=start_date, limit=days * 3)

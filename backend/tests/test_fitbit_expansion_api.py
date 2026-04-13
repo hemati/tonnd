@@ -5,9 +5,9 @@ from datetime import date, datetime, timezone
 
 import pytest
 
+from src.models.body_models import BodyMeasurement
 from src.models.fitbit_models import (
     DailyActivity,
-    DailyBody,
     DailySleep,
     DailyVitals,
     ExerciseLog,
@@ -15,8 +15,8 @@ from src.models.fitbit_models import (
     UserContext,
 )
 from src.services.data_service import (
+    query_body_measurements,
     query_daily_activity,
-    query_daily_body,
     query_daily_sleep,
     query_daily_vitals,
     query_exercise_logs,
@@ -122,16 +122,17 @@ class TestQueryDailyActivity:
 
 
 @pytest.mark.asyncio
-class TestQueryDailyBody:
+class TestQueryBodyMeasurements:
     async def test_returns_body_metrics(self):
         async with test_session_maker() as session:
-            session.add(DailyBody(
+            session.add(BodyMeasurement(
                 user_id=USER_ID, date=date(2026, 4, 10), source="fitbit",
+                measured_at=datetime(2026, 4, 10, 8, 0, tzinfo=timezone.utc),
                 weight_kg=80.5, bmi=24.3, body_fat_percent=18.5,
             ))
             await session.commit()
 
-            rows = await query_daily_body(session, USER_ID)
+            rows = await query_body_measurements(session, USER_ID)
             assert len(rows) == 1
             assert rows[0].weight_kg == 80.5
 
