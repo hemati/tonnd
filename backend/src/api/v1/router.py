@@ -9,7 +9,6 @@ from src.api.v1 import (
     context,
     exercises,
     intraday,
-    metrics,
     recovery,
     routines,
     sleep,
@@ -27,7 +26,6 @@ router.include_router(activity.router)
 router.include_router(workouts.router)
 router.include_router(routines.router)
 router.include_router(recovery.router)
-router.include_router(metrics.router)
 router.include_router(intraday.router)
 router.include_router(exercises.router)
 router.include_router(context.router)

@@ -490,13 +490,6 @@ class TestMCPTools:
                         result = await get_recovery_score()
         assert result["score"] is None
 
-    async def test_get_all_metrics(self):
-        from src.mcp.remote_server import get_all_metrics
-        uid = uuid.uuid4()
-        with self._mock_auth(uid), self._mock_db():
-            result = await get_all_metrics()
-        assert "count" in result
-
     async def test_get_vitals_with_dates(self):
         from src.mcp.remote_server import get_vitals
         uid = uuid.uuid4()

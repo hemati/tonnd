@@ -1,18 +1,14 @@
-"""Tests for fitbit_sync — token management and metric upsert."""
+"""Tests for fitbit_sync — token management."""
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
-from sqlalchemy import select
 
-from src.models.db_models import FitnessMetric, User
+from src.models.db_models import User
 from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
-from src.services.sync_utils import upsert_metric
 from src.services.token_encryption import decrypt_token, encrypt_token
-
-from tests.conftest import test_session_maker
 
 
 # ---------------------------------------------------------------------------
@@ -124,88 +120,3 @@ class TestDisconnectFitbit:
         assert user.fitbit_access_token is None
 
 
-# ---------------------------------------------------------------------------
-# upsert_metric
-# ---------------------------------------------------------------------------
-class TestUpsertMetric:
-    @pytest.mark.asyncio
-    async def test_inserts_new_metric(self):
-        async with test_session_maker() as session:
-            user_id = uuid.uuid4()
-            # Create a User first so foreign key is satisfied
-            user = User(id=user_id, email="u@test.com", hashed_password="h")
-            session.add(user)
-            await session.flush()
-
-            metric_date = date(2026, 4, 7)
-            await upsert_metric(
-                session, user_id, metric_date, "weight", {"weight_kg": 80}, source="fitbit"
-            )
-            await session.commit()
-
-            # Verify it was inserted
-            stmt = select(FitnessMetric).where(
-                FitnessMetric.user_id == user_id,
-                FitnessMetric.metric_type == "weight",
-            )
-            result = (await session.execute(stmt)).scalar_one()
-            assert result.data == {"weight_kg": 80}
-            assert result.source == "fitbit"
-            assert result.date == metric_date
-
-    @pytest.mark.asyncio
-    async def test_updates_existing_metric(self):
-        async with test_session_maker() as session:
-            user_id = uuid.uuid4()
-            user = User(id=user_id, email="u2@test.com", hashed_password="h")
-            session.add(user)
-            await session.flush()
-
-            metric_date = date(2026, 4, 7)
-
-            # Insert first
-            await upsert_metric(
-                session, user_id, metric_date, "activity", {"steps": 5000}, source="fitbit"
-            )
-            await session.commit()
-
-            # Update
-            await upsert_metric(
-                session, user_id, metric_date, "activity", {"steps": 10000}, source="fitbit"
-            )
-            await session.commit()
-
-            stmt = select(FitnessMetric).where(
-                FitnessMetric.user_id == user_id,
-                FitnessMetric.metric_type == "activity",
-            )
-            result = (await session.execute(stmt)).scalar_one()
-            assert result.data == {"steps": 10000}
-
-    @pytest.mark.asyncio
-    async def test_different_sources_not_conflated(self):
-        """Metrics from different sources (fitbit vs renpho) are separate rows."""
-        async with test_session_maker() as session:
-            user_id = uuid.uuid4()
-            user = User(id=user_id, email="u3@test.com", hashed_password="h")
-            session.add(user)
-            await session.flush()
-
-            metric_date = date(2026, 4, 7)
-
-            await upsert_metric(
-                session, user_id, metric_date, "weight", {"weight_kg": 80}, source="fitbit"
-            )
-            await upsert_metric(
-                session, user_id, metric_date, "weight", {"weight_kg": 81}, source="renpho"
-            )
-            await session.commit()
-
-            stmt = select(FitnessMetric).where(
-                FitnessMetric.user_id == user_id,
-                FitnessMetric.metric_type == "weight",
-            )
-            results = (await session.execute(stmt)).scalars().all()
-            assert len(results) == 2
-            sources = {r.source for r in results}
-            assert sources == {"fitbit", "renpho"}

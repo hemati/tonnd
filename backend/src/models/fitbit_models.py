@@ -1,7 +1,6 @@
 """Typed tables for Fitbit data expansion.
 
-Replaces JSON-blob rows in fitness_metrics with real columns.
-All tables include a `source` column for future multi-tracker support.
+All tables include a `source` column for multi-tracker support.
 """
 
 import uuid
@@ -146,30 +145,6 @@ class DailyActivity(Base):
             "floors": self.floors, "calories_bmr": self.calories_bmr,
             "fat_burn_azm": self.fat_burn_azm, "cardio_azm": self.cardio_azm,
             "peak_azm": self.peak_azm, "total_azm": self.total_azm,
-        }
-
-
-class DailyBody(Base):
-    __tablename__ = "daily_body"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
-    date: Mapped[date_type] = mapped_column(Date, nullable=False)
-    source: Mapped[str] = mapped_column(String(16), nullable=False)
-    weight_kg: Mapped[float | None] = mapped_column(Float, default=None)
-    bmi: Mapped[float | None] = mapped_column(Float, default=None)
-    body_fat_percent: Mapped[float | None] = mapped_column(Float, default=None)
-    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "date", "source", name="uq_daily_body"),
-    )
-
-    def to_dict(self) -> dict:
-        return {
-            "date": self.date.isoformat(), "source": self.source,
-            "weight_kg": self.weight_kg, "bmi": self.bmi,
-            "body_fat_percent": self.body_fat_percent,
         }
 
 

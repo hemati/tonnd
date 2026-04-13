@@ -16,14 +16,12 @@ from src.database import async_session_maker
 from src.mcp.oauth_provider import TONNDOAuthProvider
 from src.services.data_service import (
     compute_recovery_score,
-    metric_to_dict,
     query_body_measurements,
     query_daily_activity,
     query_daily_sleep,
     query_daily_vitals,
     query_exercise_logs,
     query_hourly_intraday,
-    query_metrics,
     query_routines,
     query_user_context,
     query_workouts,
@@ -231,34 +229,6 @@ async def get_recovery_score() -> dict:
     latest_sleep = {"efficiency": sleep_rows[0].efficiency} if sleep_rows else None
 
     return compute_recovery_score(latest_hrv, latest_sleep, latest_hr)
-
-
-@mcp.tool()
-async def get_all_metrics(
-    start_date: str | None = None,
-    end_date: str | None = None,
-    metric_type: str | None = None,
-    source: str | None = None,
-    limit: int = 50,
-) -> dict:
-    """Get all raw health metrics with flexible filtering.
-
-    Available metric types: activity, sleep, heart_rate, hrv, spo2, breathing_rate,
-    vo2_max, temperature, active_zone_minutes, weight, body_composition, workout.
-
-    Args:
-        start_date: Start date (YYYY-MM-DD).
-        end_date: End date (YYYY-MM-DD).
-        metric_type: Filter to a specific metric type.
-        source: Filter by source (fitbit, renpho, hevy).
-        limit: Max results (default 50).
-    """
-    user_id = _get_user_id()  # no scope check — /metrics does its own filtering
-    sd, ed = _parse_dates(start_date, end_date)
-    types = [metric_type] if metric_type else None
-    async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=types, start_date=sd, end_date=ed, source=source, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
 
 
 @mcp.tool()

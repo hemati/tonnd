@@ -181,34 +181,5 @@ async def get_recovery_score() -> dict:
     return await _get("/api/v1/recovery")
 
 
-@mcp.tool()
-async def get_all_metrics(
-    start_date: str | None = None,
-    end_date: str | None = None,
-    metric_type: str | None = None,
-    source: str | None = None,
-    limit: int = 50,
-) -> dict:
-    """Get all raw health metrics with flexible filtering.
-
-    Available metric types: activity, sleep, heart_rate, hrv, spo2, breathing_rate,
-    vo2_max, temperature, active_zone_minutes, weight, body_composition, workout.
-
-    Args:
-        start_date: Start date (YYYY-MM-DD).
-        end_date: End date (YYYY-MM-DD).
-        metric_type: Filter to a specific metric type.
-        source: Filter by source (fitbit, renpho, hevy).
-        limit: Max results (default 50).
-    """
-    params = _params(start_date=start_date, end_date=end_date, source=source, limit=limit)
-    if metric_type:
-        params["metric_type"] = metric_type
-    client = await _get_client()
-    resp = await client.get("/api/v1/metrics", headers=_headers(), params=params)
-    resp.raise_for_status()
-    return resp.json()
-
-
 if __name__ == "__main__":
     mcp.run()

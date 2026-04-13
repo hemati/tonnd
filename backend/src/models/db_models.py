@@ -1,5 +1,4 @@
-import uuid
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from fastapi_users.db import (
     SQLAlchemyBaseOAuthAccountTableUUID,
@@ -7,17 +6,11 @@ from fastapi_users.db import (
 )
 from sqlalchemy import (
     Boolean,
-    Integer,
-    JSON,
-    Date,
     DateTime,
-    ForeignKey,
-    Index,
+    Integer,
     String,
     Text,
-    UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -63,38 +56,8 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     )
 
     # Relationships
-    fitness_metrics: Mapped[list["FitnessMetric"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
     api_tokens: Mapped[list["APIToken"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
 
 
-class FitnessMetric(Base):
-    """Fitness data — one row per user/date/metric_type combination."""
-
-    __tablename__ = "fitness_metrics"
-
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("user.id", ondelete="CASCADE"), nullable=False
-    )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
-    metric_type: Mapped[str] = mapped_column(String(32), nullable=False)
-    source: Mapped[str] = mapped_column(String(16), nullable=False, default="fitbit")
-    data: Mapped[dict] = mapped_column(JSON, nullable=False)
-    synced_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
-    )
-
-    # Relationships
-    user: Mapped["User"] = relationship(back_populates="fitness_metrics")
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "date", "metric_type", "source", name="uq_user_date_metric_source"),
-        Index("ix_user_date", "user_id", "date"),
-        Index("ix_user_metric_date", "user_id", "metric_type", "date"),
-    )

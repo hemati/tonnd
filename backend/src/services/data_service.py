@@ -1,14 +1,11 @@
-"""Shared data access layer for fitness metrics.
+"""Shared data access layer for fitness data.
 
 Used by both the dashboard (/api/data) and the public API (/api/v1/).
 """
 
-from datetime import date
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.db_models import FitnessMetric
 from src.models.body_models import BodyMeasurement
 from src.models.fitbit_models import (
     DailyActivity,
@@ -19,72 +16,6 @@ from src.models.fitbit_models import (
     UserContext,
 )
 from src.models.hevy_models import Routine, Workout, WorkoutExercise
-
-
-async def query_metrics(
-    session: AsyncSession,
-    user_id,
-    metric_types: list[str] | None = None,
-    start_date: date | None = None,
-    end_date: date | None = None,
-    source: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    order: str = "desc",
-) -> list[FitnessMetric]:
-    """Query fitness metrics with filtering, pagination, and ordering."""
-    stmt = select(FitnessMetric).where(FitnessMetric.user_id == user_id)
-
-    if metric_types:
-        stmt = stmt.where(FitnessMetric.metric_type.in_(metric_types))
-
-    if start_date:
-        stmt = stmt.where(FitnessMetric.date >= start_date)
-
-    if end_date:
-        stmt = stmt.where(FitnessMetric.date <= end_date)
-
-    if source:
-        stmt = stmt.where(FitnessMetric.source == source)
-
-    if order == "asc":
-        stmt = stmt.order_by(FitnessMetric.date.asc())
-    else:
-        stmt = stmt.order_by(FitnessMetric.date.desc())
-
-    stmt = stmt.offset(offset).limit(limit)
-
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
-
-
-def metric_to_dict(m: FitnessMetric) -> dict:
-    """Convert a FitnessMetric row to a flat dict for API responses."""
-    return {
-        "date": m.date.isoformat(),
-        "metric_type": m.metric_type,
-        "source": m.source,
-        **m.data,
-    }
-
-
-async def get_latest(
-    session: AsyncSession,
-    user_id,
-    metric_type: str,
-) -> dict | None:
-    """Get the most recent metric of a given type for a user."""
-    stmt = (
-        select(FitnessMetric)
-        .where(
-            FitnessMetric.user_id == user_id,
-            FitnessMetric.metric_type == metric_type,
-        )
-        .order_by(FitnessMetric.date.desc())
-        .limit(1)
-    )
-    m = (await session.execute(stmt)).scalar_one_or_none()
-    return metric_to_dict(m) if m else None
 
 
 def compute_recovery_score(
