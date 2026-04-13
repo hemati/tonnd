@@ -20,7 +20,7 @@ from src.database import engine, get_async_session
 from src.middleware.audit import AuditMiddleware
 from src.middleware.rate_limit import limiter
 from src.middleware.security_headers import SecurityHeadersMiddleware
-from src.models.db_models import Base, FitnessMetric, User
+from src.models.db_models import Base, User
 import src.models.api_models  # noqa: F401 — register APIToken + AuditLog with Base
 from src.scheduler import daily_sync_all
 from src.services.fitbit.client import (
@@ -34,6 +34,7 @@ from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
 from src.services.data_service import (
     query_daily_activity, query_daily_body, query_daily_sleep,
     query_daily_vitals, query_metrics,
+    query_workouts, query_workout_exercises,
 )
 from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_workouts, sync_hevy_routines
@@ -443,10 +444,10 @@ async def get_data(
     activity_rows = await query_daily_activity(session, user.id, start_date=start_date, limit=days + 1)
     body_rows = await query_daily_body(session, user.id, start_date=start_date, limit=days + 1)
 
-    # Query fitness_metrics for Renpho body_composition and Hevy workouts only
+    # Query fitness_metrics for Renpho body_composition only
     legacy_metrics = await query_metrics(
         session, user.id,
-        metric_types=["body_composition", "workout"],
+        metric_types=["body_composition"],
         start_date=start_date,
         limit=days * 5,
     )
@@ -475,8 +476,14 @@ async def get_data(
     # Re-sort body_list by date descending after merge
     body_list.sort(key=lambda x: x["date"], reverse=True)
 
-    # Workout history from legacy (Hevy)
-    workout_list = legacy_by_type.get("workout", [])
+    # Workout history from typed Hevy tables
+    hevy_workouts = await query_workouts(session, user.id, start_date=start_date, limit=days * 3)
+    workout_list = []
+    for w in hevy_workouts:
+        wd = w.to_dict()
+        exs = await query_workout_exercises(session, w.id)
+        wd["exercises"] = [e.to_dict() for e in exs]
+        workout_list.append(wd)
 
     # Extract latest values
     latest_v = vitals_list[0] if vitals_list else None
@@ -530,7 +537,7 @@ async def get_data(
         # Active zone minutes (from activity)
         "today_active_zone_minutes": {"fat_burn_minutes": latest_activity["fat_burn_azm"], "cardio_minutes": latest_activity["cardio_azm"], "peak_minutes": latest_activity["peak_azm"], "total_minutes": latest_activity["total_azm"]} if latest_activity and latest_activity.get("total_azm") else None,
         "active_zone_minutes_history": [{"date": a["date"], "source": a["source"], "fat_burn_minutes": a["fat_burn_azm"], "cardio_minutes": a["cardio_azm"], "peak_minutes": a["peak_azm"], "total_minutes": a["total_azm"]} for a in activity_list if a.get("total_azm")],
-        # Workouts (from legacy fitness_metrics — Hevy)
+        # Workouts (from typed Hevy tables)
         "latest_workout": latest_workout,
         "workout_history": workout_list,
         # Recovery
