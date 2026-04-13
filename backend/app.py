@@ -32,6 +32,10 @@ from src.services.fitbit.client import (
 )
 from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
 from src.services.sync_utils import upsert_metric
+from src.services.data_service import (
+    query_daily_activity, query_daily_body, query_daily_sleep,
+    query_daily_vitals, query_metrics, metric_to_dict,
+)
 from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_data
 from src.services.renpho.client import RenphoAPIError, renpho_login
@@ -353,28 +357,38 @@ async def sync_all_sources(
     sync_renpho = source in (None, "renpho")
     sync_hevy = source in (None, "hevy")
 
-    # Sync Fitbit
+    # Sync Fitbit — new typed pipeline
     if sync_fitbit and user.fitbit_access_token:
         try:
+            from src.scheduler import sync_fitbit_daily, sync_fitbit_exercise_logs, sync_fitbit_context
+
             access_token = await ensure_valid_token(user)
             client = FitbitClient(access_token)
 
             for i in range(days):
                 current_date = base_date - timedelta(days=i)
-                date_str = current_date.isoformat()
                 try:
-                    result = await client.get_all_data_for_date(date_str)
-                    for metric_type, metric_data in result["data"].items():
-                        await upsert_metric(
-                            session, user.id, current_date, metric_type, metric_data, source="fitbit"
-                        )
-                        synced_metrics.append(f"fitbit:{date_str}#{metric_type}")
-                    errors.extend(result.get("errors", []))
+                    await sync_fitbit_daily(session, user, current_date, client)
+                    synced_metrics.append(f"fitbit:{current_date.isoformat()}#daily")
+
+                    try:
+                        await sync_fitbit_exercise_logs(session, user, current_date, client)
+                        synced_metrics.append(f"fitbit:{current_date.isoformat()}#exercise_logs")
+                    except Exception as e:
+                        errors.append(f"fitbit:{current_date}:exercise_logs: {e}")
+
                 except RateLimitError:
-                    errors.append(f"fitbit: rate limited at {date_str}")
+                    errors.append(f"fitbit: rate limited at {current_date}")
                     break
                 except Exception as e:
-                    errors.append(f"fitbit:{date_str}: {e}")
+                    errors.append(f"fitbit:{current_date}: {e}")
+
+            try:
+                await sync_fitbit_context(session, user, client)
+                synced_metrics.append("fitbit:context")
+            except Exception as e:
+                errors.append(f"fitbit:context: {e}")
+
         except TokenExpiredError:
             disconnect_fitbit(user)
             errors.append("fitbit: token expired, disconnected")
@@ -413,6 +427,40 @@ async def sync_all_sources(
     }
 
 
+def _vitals_dict(v):
+    return {"date": v.date.isoformat(), "source": v.source,
+            "resting_heart_rate": v.resting_heart_rate, "hr_zones": v.hr_zones,
+            "daily_rmssd": v.daily_rmssd, "deep_rmssd": v.deep_rmssd,
+            "spo2_avg": v.spo2_avg, "spo2_min": v.spo2_min, "spo2_max": v.spo2_max,
+            "breathing_rate": v.breathing_rate, "vo2_max": v.vo2_max,
+            "temp_relative_deviation": v.temp_relative_deviation}
+
+def _sleep_dict(s):
+    return {"date": s.date.isoformat(), "source": s.source,
+            "total_minutes": s.total_minutes, "deep_minutes": s.deep_minutes,
+            "light_minutes": s.light_minutes, "rem_minutes": s.rem_minutes,
+            "awake_minutes": s.awake_minutes, "efficiency": s.efficiency,
+            "start_time": s.start_time.isoformat() if s.start_time else None,
+            "end_time": s.end_time.isoformat() if s.end_time else None,
+            "minutes_to_fall_asleep": s.minutes_to_fall_asleep,
+            "is_main_sleep": s.is_main_sleep}
+
+def _activity_dict(a):
+    return {"date": a.date.isoformat(), "source": a.source,
+            "steps": a.steps, "calories_burned": a.calories_burned,
+            "distance_km": a.distance_km, "active_minutes": a.active_minutes,
+            "sedentary_minutes": a.sedentary_minutes,
+            "lightly_active_minutes": a.lightly_active_minutes,
+            "floors": a.floors, "calories_bmr": a.calories_bmr,
+            "fat_burn_azm": a.fat_burn_azm, "cardio_azm": a.cardio_azm,
+            "peak_azm": a.peak_azm, "total_azm": a.total_azm}
+
+def _body_dict(b):
+    return {"date": b.date.isoformat(), "source": b.source,
+            "weight_kg": b.weight_kg, "bmi": b.bmi,
+            "body_fat_percent": b.body_fat_percent}
+
+
 @app.get("/api/data", tags=["api"])
 async def get_data(
     user: User = Depends(current_active_user),
@@ -421,37 +469,60 @@ async def get_data(
 ):
     start_date = date.today() - timedelta(days=days)
 
-    stmt = (
-        select(FitnessMetric)
-        .where(
-            FitnessMetric.user_id == user.id,
-            FitnessMetric.date >= start_date,
-        )
-        .order_by(FitnessMetric.date.desc())
-    )
-    result = await session.execute(stmt)
-    metrics = result.scalars().all()
+    # Query typed tables for Fitbit data
+    vitals = await query_daily_vitals(session, user.id, start_date=start_date, limit=days + 1)
+    sleep_rows = await query_daily_sleep(session, user.id, start_date=start_date, limit=days * 3)
+    activity_rows = await query_daily_activity(session, user.id, start_date=start_date, limit=days + 1)
+    body_rows = await query_daily_body(session, user.id, start_date=start_date, limit=days + 1)
 
-    # Group by metric type
-    by_type: dict[str, list[dict]] = {}
-    for m in metrics:
+    # Query fitness_metrics for Renpho body_composition and Hevy workouts only
+    legacy_metrics = await query_metrics(
+        session, user.id,
+        metric_types=["body_composition", "workout"],
+        start_date=start_date,
+        limit=days * 5,
+    )
+
+    # Serialize typed rows
+    vitals_list = [_vitals_dict(v) for v in vitals]
+    sleep_list = [_sleep_dict(s) for s in sleep_rows]
+    activity_list = [_activity_dict(a) for a in activity_rows]
+    body_list = [_body_dict(b) for b in body_rows]
+
+    # Group legacy metrics by type
+    legacy_by_type: dict[str, list[dict]] = {}
+    for m in legacy_metrics:
         entry = {"date": m.date.isoformat(), "source": m.source, **m.data}
-        by_type.setdefault(m.metric_type, []).append(entry)
+        legacy_by_type.setdefault(m.metric_type, []).append(entry)
+
+    # Merge Renpho body_composition weight into body_list for weight_trend
+    renpho_body = legacy_by_type.get("body_composition", [])
+    # Convert Renpho body_composition to body-like dicts for weight trend
+    for rb in renpho_body:
+        body_list.append({
+            "date": rb["date"], "source": rb.get("source", "renpho"),
+            "weight_kg": rb.get("weight_kg"), "bmi": rb.get("bmi"),
+            "body_fat_percent": rb.get("body_fat_percent"),
+        })
+    # Re-sort body_list by date descending after merge
+    body_list.sort(key=lambda x: x["date"], reverse=True)
+
+    # Workout history from legacy (Hevy)
+    workout_list = legacy_by_type.get("workout", [])
 
     # Extract latest values
-    def latest(metric_type: str) -> Optional[dict]:
-        entries = by_type.get(metric_type)
-        return entries[0] if entries else None
+    latest_v = vitals_list[0] if vitals_list else None
+    latest_sleep_entry = sleep_list[0] if sleep_list else None
+    latest_activity = activity_list[0] if activity_list else None
+    latest_body = body_list[0] if body_list else None
+    latest_workout = workout_list[0] if workout_list else None
 
-    # Recovery score (same formula as original)
+    # Recovery score using typed vitals + sleep data
     recovery_score = None
-    latest_hrv = latest("hrv")
-    latest_sleep = latest("sleep")
-    latest_hr = latest("heart_rate")
-    if latest_hrv and latest_sleep and latest_hr:
-        hrv_val = latest_hrv.get("daily_rmssd")
-        sleep_eff = latest_sleep.get("efficiency")
-        rhr = latest_hr.get("resting_heart_rate")
+    if latest_v and latest_sleep_entry:
+        hrv_val = latest_v.get("daily_rmssd")
+        sleep_eff = latest_sleep_entry.get("efficiency")
+        rhr = latest_v.get("resting_heart_rate")
         if hrv_val and sleep_eff and rhr:
             hrv_score = min(100, (hrv_val / 100) * 100)
             sleep_score = sleep_eff
@@ -461,30 +532,43 @@ async def get_data(
             )
 
     return {
-        "latest_weight": latest("weight"),
-        "weight_trend": by_type.get("weight", []),
-        "latest_sleep": latest("sleep"),
-        "sleep_history": by_type.get("sleep", []),
-        "today_activity": latest("activity"),
-        "activity_history": by_type.get("activity", []),
-        "today_heart_rate": latest("heart_rate"),
-        "heart_rate_history": by_type.get("heart_rate", []),
-        "latest_hrv": latest("hrv"),
-        "hrv_history": by_type.get("hrv", []),
-        "latest_spo2": latest("spo2"),
-        "spo2_history": by_type.get("spo2", []),
-        "latest_breathing_rate": latest("breathing_rate"),
-        "breathing_rate_history": by_type.get("breathing_rate", []),
-        "latest_vo2_max": latest("vo2_max"),
-        "vo2_max_history": by_type.get("vo2_max", []),
-        "latest_temperature": latest("temperature"),
-        "temperature_history": by_type.get("temperature", []),
-        "today_active_zone_minutes": latest("active_zone_minutes"),
-        "active_zone_minutes_history": by_type.get("active_zone_minutes", []),
-        "latest_workout": latest("workout"),
-        "workout_history": by_type.get("workout", []),
+        # Weight / Body
+        "latest_weight": latest_body,
+        "weight_trend": body_list,
+        # Sleep
+        "latest_sleep": latest_sleep_entry,
+        "sleep_history": sleep_list,
+        # Activity
+        "today_activity": latest_activity,
+        "activity_history": activity_list,
+        # Heart rate (from vitals)
+        "today_heart_rate": {"resting_heart_rate": latest_v["resting_heart_rate"], "zones": latest_v["hr_zones"]} if latest_v and latest_v.get("resting_heart_rate") else None,
+        "heart_rate_history": [{"date": v["date"], "source": v["source"], "resting_heart_rate": v["resting_heart_rate"], "zones": v["hr_zones"]} for v in vitals_list],
+        # HRV (from vitals)
+        "latest_hrv": {"daily_rmssd": latest_v["daily_rmssd"], "deep_rmssd": latest_v["deep_rmssd"]} if latest_v and latest_v.get("daily_rmssd") else None,
+        "hrv_history": [{"date": v["date"], "source": v["source"], "daily_rmssd": v["daily_rmssd"], "deep_rmssd": v["deep_rmssd"]} for v in vitals_list if v.get("daily_rmssd")],
+        # SpO2 (from vitals)
+        "latest_spo2": {"avg": latest_v["spo2_avg"], "min": latest_v["spo2_min"], "max": latest_v["spo2_max"]} if latest_v and latest_v.get("spo2_avg") else None,
+        "spo2_history": [{"date": v["date"], "source": v["source"], "avg": v["spo2_avg"], "min": v["spo2_min"], "max": v["spo2_max"]} for v in vitals_list if v.get("spo2_avg")],
+        # Breathing rate (from vitals)
+        "latest_breathing_rate": {"breathing_rate": latest_v["breathing_rate"]} if latest_v and latest_v.get("breathing_rate") else None,
+        "breathing_rate_history": [{"date": v["date"], "source": v["source"], "breathing_rate": v["breathing_rate"]} for v in vitals_list if v.get("breathing_rate")],
+        # VO2 max (from vitals)
+        "latest_vo2_max": {"vo2_max": latest_v["vo2_max"]} if latest_v and latest_v.get("vo2_max") else None,
+        "vo2_max_history": [{"date": v["date"], "source": v["source"], "vo2_max": v["vo2_max"]} for v in vitals_list if v.get("vo2_max")],
+        # Temperature (from vitals)
+        "latest_temperature": {"relative_deviation": latest_v["temp_relative_deviation"]} if latest_v and latest_v.get("temp_relative_deviation") else None,
+        "temperature_history": [{"date": v["date"], "source": v["source"], "relative_deviation": v["temp_relative_deviation"]} for v in vitals_list if v.get("temp_relative_deviation")],
+        # Active zone minutes (from activity)
+        "today_active_zone_minutes": {"fat_burn_minutes": latest_activity["fat_burn_azm"], "cardio_minutes": latest_activity["cardio_azm"], "peak_minutes": latest_activity["peak_azm"], "total_minutes": latest_activity["total_azm"]} if latest_activity and latest_activity.get("total_azm") else None,
+        "active_zone_minutes_history": [{"date": a["date"], "source": a["source"], "fat_burn_minutes": a["fat_burn_azm"], "cardio_minutes": a["cardio_azm"], "peak_minutes": a["peak_azm"], "total_minutes": a["total_azm"]} for a in activity_list if a.get("total_azm")],
+        # Workouts (from legacy fitness_metrics — Hevy)
+        "latest_workout": latest_workout,
+        "workout_history": workout_list,
+        # Recovery
         "recovery_score": recovery_score,
         "recovery_history": [],
+        # Metadata
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
         "fitbit_connected": user.fitbit_access_token is not None,
         "renpho_connected": user.renpho_session_key is not None,
