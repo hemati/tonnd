@@ -11,7 +11,7 @@ from datetime import date
 from fastmcp import FastMCP
 from fastmcp.server.dependencies import get_access_token
 
-from src.auth.scopes import SCOPE_METRICS, has_scope
+from src.auth.scopes import has_scope
 from src.database import async_session_maker
 from src.mcp.oauth_provider import TONNDOAuthProvider
 from src.services.data_service import (
@@ -24,7 +24,10 @@ from src.services.data_service import (
     query_exercise_logs,
     query_hourly_intraday,
     query_metrics,
+    query_routines,
     query_user_context,
+    query_workout_exercises,
+    query_workouts,
 )
 
 BASE_URL = os.environ.get("MCP_BASE_URL", os.environ.get("FRONTEND_URL", "http://localhost:8080"))
@@ -175,9 +178,10 @@ async def get_workouts(
     end_date: str | None = None,
     limit: int = 20,
 ) -> dict:
-    """Get workout history from Hevy: exercises, sets/reps/weight, volume, muscle groups.
+    """Get workout history: exercises with sets/reps/weight, volume, muscle groups, supersets.
 
-    Each workout includes a weighted muscle group breakdown (primary muscles = 1.0x, secondary = 0.4x).
+    Each workout includes full exercise details with notes, exercise type, and superset grouping.
+    Volume excludes warmup sets (only working sets counted).
 
     Args:
         start_date: Start date (YYYY-MM-DD).
@@ -187,8 +191,32 @@ async def get_workouts(
     user_id = _get_user_id("read:workouts")
     sd, ed = _parse_dates(start_date, end_date)
     async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=SCOPE_METRICS["read:workouts"], start_date=sd, end_date=ed, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+        workouts = await query_workouts(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+        data = []
+        for w in workouts:
+            wd = w.to_dict()
+            exercises = await query_workout_exercises(session, w.id)
+            wd["exercises"] = [e.to_dict() for e in exercises]
+            data.append(wd)
+    return {"count": len(data), "data": data}
+
+
+@mcp.tool()
+async def get_routines(limit: int = 50) -> dict:
+    """Get saved workout routine templates (planned workouts).
+
+    Routines show the user's planned training program — exercises with target sets, reps, and weights.
+    Compare with actual workouts for training adherence analysis.
+
+    Args:
+        limit: Max results (default 50).
+    """
+    user_id = _get_user_id("read:workouts")
+    async with async_session_maker() as session:
+        rows = await query_routines(session, user_id, limit=_clamp_limit(limit))
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
 
 @mcp.tool()
