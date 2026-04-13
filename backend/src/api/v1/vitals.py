@@ -1,61 +1,48 @@
-"""GET /api/v1/vitals — heart_rate, hrv, spo2, breathing_rate, vo2_max, temperature."""
+"""GET /api/v1/vitals — vital signs from typed daily_vitals table."""
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query
 
 from src.auth.dependencies import AuthResult, require_scope
-from src.auth.scopes import SCOPE_METRICS
 from src.database import get_async_session
-from src.services.data_service import metric_to_dict, query_metrics
+from src.services.data_service import query_daily_vitals
 
-router = APIRouter()
-
-VITAL_TYPES = SCOPE_METRICS["read:vitals"]
+router = APIRouter(prefix="/vitals", tags=["vitals"])
 
 
-@router.get("/vitals")
+@router.get("")
 async def get_vitals(
-    auth: AuthResult = Depends(require_scope("read:vitals")),
-    session: AsyncSession = Depends(get_async_session),
     start_date: date | None = None,
     end_date: date | None = None,
     source: str | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
-):
-    rows = await query_metrics(
-        session, auth.user.id,
-        metric_types=VITAL_TYPES,
-        start_date=start_date, end_date=end_date,
-        source=source, limit=limit, offset=offset, order=order,
-    )
-    data = [metric_to_dict(r) for r in rows]
-    return {"count": len(data), "data": data}
-
-
-@router.get("/vitals/{metric_type}")
-async def get_vital_by_type(
-    metric_type: str,
+    limit: int = Query(default=30, le=365),
+    offset: int = 0,
     auth: AuthResult = Depends(require_scope("read:vitals")),
-    session: AsyncSession = Depends(get_async_session),
-    start_date: date | None = None,
-    end_date: date | None = None,
-    source: str | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    session=Depends(get_async_session),
 ):
-    if metric_type not in VITAL_TYPES:
-        raise HTTPException(status_code=404, detail="Unknown vital metric type")
-
-    rows = await query_metrics(
+    rows = await query_daily_vitals(
         session, auth.user.id,
-        metric_types=[metric_type],
-        start_date=start_date, end_date=end_date,
-        source=source, limit=limit, offset=offset, order=order,
+        start_date=start_date, end_date=end_date, source=source,
+        limit=limit, offset=offset,
     )
-    data = [metric_to_dict(r) for r in rows]
-    return {"metric_type": metric_type, "count": len(data), "data": data}
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "source": r.source,
+                "resting_heart_rate": r.resting_heart_rate,
+                "hr_zones": r.hr_zones,
+                "daily_rmssd": r.daily_rmssd,
+                "deep_rmssd": r.deep_rmssd,
+                "spo2_avg": r.spo2_avg,
+                "spo2_min": r.spo2_min,
+                "spo2_max": r.spo2_max,
+                "breathing_rate": r.breathing_rate,
+                "vo2_max": r.vo2_max,
+                "temp_relative_deviation": r.temp_relative_deviation,
+            }
+            for r in rows
+        ],
+    }

@@ -1,4 +1,4 @@
-"""GET /api/v1/activity — activity metrics from typed daily_activity table."""
+"""GET /api/v1/exercises — exercise logs from typed exercise_logs table."""
 
 from datetime import date
 
@@ -6,13 +6,13 @@ from fastapi import APIRouter, Depends, Query
 
 from src.auth.dependencies import AuthResult, require_scope
 from src.database import get_async_session
-from src.services.data_service import query_daily_activity
+from src.services.data_service import query_exercise_logs
 
-router = APIRouter(prefix="/activity", tags=["activity"])
+router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
 @router.get("")
-async def get_activity(
+async def get_exercises(
     start_date: date | None = None,
     end_date: date | None = None,
     source: str | None = None,
@@ -21,7 +21,7 @@ async def get_activity(
     auth: AuthResult = Depends(require_scope("read:activity")),
     session=Depends(get_async_session),
 ):
-    rows = await query_daily_activity(
+    rows = await query_exercise_logs(
         session, auth.user.id,
         start_date=start_date, end_date=end_date, source=source,
         limit=limit, offset=offset,
@@ -32,18 +32,18 @@ async def get_activity(
             {
                 "date": r.date.isoformat(),
                 "source": r.source,
-                "steps": r.steps,
-                "calories_burned": r.calories_burned,
+                "external_id": r.external_id,
+                "started_at": r.started_at.isoformat() if r.started_at else None,
+                "ended_at": r.ended_at.isoformat() if r.ended_at else None,
+                "activity_name": r.activity_name,
+                "duration_minutes": r.duration_minutes,
+                "avg_heart_rate": r.avg_heart_rate,
+                "calories": r.calories,
                 "distance_km": r.distance_km,
-                "active_minutes": r.active_minutes,
-                "sedentary_minutes": r.sedentary_minutes,
-                "lightly_active_minutes": r.lightly_active_minutes,
-                "floors": r.floors,
-                "calories_bmr": r.calories_bmr,
-                "fat_burn_azm": r.fat_burn_azm,
-                "cardio_azm": r.cardio_azm,
-                "peak_azm": r.peak_azm,
-                "total_azm": r.total_azm,
+                "elevation_gain": r.elevation_gain,
+                "speed_kmh": r.speed_kmh,
+                "log_type": r.log_type,
+                "hr_zones": r.hr_zones,
             }
             for r in rows
         ],

@@ -1,61 +1,41 @@
-"""GET /api/v1/body — weight, body_composition."""
+"""GET /api/v1/body — body metrics from typed daily_body table."""
 
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, Depends, Query
 
 from src.auth.dependencies import AuthResult, require_scope
-from src.auth.scopes import SCOPE_METRICS
 from src.database import get_async_session
-from src.services.data_service import metric_to_dict, query_metrics
+from src.services.data_service import query_daily_body
 
-router = APIRouter()
-
-BODY_TYPES = SCOPE_METRICS["read:body"]
+router = APIRouter(prefix="/body", tags=["body"])
 
 
-@router.get("/body")
+@router.get("")
 async def get_body(
-    auth: AuthResult = Depends(require_scope("read:body")),
-    session: AsyncSession = Depends(get_async_session),
     start_date: date | None = None,
     end_date: date | None = None,
     source: str | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
-):
-    rows = await query_metrics(
-        session, auth.user.id,
-        metric_types=BODY_TYPES,
-        start_date=start_date, end_date=end_date,
-        source=source, limit=limit, offset=offset, order=order,
-    )
-    data = [metric_to_dict(r) for r in rows]
-    return {"count": len(data), "data": data}
-
-
-@router.get("/body/{metric_type}")
-async def get_body_by_type(
-    metric_type: str,
+    limit: int = Query(default=30, le=365),
+    offset: int = 0,
     auth: AuthResult = Depends(require_scope("read:body")),
-    session: AsyncSession = Depends(get_async_session),
-    start_date: date | None = None,
-    end_date: date | None = None,
-    source: str | None = None,
-    limit: int = Query(default=100, ge=1, le=500),
-    offset: int = Query(default=0, ge=0),
-    order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    session=Depends(get_async_session),
 ):
-    if metric_type not in BODY_TYPES:
-        raise HTTPException(status_code=404, detail="Unknown body metric type")
-
-    rows = await query_metrics(
+    rows = await query_daily_body(
         session, auth.user.id,
-        metric_types=[metric_type],
-        start_date=start_date, end_date=end_date,
-        source=source, limit=limit, offset=offset, order=order,
+        start_date=start_date, end_date=end_date, source=source,
+        limit=limit, offset=offset,
     )
-    data = [metric_to_dict(r) for r in rows]
-    return {"metric_type": metric_type, "count": len(data), "data": data}
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "source": r.source,
+                "weight_kg": r.weight_kg,
+                "bmi": r.bmi,
+                "body_fat_percent": r.body_fat_percent,
+            }
+            for r in rows
+        ],
+    }

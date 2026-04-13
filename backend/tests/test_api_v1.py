@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 
 from src.models.db_models import FitnessMetric
+from src.models.fitbit_models import DailyActivity, DailyBody, DailySleep, DailyVitals
 from src.services.token_service import create_token, hash_token
 
 from tests.conftest import test_session_maker
@@ -26,17 +27,23 @@ async def get_user_id(client, token: str) -> str:
 
 
 async def seed_metrics(user_id: str):
-    """Seed test data for a user."""
+    """Seed test data for a user (both legacy fitness_metrics and typed tables)."""
     uid = uuid.UUID(user_id)
     async with test_session_maker() as session:
         today = date.today()
         for i in range(5):
             d = today - timedelta(days=i)
+            # Legacy fitness_metrics (used by /api/v1/metrics, recovery, workouts)
             session.add(FitnessMetric(user_id=uid, date=d, metric_type="heart_rate", source="fitbit", data={"resting_heart_rate": 60 + i}))
             session.add(FitnessMetric(user_id=uid, date=d, metric_type="hrv", source="fitbit", data={"daily_rmssd": 30 + i}))
             session.add(FitnessMetric(user_id=uid, date=d, metric_type="sleep", source="fitbit", data={"total_minutes": 400 + i * 10, "efficiency": 85 + i}))
             session.add(FitnessMetric(user_id=uid, date=d, metric_type="weight", source="renpho", data={"weight_kg": 75.0 - i * 0.1}))
             session.add(FitnessMetric(user_id=uid, date=d, metric_type="activity", source="fitbit", data={"steps": 8000 + i * 100}))
+            # Typed tables (used by /api/v1/vitals, sleep, body, activity)
+            session.add(DailyVitals(user_id=uid, date=d, source="fitbit", resting_heart_rate=60.0 + i, daily_rmssd=30.0 + i, spo2_avg=96.5))
+            session.add(DailySleep(user_id=uid, date=d, source="fitbit", external_id=f"sleep_{i}", total_minutes=400 + i * 10, efficiency=85 + i))
+            session.add(DailyBody(user_id=uid, date=d, source="renpho", weight_kg=75.0 - i * 0.1))
+            session.add(DailyActivity(user_id=uid, date=d, source="fitbit", steps=8000 + i * 100))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="workout", source="hevy", data={"title": "Full Body", "total_volume_kg": 4500, "total_sets": 24}))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="spo2", source="fitbit", data={"avg": 96.5}))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="active_zone_minutes", source="fitbit", data={"total_minutes": 35}))
@@ -79,7 +86,7 @@ class TestV1JWTAccess:
         assert r.status_code == 200
         data = r.json()
         assert data["count"] > 0
-        assert all("metric_type" in d for d in data["data"])
+        assert all("resting_heart_rate" in d for d in data["data"])
 
     async def test_sleep_with_jwt(self, client):
         token = await register_and_login(client, "jwt-sleep@test.com")
@@ -158,33 +165,8 @@ class TestV1JWTAccess:
         assert r.status_code == 200
         assert all(d["metric_type"] == "sleep" for d in r.json()["data"])
 
-    async def test_vitals_by_type(self, client):
-        token = await register_and_login(client, "jwt-vtype@test.com")
-        user_id = await get_user_id(client, token)
-        await seed_metrics(user_id)
-
-        r = await client.get("/api/v1/vitals/hrv", headers={"Authorization": f"Bearer {token}"})
-        assert r.status_code == 200
-        assert r.json()["metric_type"] == "hrv"
-
-    async def test_vitals_unknown_type(self, client):
-        token = await register_and_login(client, "jwt-vunk@test.com")
-        r = await client.get("/api/v1/vitals/nonexistent", headers={"Authorization": f"Bearer {token}"})
-        assert r.status_code == 404
-
-    async def test_body_by_type(self, client):
-        token = await register_and_login(client, "jwt-btype@test.com")
-        user_id = await get_user_id(client, token)
-        await seed_metrics(user_id)
-
-        r = await client.get("/api/v1/body/weight", headers={"Authorization": f"Bearer {token}"})
-        assert r.status_code == 200
-        assert r.json()["metric_type"] == "weight"
-
-    async def test_body_unknown_type(self, client):
-        token = await register_and_login(client, "jwt-bunk@test.com")
-        r = await client.get("/api/v1/body/nonexistent", headers={"Authorization": f"Bearer {token}"})
-        assert r.status_code == 404
+    # NOTE: /vitals/{metric_type} and /body/{metric_type} sub-endpoints were removed
+    # since typed tables store all vitals/body data in single rows.
 
     async def test_query_params(self, client):
         token = await register_and_login(client, "jwt-params@test.com")
