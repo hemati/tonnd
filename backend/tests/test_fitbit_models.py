@@ -7,7 +7,6 @@ import pytest
 
 from src.models.fitbit_models import (
     DailyActivity,
-    DailyBody,
     DailyNutrition,
     DailySleep,
     DailyVitals,
@@ -18,7 +17,6 @@ from src.models.fitbit_models import (
 from src.services.fitbit_sync_utils import (
     upsert_daily_activity,
     upsert_daily_activity_azm,
-    upsert_daily_body,
     upsert_daily_sleep,
     upsert_daily_vitals,
     upsert_exercise_log,

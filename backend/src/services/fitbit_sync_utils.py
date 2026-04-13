@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fitbit_models import (
     DailyActivity,
-    DailyBody,
     DailySleep,
     DailyVitals,
     ExerciseLog,
@@ -45,13 +44,6 @@ async def upsert_daily_activity_azm(
     session: AsyncSession, user_id, d: date, source: str, **fields
 ) -> None:
     await _upsert(session, DailyActivity,
-                  {"user_id": user_id, "date": d, "source": source}, fields)
-
-
-async def upsert_daily_body(
-    session: AsyncSession, user_id, d: date, source: str, **fields
-) -> None:
-    await _upsert(session, DailyBody,
                   {"user_id": user_id, "date": d, "source": source}, fields)
 
 

@@ -357,10 +357,28 @@ class FitbitClient:
                 # Get the most recent weight entry for the day
                 latest = weight_data["weight"][-1] if weight_data["weight"] else None
                 if latest:
+                    weight_date = latest.get("date", date)
+                    weight_time = latest.get("time", "00:00:00")
+                    try:
+                        from datetime import datetime as dt_cls
+                        from datetime import timezone as tz
+
+                        measured_at = dt_cls.strptime(
+                            f"{weight_date} {weight_time}", "%Y-%m-%d %H:%M:%S"
+                        ).replace(tzinfo=tz.utc)
+                    except (ValueError, TypeError):
+                        from datetime import datetime as dt_cls
+                        from datetime import timezone as tz
+
+                        measured_at = dt_cls.strptime(
+                            str(weight_date), "%Y-%m-%d"
+                        ).replace(tzinfo=tz.utc)
+
                     data["weight"] = {
-                        "weight_kg": latest.get("weight"),
-                        "body_fat_percent": latest.get("fat"),
-                        "bmi": latest.get("bmi"),
+                        "weight_kg": _safe_float(latest.get("weight")),
+                        "body_fat_percent": _safe_float(latest.get("fat")),
+                        "bmi": _safe_float(latest.get("bmi")),
+                        "measured_at": measured_at,
                     }
         except Exception as e:
             errors.append(f"weight: {str(e)}")

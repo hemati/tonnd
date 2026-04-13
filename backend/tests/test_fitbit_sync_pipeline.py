@@ -1,16 +1,15 @@
 """Tests for the Fitbit sync pipeline (scheduler.py typed-table distribution)."""
 
 import uuid
-from datetime import date, datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import date, datetime, timezone
+from unittest.mock import AsyncMock
 
 import pytest
-import pytest_asyncio
 
 from src.models.db_models import User
+from src.models.body_models import BodyMeasurement
 from src.models.fitbit_models import (
     DailyActivity,
-    DailyBody,
     DailySleep,
     DailyVitals,
     HourlyIntraday,
@@ -81,7 +80,12 @@ def _mock_client_result():
                 "peak_minutes": 5,
                 "total_minutes": 50,
             },
-            "weight": {"weight_kg": 80.0, "bmi": 25.0, "body_fat_percent": 18.0},
+            "weight": {
+                "weight_kg": 80.0,
+                "bmi": 25.0,
+                "body_fat_percent": 18.0,
+                "measured_at": datetime(2026, 4, 10, 8, 30, 0, tzinfo=timezone.utc),
+            },
         },
         "errors": [],
         "date": "2026-04-10",
@@ -110,8 +114,7 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             from sqlalchemy import select
 
@@ -141,8 +144,7 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             from sqlalchemy import select
 
@@ -168,8 +170,7 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             from sqlalchemy import select
 
@@ -199,20 +200,22 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             from sqlalchemy import select
 
             row = (
                 await session.execute(
-                    select(DailyBody).where(DailyBody.user_id == user.id)
+                    select(BodyMeasurement).where(BodyMeasurement.user_id == user.id)
                 )
             ).scalar_one()
 
             assert row.weight_kg == 80.0
             assert row.bmi == 25.0
             assert row.body_fat_percent == 18.0
+            assert row.source == "fitbit"
+            # SQLite strips tzinfo, so compare naive datetimes
+            assert row.measured_at.replace(tzinfo=None) == datetime(2026, 4, 10, 8, 30, 0)
 
     @pytest.mark.asyncio
     async def test_sleep_fallback_to_sync_date(self):
@@ -227,8 +230,7 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             from sqlalchemy import select
 
@@ -252,8 +254,7 @@ class TestSyncFitbitDaily:
             session.add(user)
             await session.flush()
 
-            with patch("src.scheduler.upsert_metric", new_callable=AsyncMock):
-                await sync_fitbit_daily(session, user, sync_date, client)
+            await sync_fitbit_daily(session, user, sync_date, client)
 
             # Should complete without errors — no rows created
             from sqlalchemy import select

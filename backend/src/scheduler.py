@@ -18,7 +18,6 @@ from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
 from src.services.fitbit_sync_utils import (
     upsert_daily_activity,
     upsert_daily_activity_azm,
-    upsert_daily_body,
     upsert_daily_sleep,
     upsert_daily_vitals,
     upsert_exercise_log,
@@ -27,7 +26,6 @@ from src.services.fitbit_sync_utils import (
 )
 from src.services.hevy.sync import sync_hevy_workouts, sync_hevy_routines
 from src.services.renpho.sync import sync_renpho_data
-from src.services.sync_utils import upsert_metric
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +51,6 @@ async def sync_fitbit_daily(
     """Distribute get_all_data_for_date() results to typed tables."""
     result = await client.get_all_data_for_date(sync_date.isoformat())
     data = result["data"]
-
-    # Also upsert into legacy fitness_metrics for backward compat
-    for metric_type, metric_data in data.items():
-        if metric_type == "sleep":
-            # Sleep is now a list — skip legacy upsert for individual entries
-            continue
-        await upsert_metric(
-            session, user.id, sync_date, metric_type, metric_data, source="fitbit"
-        )
 
     # --- Vitals ---
     vitals_fields = {}
@@ -154,8 +143,13 @@ async def sync_fitbit_daily(
     # --- Weight / Body ---
     weight = data.get("weight")
     if weight:
-        await upsert_daily_body(
-            session, user.id, sync_date, source="fitbit", **weight
+        measured_at = weight.pop("measured_at", None)
+        if not measured_at:
+            measured_at = datetime(sync_date.year, sync_date.month, sync_date.day, tzinfo=timezone.utc)
+        from src.services.body_sync_utils import upsert_body_measurement
+        await upsert_body_measurement(
+            session, user.id, "fitbit", measured_at,
+            date=sync_date, **weight,
         )
 
 
