@@ -4,9 +4,8 @@ Partial syncs (e.g., activity without AZM) don't overwrite each other
 because each upsert only sets fields with non-None values.
 """
 
-from datetime import date, datetime, timezone
+from datetime import date
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.fitbit_models import (
@@ -18,24 +17,7 @@ from src.models.fitbit_models import (
     HourlyIntraday,
     UserContext,
 )
-
-
-async def _upsert(
-    session: AsyncSession, model, lookup: dict, fields: dict,
-    timestamp_col: str = "synced_at",
-) -> None:
-    """Generic upsert: SELECT by lookup keys, then INSERT or UPDATE fields."""
-    stmt = select(model)
-    for col, val in lookup.items():
-        stmt = stmt.where(getattr(model, col) == val)
-    row = (await session.execute(stmt)).scalar_one_or_none()
-    if row:
-        for k, v in fields.items():
-            if v is not None:
-                setattr(row, k, v)
-        setattr(row, timestamp_col, datetime.now(timezone.utc))
-    else:
-        session.add(model(**lookup, **fields))
+from src.services.sync_utils import _upsert
 
 
 async def upsert_daily_vitals(

@@ -37,3 +37,21 @@ async def upsert_metric(
                 data=metric_data,
             )
         )
+
+
+async def _upsert(
+    session: AsyncSession, model, lookup: dict, fields: dict,
+    timestamp_col: str = "synced_at",
+) -> None:
+    """Generic upsert: SELECT by lookup keys, then INSERT or UPDATE fields."""
+    stmt = select(model)
+    for col, val in lookup.items():
+        stmt = stmt.where(getattr(model, col) == val)
+    row = (await session.execute(stmt)).scalar_one_or_none()
+    if row:
+        for k, v in fields.items():
+            if v is not None:
+                setattr(row, k, v)
+        setattr(row, timestamp_col, datetime.now(timezone.utc))
+    else:
+        session.add(model(**lookup, **fields))
