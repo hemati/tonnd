@@ -93,13 +93,16 @@ tonnd/
 │       ├── scheduler.py            # APScheduler daily sync (all sources)
 │       ├── api/v1/                  # Public API v1 (PAT + JWT auth)
 │       │   ├── router.py           # Aggregates all v1 sub-routers
-│       │   ├── vitals.py           # GET /api/v1/vitals
-│       │   ├── body.py             # GET /api/v1/body
-│       │   ├── sleep.py            # GET /api/v1/sleep
-│       │   ├── activity.py         # GET /api/v1/activity
-│       │   ├── workouts.py         # GET /api/v1/workouts
+│       │   ├── vitals.py           # GET /api/v1/vitals (typed daily_vitals table)
+│       │   ├── body.py             # GET /api/v1/body (typed daily_body table)
+│       │   ├── sleep.py            # GET /api/v1/sleep (typed daily_sleep table)
+│       │   ├── activity.py         # GET /api/v1/activity (typed daily_activity table)
+│       │   ├── intraday.py         # GET /api/v1/intraday (hourly_intraday table)
+│       │   ├── exercises.py        # GET /api/v1/exercises (exercise_logs table)
+│       │   ├── context.py          # GET /api/v1/context (user_context table)
+│       │   ├── workouts.py         # GET /api/v1/workouts (legacy fitness_metrics)
 │       │   ├── recovery.py         # GET /api/v1/recovery
-│       │   ├── metrics.py          # GET /api/v1/metrics (all raw data)
+│       │   ├── metrics.py          # GET /api/v1/metrics (legacy, Renpho/Hevy only)
 │       │   ├── tokens.py           # Token CRUD (JWT only)
 │       │   └── audit.py            # Audit log (JWT only)
 │       ├── auth/
@@ -111,6 +114,7 @@ tonnd/
 │       │   └── audit.py            # Audit logging (fire-and-forget)
 │       ├── models/
 │       │   ├── db_models.py        # User, OAuthAccount, FitnessMetric
+│       │   ├── fitbit_models.py    # 8 typed Fitbit tables (daily_vitals, daily_sleep, etc.)
 │       │   └── api_models.py       # APIToken, AuditLog
 │       ├── schemas/
 │       │   └── api_schemas.py      # Pydantic models for /api/v1/ responses
@@ -118,12 +122,17 @@ tonnd/
 │       │   ├── user_service.py     # fastapi-users config + schemas
 │       │   ├── token_service.py    # PAT generate, hash (SHA-256), validate, revoke
 │       │   ├── token_encryption.py # Fernet encrypt/decrypt
-│       │   ├── data_service.py     # Shared query logic (used by /api/data + /api/v1/)
+│       │   ├── data_service.py     # Shared query logic (typed tables + legacy)
 │       │   ├── audit_service.py    # Audit log writer
-│       │   ├── sync_utils.py       # Shared upsert_metric helper
+│       │   ├── sync_utils.py       # Legacy upsert_metric helper (Renpho/Hevy)
+│       │   ├── fitbit_sync_utils.py # Typed upsert functions for Fitbit tables
 │       │   ├── fitbit/
-│       │   │   ├── client.py       # Fitbit API wrapper
-│       │   │   └── sync.py         # Token refresh, disconnect
+│       │   │   ├── client.py       # Fitbit API wrapper + data parsing
+│       │   │   ├── sync.py         # Token refresh, disconnect
+│       │   │   ├── stages.py       # Sleep stages 30s summary computation
+│       │   │   ├── intraday.py     # Intraday hourly aggregation
+│       │   │   ├── exercise_logs.py # Exercise log parsing
+│       │   │   └── context.py      # Profile + device parsing
 │       │   ├── renpho/
 │       │   │   ├── client.py       # Renpho cloud API wrapper
 │       │   │   └── sync.py         # Renpho sync logic
@@ -183,25 +192,44 @@ tonnd/
 | renpho_email | Text | Renpho account email |
 | renpho_session_key | Text | Renpho session (encrypted) |
 | hevy_api_key | Text | Hevy API key (Fernet-encrypted) |
+| fitbit_intraday_available | Boolean | None=untested, True/False after first attempt |
+| fitbit_scopes_version | Integer | Tracks OAuth scope version for re-auth prompts |
 | created_at | DateTime(tz) | |
 | last_sync | DateTime(tz) | |
 
 ### Table: `oauth_account` (fastapi-users, Google OAuth tokens)
 
-### Table: `fitness_metrics`
+### Typed Fitbit Tables (v2 — replaces fitness_metrics for Fitbit data)
+
+**`daily_vitals`** — `(user_id, date, source)` unique. Columns: resting_heart_rate, hr_zones (JSONB), daily_rmssd, deep_rmssd, spo2_avg/min/max, breathing_rate, vo2_max, temp_relative_deviation.
+
+**`daily_sleep`** — `(user_id, source, external_id)` unique. Multiple entries per day (main + naps). Columns: start_time, end_time, total/deep/light/rem/awake_minutes, efficiency, minutes_to_fall_asleep, time_in_bed, is_main_sleep, stages_30s_summary (JSONB).
+
+**`daily_activity`** — `(user_id, date, source)` unique. Columns: steps, calories_burned, distance_km, active_minutes, sedentary_minutes, lightly_active_minutes, floors, calories_bmr, fat_burn/cardio/peak/total_azm.
+
+**`daily_body`** — `(user_id, date, source)` unique. Columns: weight_kg, bmi, body_fat_percent.
+
+**`daily_nutrition`** — Reserved (sync not implemented). Columns: calories_in, carbs/fat/protein/fiber_g, water_ml.
+
+**`hourly_intraday`** — `(user_id, date, hour, metric_type, source)` unique. Columns: avg_value, min_value, max_value, sample_count, extra (JSONB).
+
+**`exercise_logs`** — `(user_id, external_id, source)` unique. Columns: started_at, ended_at, activity_name, duration_minutes, avg_heart_rate, calories, distance_km, elevation_gain, speed_kmh, log_type, hr_zones (JSONB).
+
+**`user_context`** — `(user_id, source)` unique. Columns: date_of_birth, gender, height_cm, timezone, utc_offset_ms, stride_length_walking/running, device_model, device_battery, last_device_sync.
+
+### Table: `fitness_metrics` (legacy — Renpho + Hevy only)
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | Primary key |
 | user_id | UUID | FK → user.id |
 | date | Date | |
-| metric_type | String(32) | weight, sleep, activity, etc. |
-| source | String(16) | fitbit, renpho, hevy |
+| metric_type | String(32) | body_composition, workout |
+| source | String(16) | renpho, hevy |
 | data | JSON | Metric-specific fields |
 | synced_at | DateTime(tz) | |
 
-**Unique constraint**: `(user_id, date, metric_type, source)`
-**Indexes**: `(user_id, date)`, `(user_id, metric_type, date)`
+**Note**: Fitbit data now uses typed tables above. This table will be removed after Renpho/Hevy get their own typed tables.
 
 ### Table: `api_tokens` (Personal Access Tokens)
 
@@ -233,20 +261,22 @@ tonnd/
 | status_code | Integer | |
 | created_at | DateTime(tz) | |
 
-### Metric Types
+### Fitbit Data (typed tables)
+
+| Table | Key Fields |
+|-------|------------|
+| daily_vitals | resting_heart_rate, hr_zones, daily_rmssd, deep_rmssd, spo2_avg/min/max, breathing_rate, vo2_max, temp_relative_deviation |
+| daily_sleep | start_time, end_time, total/deep/light/rem/awake_minutes, efficiency, minutes_to_fall_asleep, time_in_bed, is_main_sleep, stages_30s_summary |
+| daily_activity | steps, calories_burned, distance_km, active/sedentary/lightly_active_minutes, floors, calories_bmr, fat_burn/cardio/peak/total_azm |
+| daily_body | weight_kg, bmi, body_fat_percent |
+| hourly_intraday | Hourly avg/min/max for heart_rate, hrv, spo2, steps, azm (opt-in, requires intraday API access) |
+| exercise_logs | Fitbit activity logs with avg_heart_rate, hr_zones, speed_kmh, log_type, started_at, ended_at |
+| user_context | date_of_birth, gender, height_cm, timezone, device_model, device_battery |
+
+### Legacy Metric Types (fitness_metrics table — Renpho/Hevy)
 
 | Type | Source | Data Fields |
 |------|--------|-------------|
-| activity | fitbit | steps, calories_burned, distance_km, active_minutes, floors |
-| sleep | fitbit | total_minutes, deep_minutes, light_minutes, rem_minutes, awake_minutes, efficiency |
-| heart_rate | fitbit | resting_heart_rate, zones |
-| weight | fitbit, renpho | weight_kg, bmi, body_fat_percent |
-| hrv | fitbit | daily_rmssd, deep_rmssd |
-| spo2 | fitbit | avg, min, max |
-| breathing_rate | fitbit | breathing_rate |
-| vo2_max | fitbit | vo2_max |
-| temperature | fitbit | relative_deviation |
-| active_zone_minutes | fitbit | fat_burn_minutes, cardio_minutes, peak_minutes, total_minutes |
 | body_composition | renpho | muscle_mass, body_fat, water, bone_mass, protein, etc. |
 | workout | hevy | exercises (with primary_muscle, secondary_muscles), volume, muscle_groups (weighted) |
 
@@ -327,11 +357,13 @@ npx tsc --noEmit          # Type check
 | Auth | user_service.py, useAuth.ts |
 | Public API v1 | api/v1/router.py, auth/dependencies.py, auth/scopes.py |
 | API Tokens (PATs) | token_service.py, api/v1/tokens.py, Settings.tsx |
-| MCP Server | mcp_server.py |
-| Fitbit | fitbit/client.py, fitbit/sync.py, app.py |
+| MCP Server | mcp/remote_server.py |
+| Fitbit sync | scheduler.py (sync functions), fitbit/client.py, fitbit_sync_utils.py |
+| Fitbit models | fitbit_models.py (8 typed tables), data_service.py (queries) |
+| Fitbit parsing | fitbit/stages.py, fitbit/intraday.py, fitbit/exercise_logs.py, fitbit/context.py |
 | Renpho | renpho/client.py, renpho/sync.py, app.py |
 | Hevy | hevy/client.py, hevy/sync.py, app.py |
-| Database | db_models.py, api_models.py, database.py |
+| Database | db_models.py, fitbit_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
 | Security/Middleware | middleware/security_headers.py, middleware/rate_limit.py, middleware/audit.py |
