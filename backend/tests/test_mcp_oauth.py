@@ -484,9 +484,10 @@ class TestMCPTools:
         from src.mcp.remote_server import get_recovery_score
         uid = uuid.uuid4()
         with self._mock_auth(uid):
-            with patch("src.mcp.remote_server.get_latest", return_value=None) as mock_gl:
-                with self._mock_db():
-                    result = await get_recovery_score()
+            with patch("src.mcp.remote_server.query_daily_vitals", return_value=[]):
+                with patch("src.mcp.remote_server.query_daily_sleep", return_value=[]):
+                    with self._mock_db():
+                        result = await get_recovery_score()
         assert result["score"] is None
 
     async def test_get_all_metrics(self):

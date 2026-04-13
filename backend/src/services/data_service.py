@@ -3,7 +3,7 @@
 Used by both the dashboard (/api/data) and the public API (/api/v1/).
 """
 
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession

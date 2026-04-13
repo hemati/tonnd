@@ -16,7 +16,6 @@ from src.database import async_session_maker
 from src.mcp.oauth_provider import TONNDOAuthProvider
 from src.services.data_service import (
     compute_recovery_score,
-    get_latest,
     metric_to_dict,
     query_daily_activity,
     query_daily_body,
