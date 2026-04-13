@@ -18,7 +18,14 @@ from src.services.data_service import (
     compute_recovery_score,
     get_latest,
     metric_to_dict,
+    query_daily_activity,
+    query_daily_body,
+    query_daily_sleep,
+    query_daily_vitals,
+    query_exercise_logs,
+    query_hourly_intraday,
     query_metrics,
+    query_user_context,
 )
 
 BASE_URL = os.environ.get("MCP_BASE_URL", os.environ.get("FRONTEND_URL", "http://localhost:8080"))
@@ -68,7 +75,6 @@ def _clamp_limit(limit: int) -> int:
 async def get_vitals(
     start_date: str | None = None,
     end_date: str | None = None,
-    metric_type: str | None = None,
     limit: int = 30,
 ) -> dict:
     """Get vital signs: heart rate, HRV (RMSSD), SpO2, breathing rate, VO2 max, skin temperature.
@@ -76,15 +82,34 @@ async def get_vitals(
     Args:
         start_date: Start date (YYYY-MM-DD). Defaults to 30 days ago.
         end_date: End date (YYYY-MM-DD). Defaults to today.
-        metric_type: Filter to one vital (heart_rate, hrv, spo2, breathing_rate, vo2_max, temperature).
         limit: Max results (default 30).
     """
     user_id = _get_user_id("read:vitals")
     sd, ed = _parse_dates(start_date, end_date)
-    types = [metric_type] if metric_type else SCOPE_METRICS["read:vitals"]
     async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=types, start_date=sd, end_date=ed, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+        rows = await query_daily_vitals(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "source": r.source,
+                "resting_heart_rate": r.resting_heart_rate,
+                "hr_zones": r.hr_zones,
+                "daily_rmssd": r.daily_rmssd,
+                "deep_rmssd": r.deep_rmssd,
+                "spo2_avg": r.spo2_avg,
+                "spo2_min": r.spo2_min,
+                "spo2_max": r.spo2_max,
+                "breathing_rate": r.breathing_rate,
+                "vo2_max": r.vo2_max,
+                "temp_relative_deviation": r.temp_relative_deviation,
+            }
+            for r in rows
+        ],
+    }
 
 
 @mcp.tool()
@@ -93,7 +118,7 @@ async def get_sleep(
     end_date: str | None = None,
     limit: int = 14,
 ) -> dict:
-    """Get sleep data: duration, stages (deep/light/REM/awake), efficiency %.
+    """Get sleep data: duration, stages (deep/light/REM/awake), efficiency %, start/end times.
 
     Args:
         start_date: Start date (YYYY-MM-DD).
@@ -103,8 +128,30 @@ async def get_sleep(
     user_id = _get_user_id("read:sleep")
     sd, ed = _parse_dates(start_date, end_date)
     async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=SCOPE_METRICS["read:sleep"], start_date=sd, end_date=ed, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+        rows = await query_daily_sleep(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "source": r.source,
+                "start_time": r.start_time.isoformat() if r.start_time else None,
+                "end_time": r.end_time.isoformat() if r.end_time else None,
+                "total_minutes": r.total_minutes,
+                "deep_minutes": r.deep_minutes,
+                "light_minutes": r.light_minutes,
+                "rem_minutes": r.rem_minutes,
+                "awake_minutes": r.awake_minutes,
+                "efficiency": r.efficiency,
+                "minutes_to_fall_asleep": r.minutes_to_fall_asleep,
+                "time_in_bed": r.time_in_bed,
+                "is_main_sleep": r.is_main_sleep,
+            }
+            for r in rows
+        ],
+    }
 
 
 @mcp.tool()
@@ -116,7 +163,7 @@ async def get_body_composition(
 ) -> dict:
     """Get body composition: weight (kg), BMI, body fat %, muscle mass.
 
-    Sources: fitbit (weight only), renpho (full body composition).
+    Sources: fitbit (weight only from typed table), renpho (full body composition from legacy table).
 
     Args:
         start_date: Start date (YYYY-MM-DD).
@@ -126,9 +173,40 @@ async def get_body_composition(
     """
     user_id = _get_user_id("read:body")
     sd, ed = _parse_dates(start_date, end_date)
+    clamped = _clamp_limit(limit)
+    results: list[dict] = []
+
     async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=SCOPE_METRICS["read:body"], start_date=sd, end_date=ed, source=source, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+        # Fitbit weight from typed table
+        if source is None or source == "fitbit":
+            body_rows = await query_daily_body(
+                session, user_id, start_date=sd, end_date=ed,
+                source="fitbit", limit=clamped,
+            )
+            results.extend(
+                {
+                    "date": r.date.isoformat(),
+                    "source": r.source,
+                    "weight_kg": r.weight_kg,
+                    "bmi": r.bmi,
+                    "body_fat_percent": r.body_fat_percent,
+                }
+                for r in body_rows
+            )
+
+        # Renpho body composition from legacy fitness_metrics table
+        if source is None or source == "renpho":
+            renpho_rows = await query_metrics(
+                session, user_id, metric_types=["body_composition"],
+                start_date=sd, end_date=ed, source="renpho", limit=clamped,
+            )
+            results.extend(metric_to_dict(r) for r in renpho_rows)
+
+    # Sort combined results by date descending and trim to limit
+    results.sort(key=lambda d: d.get("date", ""), reverse=True)
+    results = results[:clamped]
+
+    return {"count": len(results), "data": results}
 
 
 @mcp.tool()
@@ -169,8 +247,31 @@ async def get_activity(
     user_id = _get_user_id("read:activity")
     sd, ed = _parse_dates(start_date, end_date)
     async with async_session_maker() as session:
-        rows = await query_metrics(session, user_id, metric_types=SCOPE_METRICS["read:activity"], start_date=sd, end_date=ed, limit=_clamp_limit(limit))
-    return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+        rows = await query_daily_activity(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "source": r.source,
+                "steps": r.steps,
+                "calories_burned": r.calories_burned,
+                "distance_km": r.distance_km,
+                "active_minutes": r.active_minutes,
+                "sedentary_minutes": r.sedentary_minutes,
+                "lightly_active_minutes": r.lightly_active_minutes,
+                "floors": r.floors,
+                "calories_bmr": r.calories_bmr,
+                "fat_burn_azm": r.fat_burn_azm,
+                "cardio_azm": r.cardio_azm,
+                "peak_azm": r.peak_azm,
+                "total_azm": r.total_azm,
+            }
+            for r in rows
+        ],
+    }
 
 
 @mcp.tool()
@@ -182,9 +283,18 @@ async def get_recovery_score() -> dict:
     """
     user_id = _get_user_id("read:recovery")
     async with async_session_maker() as session:
-        latest_hrv = await get_latest(session, user_id, "hrv")
-        latest_sleep = await get_latest(session, user_id, "sleep")
-        latest_hr = await get_latest(session, user_id, "heart_rate")
+        vitals_rows = await query_daily_vitals(
+            session, user_id, limit=1,
+        )
+        sleep_rows = await query_daily_sleep(
+            session, user_id, limit=1,
+        )
+
+    # Build dicts compatible with compute_recovery_score
+    latest_hrv = {"daily_rmssd": vitals_rows[0].daily_rmssd} if vitals_rows else None
+    latest_hr = {"resting_heart_rate": vitals_rows[0].resting_heart_rate} if vitals_rows else None
+    latest_sleep = {"efficiency": sleep_rows[0].efficiency} if sleep_rows else None
+
     return compute_recovery_score(latest_hrv, latest_sleep, latest_hr)
 
 
@@ -214,3 +324,127 @@ async def get_all_metrics(
     async with async_session_maker() as session:
         rows = await query_metrics(session, user_id, metric_types=types, start_date=sd, end_date=ed, source=source, limit=_clamp_limit(limit))
     return {"count": len(rows), "data": [metric_to_dict(r) for r in rows]}
+
+
+@mcp.tool()
+async def get_intraday(
+    metric_type: str,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    start_hour: int | None = None,
+    end_hour: int | None = None,
+    limit: int = 100,
+) -> dict:
+    """Get hourly intraday summaries for a metric type.
+
+    Args:
+        metric_type: heart_rate, hrv, spo2, steps, breathing_rate, or azm.
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        start_hour: Filter from this hour (0-23).
+        end_hour: Filter to this hour (0-23).
+        limit: Max results (default 100).
+    """
+    user_id = _get_user_id("read:vitals")
+    sd, ed = _parse_dates(start_date, end_date)
+    async with async_session_maker() as session:
+        rows = await query_hourly_intraday(
+            session, user_id, metric_type,
+            start_date=sd, end_date=ed,
+            start_hour=start_hour, end_hour=end_hour,
+            limit=_clamp_limit(limit),
+        )
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "hour": r.hour,
+                "metric_type": r.metric_type,
+                "source": r.source,
+                "avg": r.avg_value,
+                "min": r.min_value,
+                "max": r.max_value,
+                "samples": r.sample_count,
+                "extra": r.extra,
+            }
+            for r in rows
+        ],
+    }
+
+
+@mcp.tool()
+async def get_exercise_logs(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 20,
+) -> dict:
+    """Get exercise/cardio session logs with heart rate zones, duration, and calories.
+
+    Includes auto-detected activities (walking, running) and manual logs.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        limit: Max results (default 20).
+    """
+    user_id = _get_user_id("read:activity")
+    sd, ed = _parse_dates(start_date, end_date)
+    async with async_session_maker() as session:
+        rows = await query_exercise_logs(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "date": r.date.isoformat(),
+                "activity": r.activity_name,
+                "duration_min": r.duration_minutes,
+                "avg_hr": r.avg_heart_rate,
+                "calories": r.calories,
+                "distance_km": r.distance_km,
+                "speed_kmh": r.speed_kmh,
+                "log_type": r.log_type,
+                "hr_zones": r.hr_zones,
+                "source": r.source,
+            }
+            for r in rows
+        ],
+    }
+
+
+@mcp.tool()
+async def get_user_context() -> dict:
+    """Get user profile and device context: age, gender, height, timezone, device status.
+
+    Age is computed from date of birth. Device info shows battery level and last sync time.
+    """
+    user_id = _get_user_id("read:vitals")
+    async with async_session_maker() as session:
+        rows = await query_user_context(session, user_id)
+
+    from datetime import date as date_cls
+
+    def _age(dob):
+        if not dob:
+            return None
+        today = date_cls.today()
+        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+    return {
+        "count": len(rows),
+        "data": [
+            {
+                "source": r.source,
+                "age": _age(r.date_of_birth),
+                "gender": r.gender,
+                "height_cm": r.height_cm,
+                "timezone": r.timezone,
+                "device_model": r.device_model,
+                "device_battery": r.device_battery,
+                "last_device_sync": r.last_device_sync.isoformat() if r.last_device_sync else None,
+            }
+            for r in rows
+        ],
+    }

@@ -500,7 +500,7 @@ class TestMCPTools:
         from src.mcp.remote_server import get_vitals
         uid = uuid.uuid4()
         with self._mock_auth(uid), self._mock_db():
-            result = await get_vitals(start_date="2026-01-01", end_date="2026-01-31", metric_type="hrv", limit=5)
+            result = await get_vitals(start_date="2026-01-01", end_date="2026-01-31", limit=5)
         assert result["count"] == 0
 
     async def test_scope_denied(self):
