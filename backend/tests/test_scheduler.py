@@ -50,28 +50,32 @@ class TestSyncUser:
             session.add(user)
             await session.flush()
 
-            mock_result = {
-                "data": {"activity": {"steps": 10000}},
-                "errors": [],
-            }
-
             with patch(
                 "src.scheduler.ensure_valid_token",
                 new_callable=AsyncMock,
                 return_value="valid-token",
             ), patch(
                 "src.scheduler.FitbitClient"
-            ) as MockClient:
-                mock_instance = AsyncMock()
-                mock_instance.get_all_data_for_date.return_value = mock_result
-                MockClient.return_value = mock_instance
-
+            ) as MockClient, patch(
+                "src.scheduler.sync_fitbit_daily",
+                new_callable=AsyncMock,
+            ) as mock_daily, patch(
+                "src.scheduler.sync_fitbit_exercise_logs",
+                new_callable=AsyncMock,
+            ), patch(
+                "src.scheduler.sync_fitbit_intraday",
+                new_callable=AsyncMock,
+            ), patch(
+                "src.scheduler.sync_fitbit_context",
+                new_callable=AsyncMock,
+            ):
+                MockClient.return_value = AsyncMock()
                 status = await sync_user(session, user)
 
             assert status == "success"
             assert user.last_sync is not None
-            # get_all_data_for_date called twice (yesterday + today)
-            assert mock_instance.get_all_data_for_date.call_count == 2
+            # sync_fitbit_daily called twice (yesterday + today)
+            assert mock_daily.call_count == 2
 
     @pytest.mark.asyncio
     async def test_fitbit_token_expired(self):
@@ -192,28 +196,32 @@ class TestSyncUser:
             session.add(user)
             await session.flush()
 
-            mock_fitbit_result = {
-                "data": {"activity": {"steps": 8000}},
-                "errors": [],
-            }
-
             with patch(
                 "src.scheduler.ensure_valid_token",
                 new_callable=AsyncMock,
                 return_value="tok",
             ), patch("src.scheduler.FitbitClient") as MockClient, patch(
+                "src.scheduler.sync_fitbit_daily",
+                new_callable=AsyncMock,
+            ) as mock_daily, patch(
+                "src.scheduler.sync_fitbit_exercise_logs",
+                new_callable=AsyncMock,
+            ), patch(
+                "src.scheduler.sync_fitbit_intraday",
+                new_callable=AsyncMock,
+            ), patch(
+                "src.scheduler.sync_fitbit_context",
+                new_callable=AsyncMock,
+            ), patch(
                 "src.scheduler.sync_renpho_data",
                 new_callable=AsyncMock,
                 return_value={"synced_metrics": ["weight"], "errors": []},
             ) as mock_renpho:
-                mock_instance = AsyncMock()
-                mock_instance.get_all_data_for_date.return_value = mock_fitbit_result
-                MockClient.return_value = mock_instance
-
+                MockClient.return_value = AsyncMock()
                 status = await sync_user(session, user)
 
             assert status == "success"
-            assert mock_instance.get_all_data_for_date.call_count == 2
+            assert mock_daily.call_count == 2
             assert mock_renpho.call_count == 2
 
     @pytest.mark.asyncio
