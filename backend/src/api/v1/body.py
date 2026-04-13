@@ -26,16 +26,4 @@ async def get_body(
         start_date=start_date, end_date=end_date, source=source,
         limit=limit, offset=offset,
     )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "weight_kg": r.weight_kg,
-                "bmi": r.bmi,
-                "body_fat_percent": r.body_fat_percent,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}

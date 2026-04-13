@@ -30,20 +30,4 @@ async def get_intraday(
         start_hour=start_hour, end_hour=end_hour,
         limit=limit, offset=offset,
     )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "hour": r.hour,
-                "metric_type": r.metric_type,
-                "source": r.source,
-                "avg_value": r.avg_value,
-                "min_value": r.min_value,
-                "max_value": r.max_value,
-                "sample_count": r.sample_count,
-                "extra": r.extra,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}

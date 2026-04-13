@@ -89,26 +89,7 @@ async def get_vitals(
         rows = await query_daily_vitals(
             session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
         )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "resting_heart_rate": r.resting_heart_rate,
-                "hr_zones": r.hr_zones,
-                "daily_rmssd": r.daily_rmssd,
-                "deep_rmssd": r.deep_rmssd,
-                "spo2_avg": r.spo2_avg,
-                "spo2_min": r.spo2_min,
-                "spo2_max": r.spo2_max,
-                "breathing_rate": r.breathing_rate,
-                "vo2_max": r.vo2_max,
-                "temp_relative_deviation": r.temp_relative_deviation,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
 
 @mcp.tool()
@@ -130,27 +111,7 @@ async def get_sleep(
         rows = await query_daily_sleep(
             session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
         )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "start_time": r.start_time.isoformat() if r.start_time else None,
-                "end_time": r.end_time.isoformat() if r.end_time else None,
-                "total_minutes": r.total_minutes,
-                "deep_minutes": r.deep_minutes,
-                "light_minutes": r.light_minutes,
-                "rem_minutes": r.rem_minutes,
-                "awake_minutes": r.awake_minutes,
-                "efficiency": r.efficiency,
-                "minutes_to_fall_asleep": r.minutes_to_fall_asleep,
-                "time_in_bed": r.time_in_bed,
-                "is_main_sleep": r.is_main_sleep,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
 
 @mcp.tool()
@@ -249,28 +210,7 @@ async def get_activity(
         rows = await query_daily_activity(
             session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
         )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "steps": r.steps,
-                "calories_burned": r.calories_burned,
-                "distance_km": r.distance_km,
-                "active_minutes": r.active_minutes,
-                "sedentary_minutes": r.sedentary_minutes,
-                "lightly_active_minutes": r.lightly_active_minutes,
-                "floors": r.floors,
-                "calories_bmr": r.calories_bmr,
-                "fat_burn_azm": r.fat_burn_azm,
-                "cardio_azm": r.cardio_azm,
-                "peak_azm": r.peak_azm,
-                "total_azm": r.total_azm,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
 
 @mcp.tool()
@@ -423,27 +363,4 @@ async def get_user_context() -> dict:
     async with async_session_maker() as session:
         rows = await query_user_context(session, user_id)
 
-    from datetime import date as date_cls
-
-    def _age(dob):
-        if not dob:
-            return None
-        today = date_cls.today()
-        return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "source": r.source,
-                "age": _age(r.date_of_birth),
-                "gender": r.gender,
-                "height_cm": r.height_cm,
-                "timezone": r.timezone,
-                "device_model": r.device_model,
-                "device_battery": r.device_battery,
-                "last_device_sync": r.last_device_sync.isoformat() if r.last_device_sync else None,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}

@@ -26,23 +26,4 @@ async def get_vitals(
         start_date=start_date, end_date=end_date, source=source,
         limit=limit, offset=offset,
     )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "resting_heart_rate": r.resting_heart_rate,
-                "hr_zones": r.hr_zones,
-                "daily_rmssd": r.daily_rmssd,
-                "deep_rmssd": r.deep_rmssd,
-                "spo2_avg": r.spo2_avg,
-                "spo2_min": r.spo2_min,
-                "spo2_max": r.spo2_max,
-                "breathing_rate": r.breathing_rate,
-                "vo2_max": r.vo2_max,
-                "temp_relative_deviation": r.temp_relative_deviation,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}

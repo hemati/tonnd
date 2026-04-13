@@ -30,6 +30,11 @@ from src.models.db_models import Base
 JSONBCompat = JSON().with_variant(JSONB, "postgresql")
 
 
+def _iso(val):
+    """Convert date/datetime to ISO string, or return None."""
+    return val.isoformat() if val else None
+
+
 class DailyVitals(Base):
     __tablename__ = "daily_vitals"
 
@@ -53,6 +58,16 @@ class DailyVitals(Base):
         UniqueConstraint("user_id", "date", "source", name="uq_daily_vitals"),
         Index("ix_daily_vitals_user_date", "user_id", "date"),
     )
+
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "source": self.source,
+            "resting_heart_rate": self.resting_heart_rate, "hr_zones": self.hr_zones,
+            "daily_rmssd": self.daily_rmssd, "deep_rmssd": self.deep_rmssd,
+            "spo2_avg": self.spo2_avg, "spo2_min": self.spo2_min, "spo2_max": self.spo2_max,
+            "breathing_rate": self.breathing_rate, "vo2_max": self.vo2_max,
+            "temp_relative_deviation": self.temp_relative_deviation,
+        }
 
 
 class DailySleep(Base):
@@ -82,6 +97,19 @@ class DailySleep(Base):
         Index("ix_daily_sleep_user_date", "user_id", "date"),
     )
 
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "source": self.source,
+            "external_id": self.external_id,
+            "start_time": _iso(self.start_time), "end_time": _iso(self.end_time),
+            "total_minutes": self.total_minutes, "deep_minutes": self.deep_minutes,
+            "light_minutes": self.light_minutes, "rem_minutes": self.rem_minutes,
+            "awake_minutes": self.awake_minutes, "efficiency": self.efficiency,
+            "minutes_to_fall_asleep": self.minutes_to_fall_asleep,
+            "time_in_bed": self.time_in_bed, "is_main_sleep": self.is_main_sleep,
+            "stages_30s_summary": self.stages_30s_summary,
+        }
+
 
 class DailyActivity(Base):
     __tablename__ = "daily_activity"
@@ -108,6 +136,18 @@ class DailyActivity(Base):
         UniqueConstraint("user_id", "date", "source", name="uq_daily_activity"),
     )
 
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "source": self.source,
+            "steps": self.steps, "calories_burned": self.calories_burned,
+            "distance_km": self.distance_km, "active_minutes": self.active_minutes,
+            "sedentary_minutes": self.sedentary_minutes,
+            "lightly_active_minutes": self.lightly_active_minutes,
+            "floors": self.floors, "calories_bmr": self.calories_bmr,
+            "fat_burn_azm": self.fat_burn_azm, "cardio_azm": self.cardio_azm,
+            "peak_azm": self.peak_azm, "total_azm": self.total_azm,
+        }
+
 
 class DailyBody(Base):
     __tablename__ = "daily_body"
@@ -124,6 +164,13 @@ class DailyBody(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "date", "source", name="uq_daily_body"),
     )
+
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "source": self.source,
+            "weight_kg": self.weight_kg, "bmi": self.bmi,
+            "body_fat_percent": self.body_fat_percent,
+        }
 
 
 class DailyNutrition(Base):
@@ -169,6 +216,15 @@ class HourlyIntraday(Base):
         Index("ix_intraday_user_metric_date", "user_id", "metric_type", "date", "hour"),
     )
 
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "hour": self.hour,
+            "metric_type": self.metric_type, "source": self.source,
+            "avg_value": self.avg_value, "min_value": self.min_value,
+            "max_value": self.max_value, "sample_count": self.sample_count,
+            "extra": self.extra,
+        }
+
 
 class ExerciseLog(Base):
     __tablename__ = "exercise_logs"
@@ -196,6 +252,19 @@ class ExerciseLog(Base):
         Index("ix_exercise_log_user_date", "user_id", "date"),
     )
 
+    def to_dict(self) -> dict:
+        return {
+            "date": self.date.isoformat(), "source": self.source,
+            "external_id": self.external_id,
+            "started_at": _iso(self.started_at), "ended_at": _iso(self.ended_at),
+            "activity_name": self.activity_name,
+            "duration_minutes": self.duration_minutes,
+            "avg_heart_rate": self.avg_heart_rate, "calories": self.calories,
+            "distance_km": self.distance_km, "elevation_gain": self.elevation_gain,
+            "speed_kmh": self.speed_kmh, "log_type": self.log_type,
+            "hr_zones": self.hr_zones,
+        }
+
 
 class UserContext(Base):
     __tablename__ = "user_context"
@@ -218,3 +287,20 @@ class UserContext(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "source", name="uq_user_context"),
     )
+
+    def to_dict(self) -> dict:
+        from datetime import date as d
+        today = d.today()
+        age = None
+        if self.date_of_birth:
+            age = today.year - self.date_of_birth.year - (
+                (today.month, today.day) < (self.date_of_birth.month, self.date_of_birth.day)
+            )
+        return {
+            "source": self.source,
+            "date_of_birth": _iso(self.date_of_birth), "age": age,
+            "gender": self.gender, "height_cm": self.height_cm,
+            "timezone": self.timezone,
+            "device_model": self.device_model, "device_battery": self.device_battery,
+            "last_device_sync": _iso(self.last_device_sync),
+        }

@@ -31,10 +31,9 @@ from src.services.fitbit.client import (
     get_authorization_url,
 )
 from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
-from src.services.sync_utils import upsert_metric
 from src.services.data_service import (
     query_daily_activity, query_daily_body, query_daily_sleep,
-    query_daily_vitals, query_metrics, metric_to_dict,
+    query_daily_vitals, query_metrics,
 )
 from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_data
@@ -427,40 +426,6 @@ async def sync_all_sources(
     }
 
 
-def _vitals_dict(v):
-    return {"date": v.date.isoformat(), "source": v.source,
-            "resting_heart_rate": v.resting_heart_rate, "hr_zones": v.hr_zones,
-            "daily_rmssd": v.daily_rmssd, "deep_rmssd": v.deep_rmssd,
-            "spo2_avg": v.spo2_avg, "spo2_min": v.spo2_min, "spo2_max": v.spo2_max,
-            "breathing_rate": v.breathing_rate, "vo2_max": v.vo2_max,
-            "temp_relative_deviation": v.temp_relative_deviation}
-
-def _sleep_dict(s):
-    return {"date": s.date.isoformat(), "source": s.source,
-            "total_minutes": s.total_minutes, "deep_minutes": s.deep_minutes,
-            "light_minutes": s.light_minutes, "rem_minutes": s.rem_minutes,
-            "awake_minutes": s.awake_minutes, "efficiency": s.efficiency,
-            "start_time": s.start_time.isoformat() if s.start_time else None,
-            "end_time": s.end_time.isoformat() if s.end_time else None,
-            "minutes_to_fall_asleep": s.minutes_to_fall_asleep,
-            "is_main_sleep": s.is_main_sleep}
-
-def _activity_dict(a):
-    return {"date": a.date.isoformat(), "source": a.source,
-            "steps": a.steps, "calories_burned": a.calories_burned,
-            "distance_km": a.distance_km, "active_minutes": a.active_minutes,
-            "sedentary_minutes": a.sedentary_minutes,
-            "lightly_active_minutes": a.lightly_active_minutes,
-            "floors": a.floors, "calories_bmr": a.calories_bmr,
-            "fat_burn_azm": a.fat_burn_azm, "cardio_azm": a.cardio_azm,
-            "peak_azm": a.peak_azm, "total_azm": a.total_azm}
-
-def _body_dict(b):
-    return {"date": b.date.isoformat(), "source": b.source,
-            "weight_kg": b.weight_kg, "bmi": b.bmi,
-            "body_fat_percent": b.body_fat_percent}
-
-
 @app.get("/api/data", tags=["api"])
 async def get_data(
     user: User = Depends(current_active_user),
@@ -484,10 +449,10 @@ async def get_data(
     )
 
     # Serialize typed rows
-    vitals_list = [_vitals_dict(v) for v in vitals]
-    sleep_list = [_sleep_dict(s) for s in sleep_rows]
-    activity_list = [_activity_dict(a) for a in activity_rows]
-    body_list = [_body_dict(b) for b in body_rows]
+    vitals_list = [v.to_dict() for v in vitals]
+    sleep_list = [s.to_dict() for s in sleep_rows]
+    activity_list = [a.to_dict() for a in activity_rows]
+    body_list = [b.to_dict() for b in body_rows]
 
     # Group legacy metrics by type
     legacy_by_type: dict[str, list[dict]] = {}

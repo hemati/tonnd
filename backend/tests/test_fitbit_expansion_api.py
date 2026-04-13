@@ -23,8 +23,6 @@ from src.services.data_service import (
     query_hourly_intraday,
     query_user_context,
 )
-from src.api.v1.context import _compute_age
-
 from tests.conftest import test_session_maker
 
 USER_ID = uuid.uuid4()
@@ -200,13 +198,19 @@ class TestQueryUserContext:
             assert r.gender == "male"
             assert r.height_cm == 180.0
 
-            # Test age computation helper
-            age = _compute_age(r.date_of_birth)
-            assert age is not None
-            assert 35 <= age <= 36  # born 1990-05-15, test in 2026
+            # Test age computation via to_dict()
+            d = r.to_dict()
+            assert d["age"] is not None
+            assert 35 <= d["age"] <= 36  # born 1990-05-15, test in 2026
 
-    async def test_compute_age_none(self):
-        assert _compute_age(None) is None
+    async def test_to_dict_age_none_when_no_dob(self):
+        async with test_session_maker() as session:
+            session.add(UserContext(
+                user_id=USER_ID, source="fitbit", gender="male",
+            ))
+            await session.commit()
+            rows = await query_user_context(session, USER_ID)
+            assert rows[0].to_dict()["age"] is None
 
     async def test_filter_by_source(self):
         async with test_session_maker() as session:

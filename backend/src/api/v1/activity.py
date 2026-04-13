@@ -26,25 +26,4 @@ async def get_activity(
         start_date=start_date, end_date=end_date, source=source,
         limit=limit, offset=offset,
     )
-    return {
-        "count": len(rows),
-        "data": [
-            {
-                "date": r.date.isoformat(),
-                "source": r.source,
-                "steps": r.steps,
-                "calories_burned": r.calories_burned,
-                "distance_km": r.distance_km,
-                "active_minutes": r.active_minutes,
-                "sedentary_minutes": r.sedentary_minutes,
-                "lightly_active_minutes": r.lightly_active_minutes,
-                "floors": r.floors,
-                "calories_bmr": r.calories_bmr,
-                "fat_burn_azm": r.fat_burn_azm,
-                "cardio_azm": r.cardio_azm,
-                "peak_azm": r.peak_azm,
-                "total_azm": r.total_azm,
-            }
-            for r in rows
-        ],
-    }
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
