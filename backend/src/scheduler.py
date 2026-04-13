@@ -25,7 +25,7 @@ from src.services.fitbit_sync_utils import (
     upsert_hourly_intraday,
     upsert_user_context,
 )
-from src.services.hevy.sync import sync_hevy_data
+from src.services.hevy.sync import sync_hevy_workouts, sync_hevy_routines
 from src.services.renpho.sync import sync_renpho_data
 from src.services.sync_utils import upsert_metric
 
@@ -327,13 +327,24 @@ async def sync_user(session: AsyncSession, user: User) -> str:
             if renpho_result["errors"]:
                 logger.warning(f"Renpho errors for user {user.id}: {renpho_result['errors']}")
 
-    # Hevy
+    # Hevy — typed pipeline
     if user.hevy_api_key:
-        for days_ago in [1, 0]:
-            sync_date = date.today() - timedelta(days=days_ago)
-            hevy_result = await sync_hevy_data(session, user, sync_date)
-            if hevy_result["errors"]:
-                logger.warning(f"Hevy errors for user {user.id}: {hevy_result['errors']}")
+        try:
+            from src.services.hevy.client import get_client
+            from src.services.token_encryption import decrypt_token as _dt
+            hevy_api_key = _dt(user.hevy_api_key)
+            hevy_client = get_client(hevy_api_key)
+            template_cache: dict = {}
+            for days_ago in [1, 0]:
+                sync_date = date.today() - timedelta(days=days_ago)
+                hevy_errors = await sync_hevy_workouts(session, user, sync_date, hevy_api_key, hevy_client, template_cache)
+                if hevy_errors:
+                    logger.warning(f"Hevy workout errors for user {user.id}: {hevy_errors}")
+            routine_errors = await sync_hevy_routines(session, user, hevy_api_key)
+            if routine_errors:
+                logger.warning(f"Hevy routine errors for user {user.id}: {routine_errors}")
+        except Exception as e:
+            logger.error(f"Hevy sync failed for user {user.id}: {e}")
 
     user.last_sync = datetime.now(timezone.utc)
     await session.commit()

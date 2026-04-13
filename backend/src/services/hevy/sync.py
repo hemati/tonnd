@@ -1,54 +1,90 @@
-"""Hevy sync helpers — analogous to renpho_sync.py."""
+"""Hevy sync pipeline — typed tables for workouts, exercises, routines."""
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import User
-from src.services.sync_utils import upsert_metric
-from src.services.hevy.client import HevyClient, get_workouts_for_date, get_client
-from src.services.token_encryption import decrypt_token
+from src.models.hevy_models import Workout
+from src.services.hevy.client import get_workouts_for_date
+from src.services.hevy.routines import get_all_routines
+from src.services.hevy_sync_utils import (
+    delete_and_insert_exercises,
+    upsert_routine,
+    upsert_workout,
+)
 
 logger = logging.getLogger(__name__)
 
 
-async def sync_hevy_data(
-    session: AsyncSession,
-    user: User,
-    target_date: date,
-    hevy_client: HevyClient | None = None,
-    template_cache: dict | None = None,
-) -> dict:
-    """
-    Sync Hevy workout data for a single date.
-
-    Returns: {"synced_metrics": [...], "errors": [...]}
-    """
-    synced_metrics = []
+async def sync_hevy_workouts(
+    session: AsyncSession, user: User, sync_date: date,
+    api_key: str, hevy_client=None, template_cache: dict | None = None,
+) -> list[str]:
+    """Sync Hevy workouts + exercises into typed tables for a single date."""
     errors = []
 
-    if not user.hevy_api_key:
-        return {"synced_metrics": [], "errors": ["Hevy not connected"]}
+    result = await get_workouts_for_date(api_key, sync_date, hevy_client, template_cache)
+    errors.extend(result.get("errors", []))
+    workout_dicts = result.get("data", [])
 
-    api_key = decrypt_token(user.hevy_api_key)
+    synced_external_ids = set()
+    for wd in workout_dicts:
+        external_id = wd.pop("external_id", "")
+        if not external_id:
+            continue
+        exercises = wd.pop("exercises", [])
 
-    try:
-        result = await get_workouts_for_date(api_key, target_date, hevy_client, template_cache)
+        # Parse datetimes
+        for dt_field in ("started_at", "ended_at"):
+            val = wd.get(dt_field)
+            if isinstance(val, str):
+                try:
+                    wd[dt_field] = datetime.fromisoformat(val)
+                except (ValueError, TypeError):
+                    wd[dt_field] = None
 
-        for metric_type, metric_data in result["data"].items():
-            await upsert_metric(
-                session, user.id, target_date, metric_type, metric_data, source="hevy"
-            )
-            synced_metrics.append(f"hevy:{target_date.isoformat()}#{metric_type}")
+        workout_id = await upsert_workout(
+            session, user.id, external_id, "hevy",
+            date=sync_date, **wd,
+        )
+        await delete_and_insert_exercises(session, workout_id, exercises)
+        synced_external_ids.add(external_id)
 
-        errors.extend(result.get("errors", []))
+    # Soft-delete reconciliation: mark workouts missing from API for this date.
+    # Known limitation: only detects deletions within the synced date range (last 2 days).
+    # Older deletions require the event-feed endpoint (GET /v1/workouts/events).
+    stored = (await session.execute(
+        select(Workout).where(
+            Workout.user_id == user.id,
+            Workout.date == sync_date,
+            Workout.source == "hevy",
+            Workout.deleted_at.is_(None),
+        )
+    )).scalars().all()
+    for w in stored:
+        if w.external_id not in synced_external_ids:
+            w.deleted_at = datetime.now(timezone.utc)
 
-    except Exception as e:
-        errors.append(f"hevy: {e}")
-        logger.error(f"Hevy sync failed for user {user.id}: {e}")
+    return errors
 
-    return {"synced_metrics": synced_metrics, "errors": errors}
+
+async def sync_hevy_routines(
+    session: AsyncSession, user: User, api_key: str,
+) -> list[str]:
+    """Sync all Hevy routines into typed table."""
+    errors = []
+
+    routine_dicts = await get_all_routines(api_key)
+    for rd in routine_dicts:
+        external_id = rd.pop("external_id", "")
+        if not external_id:
+            continue
+        await upsert_routine(session, user.id, external_id, "hevy", **rd)
+
+    return errors
 
 
 def disconnect_hevy(user: User) -> None:

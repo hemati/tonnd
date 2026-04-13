@@ -36,7 +36,7 @@ from src.services.data_service import (
     query_daily_vitals, query_metrics,
 )
 from src.services.hevy.client import validate_hevy_api_key
-from src.services.hevy.sync import disconnect_hevy, sync_hevy_data
+from src.services.hevy.sync import disconnect_hevy, sync_hevy_workouts, sync_hevy_routines
 from src.services.renpho.client import RenphoAPIError, renpho_login
 from src.services.renpho.sync import disconnect_renpho, sync_renpho_data
 from src.services.token_encryption import decrypt_token, encrypt_token
@@ -408,9 +408,12 @@ async def sync_all_sources(
         hevy_template_cache: dict = {}
         for i in range(days):
             current_date = base_date - timedelta(days=i)
-            hevy_result = await sync_hevy_data(session, user, current_date, hevy_client, hevy_template_cache)
-            synced_metrics.extend(hevy_result["synced_metrics"])
-            errors.extend(hevy_result["errors"])
+            hevy_errors = await sync_hevy_workouts(
+                session, user, current_date, hevy_api_key, hevy_client, hevy_template_cache
+            )
+            errors.extend(hevy_errors)
+        routine_errors = await sync_hevy_routines(session, user, hevy_api_key)
+        errors.extend(routine_errors)
 
     if not user.fitbit_access_token and not user.renpho_session_key and not user.hevy_api_key:
         raise HTTPException(status_code=400, detail="No data sources connected")
