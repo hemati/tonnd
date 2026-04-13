@@ -12,7 +12,7 @@ SCOPE_METRICS: dict[str, list[str]] = {
     ],
     "read:body": ["weight", "body_composition"],
     "read:sleep": ["sleep"],
-    "read:activity": ["activity", "active_zone_minutes"],
+    "read:activity": ["activity", "active_zone_minutes", "exercise_log"],
     "read:workouts": ["workout"],
     "read:recovery": [],  # computed, not a metric_type
 }

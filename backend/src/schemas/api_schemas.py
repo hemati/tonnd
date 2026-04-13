@@ -102,6 +102,106 @@ class WorkoutEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+# ─── V2 schemas (typed tables) ──────────────────────────────────────────────
+
+
+class SleepEntryV2(BaseModel):
+    """Extended sleep record with start/end time, onset latency, and stages."""
+    date: str
+    source: str
+    external_id: str
+    start_time: str | None = None
+    end_time: str | None = None
+    total_minutes: int | None = None
+    deep_minutes: int | None = None
+    light_minutes: int | None = None
+    rem_minutes: int | None = None
+    awake_minutes: int | None = None
+    efficiency: int | None = None
+    minutes_to_fall_asleep: int | None = None
+    time_in_bed: int | None = None
+    is_main_sleep: bool | None = None
+    stages_30s_summary: dict | None = None
+
+
+class ActivityEntryV2(BaseModel):
+    """Extended activity record with sedentary, light active, BMR, and AZM."""
+    date: str
+    source: str
+    steps: int | None = None
+    calories_burned: int | None = None
+    distance_km: float | None = None
+    active_minutes: int | None = None
+    sedentary_minutes: int | None = None
+    lightly_active_minutes: int | None = None
+    floors: int | None = None
+    calories_bmr: int | None = None
+    fat_burn_azm: int | None = None
+    cardio_azm: int | None = None
+    peak_azm: int | None = None
+    total_azm: int | None = None
+
+
+class VitalsEntryV2(BaseModel):
+    """All vitals in a single row."""
+    date: str
+    source: str
+    resting_heart_rate: float | None = None
+    hr_zones: dict | None = None
+    daily_rmssd: float | None = None
+    deep_rmssd: float | None = None
+    spo2_avg: float | None = None
+    spo2_min: float | None = None
+    spo2_max: float | None = None
+    breathing_rate: float | None = None
+    vo2_max: float | None = None
+    temp_relative_deviation: float | None = None
+
+
+class IntradayEntry(BaseModel):
+    """Hourly intraday summary."""
+    date: str
+    hour: int
+    metric_type: str
+    source: str
+    avg_value: float | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    sample_count: int | None = None
+    extra: dict | None = None
+
+
+class ExerciseLogEntry(BaseModel):
+    """Fitbit exercise log (cardio session)."""
+    date: str
+    source: str
+    external_id: str
+    started_at: str | None = None
+    ended_at: str | None = None
+    activity_name: str | None = None
+    duration_minutes: int | None = None
+    avg_heart_rate: int | None = None
+    calories: int | None = None
+    distance_km: float | None = None
+    elevation_gain: float | None = None
+    speed_kmh: float | None = None
+    log_type: str | None = None
+    hr_zones: list[dict] | None = None
+
+
+class UserContextEntry(BaseModel):
+    """User profile + device context."""
+    source: str
+    date_of_birth: str | None = None
+    age: int | None = Field(None, description="Computed from date_of_birth")
+    gender: str | None = None
+    height_cm: float | None = None
+    timezone: str | None = None
+    device_model: str | None = None
+    device_battery: int | None = None
+    last_device_sync: str | None = None
+
+
 # ─── Recovery ────────────────────────────────────────────────────────────────
 
 

@@ -9,6 +9,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import FitnessMetric
+from src.models.fitbit_models import (
+    DailyActivity,
+    DailyBody,
+    DailySleep,
+    DailyVitals,
+    ExerciseLog,
+    HourlyIntraday,
+    UserContext,
+)
 
 
 async def query_metrics(
@@ -116,3 +125,117 @@ def compute_recovery_score(
     result["score"] = round(hrv_score * 0.4 + sleep_score * 0.35 + rhr_score * 0.25)
 
     return result
+
+
+# ─── Typed-table query functions ────────────────────────────────────────────
+
+
+async def query_daily_vitals(
+    session: AsyncSession, user_id, start_date=None, end_date=None,
+    source=None, limit=100, offset=0, order="desc",
+):
+    stmt = select(DailyVitals).where(DailyVitals.user_id == user_id)
+    if start_date:
+        stmt = stmt.where(DailyVitals.date >= start_date)
+    if end_date:
+        stmt = stmt.where(DailyVitals.date <= end_date)
+    if source:
+        stmt = stmt.where(DailyVitals.source == source)
+    stmt = stmt.order_by(DailyVitals.date.asc() if order == "asc" else DailyVitals.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_daily_sleep(
+    session: AsyncSession, user_id, start_date=None, end_date=None,
+    source=None, limit=100, offset=0, order="desc",
+):
+    stmt = select(DailySleep).where(DailySleep.user_id == user_id)
+    if start_date:
+        stmt = stmt.where(DailySleep.date >= start_date)
+    if end_date:
+        stmt = stmt.where(DailySleep.date <= end_date)
+    if source:
+        stmt = stmt.where(DailySleep.source == source)
+    stmt = stmt.order_by(DailySleep.date.asc() if order == "asc" else DailySleep.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_daily_activity(
+    session: AsyncSession, user_id, start_date=None, end_date=None,
+    source=None, limit=100, offset=0, order="desc",
+):
+    stmt = select(DailyActivity).where(DailyActivity.user_id == user_id)
+    if start_date:
+        stmt = stmt.where(DailyActivity.date >= start_date)
+    if end_date:
+        stmt = stmt.where(DailyActivity.date <= end_date)
+    if source:
+        stmt = stmt.where(DailyActivity.source == source)
+    stmt = stmt.order_by(DailyActivity.date.asc() if order == "asc" else DailyActivity.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_daily_body(
+    session: AsyncSession, user_id, start_date=None, end_date=None,
+    source=None, limit=100, offset=0, order="desc",
+):
+    stmt = select(DailyBody).where(DailyBody.user_id == user_id)
+    if start_date:
+        stmt = stmt.where(DailyBody.date >= start_date)
+    if end_date:
+        stmt = stmt.where(DailyBody.date <= end_date)
+    if source:
+        stmt = stmt.where(DailyBody.source == source)
+    stmt = stmt.order_by(DailyBody.date.asc() if order == "asc" else DailyBody.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_hourly_intraday(
+    session: AsyncSession, user_id, metric_type: str,
+    start_date=None, end_date=None, source=None,
+    start_hour=None, end_hour=None, limit=500, offset=0,
+):
+    stmt = select(HourlyIntraday).where(
+        HourlyIntraday.user_id == user_id,
+        HourlyIntraday.metric_type == metric_type,
+    )
+    if start_date:
+        stmt = stmt.where(HourlyIntraday.date >= start_date)
+    if end_date:
+        stmt = stmt.where(HourlyIntraday.date <= end_date)
+    if source:
+        stmt = stmt.where(HourlyIntraday.source == source)
+    if start_hour is not None:
+        stmt = stmt.where(HourlyIntraday.hour >= start_hour)
+    if end_hour is not None:
+        stmt = stmt.where(HourlyIntraday.hour <= end_hour)
+    stmt = stmt.order_by(HourlyIntraday.date.asc(), HourlyIntraday.hour.asc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_exercise_logs(
+    session: AsyncSession, user_id, start_date=None, end_date=None,
+    source=None, limit=100, offset=0, order="desc",
+):
+    stmt = select(ExerciseLog).where(ExerciseLog.user_id == user_id)
+    if start_date:
+        stmt = stmt.where(ExerciseLog.date >= start_date)
+    if end_date:
+        stmt = stmt.where(ExerciseLog.date <= end_date)
+    if source:
+        stmt = stmt.where(ExerciseLog.source == source)
+    stmt = stmt.order_by(ExerciseLog.date.asc() if order == "asc" else ExerciseLog.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_user_context(session: AsyncSession, user_id, source=None):
+    stmt = select(UserContext).where(UserContext.user_id == user_id)
+    if source:
+        stmt = stmt.where(UserContext.source == source)
+    return list((await session.execute(stmt)).scalars().all())
