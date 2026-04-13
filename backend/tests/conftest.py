@@ -19,6 +19,7 @@ os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite://")
 from src.models.db_models import Base
 import src.models.api_models  # noqa: F401 — register APIToken + AuditLog tables
 import src.models.fitbit_models  # noqa: F401 — register typed Fitbit tables
+import src.models.hevy_models  # noqa: F401 — register typed Hevy tables
 from src.database import get_async_session
 
 # Use SQLite for tests (in-memory)

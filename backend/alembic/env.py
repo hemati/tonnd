@@ -7,6 +7,7 @@ from sqlalchemy import create_engine, pool
 from src.models.db_models import Base
 import src.models.api_models  # noqa: F401 — register APIToken + AuditLog with Base
 import src.models.fitbit_models  # noqa: F401 — register typed Fitbit tables
+import src.models.hevy_models  # noqa: F401 — register typed Hevy tables
 
 config = context.config
 
