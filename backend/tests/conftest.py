@@ -20,6 +20,7 @@ from src.models.db_models import Base
 import src.models.api_models  # noqa: F401 — register APIToken + AuditLog tables
 import src.models.fitbit_models  # noqa: F401 — register typed Fitbit tables
 import src.models.hevy_models  # noqa: F401 — register typed Hevy tables
+import src.models.body_models  # noqa: F401 — register body_measurements table
 from src.database import get_async_session
 
 # Use SQLite for tests (in-memory)
