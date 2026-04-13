@@ -267,3 +267,44 @@ class AuditEntry(BaseModel):
 class AuditListResponse(BaseModel):
     count: int = Field(..., description="Total audit entries for this user")
     data: list[AuditEntry]
+
+
+# ─── Hevy V2 schemas (typed tables) ───────────────────────────────────────────
+
+
+class WorkoutExerciseEntry(BaseModel):
+    exercise_index: int
+    title: str | None = None
+    external_exercise_id: str | None = None
+    exercise_type: str | None = None
+    is_custom: bool | None = None
+    supersets_id: int | None = None
+    notes: str | None = None
+    volume_kg: float | None = None
+    primary_muscle: str | None = None
+    secondary_muscles: list[str] | None = None
+    sets: list[dict] | None = None
+
+
+class WorkoutResponseV2(BaseModel):
+    date: str
+    source: str
+    external_id: str
+    title: str | None = None
+    description: str | None = None
+    started_at: str | None = None
+    ended_at: str | None = None
+    duration_minutes: int | None = None
+    total_volume_kg: float | None = None
+    total_sets: int | None = None
+    total_reps: int | None = None
+    muscle_groups: dict | None = None
+    exercises: list[WorkoutExerciseEntry] | None = None
+
+
+class RoutineEntry(BaseModel):
+    source: str
+    external_id: str
+    title: str | None = None
+    folder_id: int | None = None
+    exercises: list[dict] | None = None

@@ -7,6 +7,7 @@ import pytest
 
 from src.models.db_models import FitnessMetric
 from src.models.fitbit_models import DailyActivity, DailyBody, DailySleep, DailyVitals
+from src.models.hevy_models import Workout, WorkoutExercise
 from src.services.token_service import create_token, hash_token
 
 from tests.conftest import test_session_maker
@@ -47,6 +48,14 @@ async def seed_metrics(user_id: str):
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="workout", source="hevy", data={"title": "Full Body", "total_volume_kg": 4500, "total_sets": 24}))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="spo2", source="fitbit", data={"avg": 96.5}))
         session.add(FitnessMetric(user_id=uid, date=today, metric_type="active_zone_minutes", source="fitbit", data={"total_minutes": 35}))
+        # Typed Hevy tables (used by /api/v1/workouts)
+        w = Workout(user_id=uid, date=today, source="hevy", external_id="hevy_w1",
+                    title="Full Body", total_volume_kg=4500, total_sets=24, total_reps=120)
+        session.add(w)
+        await session.flush()
+        session.add(WorkoutExercise(workout_id=w.id, exercise_index=0,
+                                     title="Bench Press", volume_kg=1500,
+                                     primary_muscle="chest"))
         await session.commit()
 
 
@@ -121,20 +130,25 @@ class TestV1JWTAccess:
 
         r = await client.get("/api/v1/workouts", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 200
-        assert r.json()["count"] == 1
+        data = r.json()
+        assert data["count"] == 1
+        assert data["data"][0]["title"] == "Full Body"
+        assert "exercises" in data["data"][0]
+        assert len(data["data"][0]["exercises"]) == 1
 
-    async def test_workouts_by_date(self, client):
+    async def test_workout_by_external_id(self, client):
         token = await register_and_login(client, "jwt-wdate@test.com")
         user_id = await get_user_id(client, token)
         await seed_metrics(user_id)
 
-        today = date.today().isoformat()
-        r = await client.get(f"/api/v1/workouts/{today}", headers={"Authorization": f"Bearer {token}"})
+        r = await client.get("/api/v1/workouts/hevy_w1", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 200
+        assert r.json()["title"] == "Full Body"
+        assert len(r.json()["exercises"]) == 1
 
-    async def test_workouts_by_date_not_found(self, client):
+    async def test_workout_by_external_id_not_found(self, client):
         token = await register_and_login(client, "jwt-wnotfound@test.com")
-        r = await client.get("/api/v1/workouts/2020-01-01", headers={"Authorization": f"Bearer {token}"})
+        r = await client.get("/api/v1/workouts/nonexistent", headers={"Authorization": f"Bearer {token}"})
         assert r.status_code == 404
 
     async def test_recovery_with_jwt(self, client):

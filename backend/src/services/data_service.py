@@ -18,6 +18,7 @@ from src.models.fitbit_models import (
     HourlyIntraday,
     UserContext,
 )
+from src.models.hevy_models import Routine, Workout, WorkoutExercise
 
 
 async def query_metrics(
@@ -196,4 +197,61 @@ async def query_user_context(session: AsyncSession, user_id, source=None):
     stmt = select(UserContext).where(UserContext.user_id == user_id)
     if source:
         stmt = stmt.where(UserContext.source == source)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+# ─── Hevy typed-table query functions ──────────────────────────────────────────
+
+
+async def query_workouts(session, user_id, **kw):
+    """Query workouts excluding soft-deleted."""
+    stmt = select(Workout).where(
+        Workout.user_id == user_id,
+        Workout.deleted_at.is_(None),
+    )
+    start_date = kw.get("start_date")
+    end_date = kw.get("end_date")
+    source = kw.get("source")
+    limit = kw.get("limit", 100)
+    offset = kw.get("offset", 0)
+    order = kw.get("order", "desc")
+
+    if start_date:
+        stmt = stmt.where(Workout.date >= start_date)
+    if end_date:
+        stmt = stmt.where(Workout.date <= end_date)
+    if source:
+        stmt = stmt.where(Workout.source == source)
+    stmt = stmt.order_by(Workout.date.asc() if order == "asc" else Workout.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_workout_by_external_id(session, user_id, external_id: str):
+    stmt = select(Workout).where(
+        Workout.user_id == user_id,
+        Workout.external_id == external_id,
+        Workout.deleted_at.is_(None),
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def query_workout_exercises(session, workout_id):
+    stmt = (
+        select(WorkoutExercise)
+        .where(WorkoutExercise.workout_id == workout_id)
+        .order_by(WorkoutExercise.exercise_index.asc())
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def query_routines(session, user_id, **kw):
+    """Query routines — no date column, ordered by title."""
+    limit = kw.get("limit", 100)
+    offset = kw.get("offset", 0)
+    source = kw.get("source")
+    stmt = select(Routine).where(Routine.user_id == user_id)
+    if source:
+        stmt = stmt.where(Routine.source == source)
+    stmt = stmt.order_by(Routine.title.asc()).offset(offset).limit(limit)
     return list((await session.execute(stmt)).scalars().all())
