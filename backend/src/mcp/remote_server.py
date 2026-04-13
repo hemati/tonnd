@@ -26,8 +26,8 @@ from src.services.data_service import (
     query_metrics,
     query_routines,
     query_user_context,
-    query_workout_exercises,
     query_workouts,
+    workout_with_exercises,
 )
 
 BASE_URL = os.environ.get("MCP_BASE_URL", os.environ.get("FRONTEND_URL", "http://localhost:8080"))
@@ -194,12 +194,7 @@ async def get_workouts(
         workouts = await query_workouts(
             session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
         )
-        data = []
-        for w in workouts:
-            wd = w.to_dict()
-            exercises = await query_workout_exercises(session, w.id)
-            wd["exercises"] = [e.to_dict() for e in exercises]
-            data.append(wd)
+        data = [await workout_with_exercises(session, w) for w in workouts]
     return {"count": len(data), "data": data}
 
 

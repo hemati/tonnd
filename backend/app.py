@@ -34,7 +34,7 @@ from src.services.fitbit.sync import disconnect_fitbit, ensure_valid_token
 from src.services.data_service import (
     query_daily_activity, query_daily_body, query_daily_sleep,
     query_daily_vitals, query_metrics,
-    query_workouts, query_workout_exercises,
+    query_workouts, workout_with_exercises,
 )
 from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_workouts, sync_hevy_routines
@@ -56,12 +56,11 @@ from src.utils.security import (
     validate_date_format,
     validate_secure_state,
 )
+from src.mcp.remote_server import mcp as health_mcp
 
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
 # ─── MCP Remote Server (HTTP transport for claude.ai) ────────────────────────
-
-from src.mcp.remote_server import mcp as health_mcp
 
 MCP_PATH = "/mcp"
 health_mcp_app = health_mcp.http_app(path=MCP_PATH)
@@ -478,12 +477,7 @@ async def get_data(
 
     # Workout history from typed Hevy tables
     hevy_workouts = await query_workouts(session, user.id, start_date=start_date, limit=days * 3)
-    workout_list = []
-    for w in hevy_workouts:
-        wd = w.to_dict()
-        exs = await query_workout_exercises(session, w.id)
-        wd["exercises"] = [e.to_dict() for e in exs]
-        workout_list.append(wd)
+    workout_list = [await workout_with_exercises(session, w) for w in hevy_workouts]
 
     # Extract latest values
     latest_v = vitals_list[0] if vitals_list else None

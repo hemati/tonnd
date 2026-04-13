@@ -245,6 +245,14 @@ async def query_workout_exercises(session, workout_id):
     return list((await session.execute(stmt)).scalars().all())
 
 
+async def workout_with_exercises(session, workout) -> dict:
+    """Serialize a workout with its nested exercises. Used by API, MCP, and app.py."""
+    d = workout.to_dict()
+    exercises = await query_workout_exercises(session, workout.id)
+    d["exercises"] = [e.to_dict() for e in exercises]
+    return d
+
+
 async def query_routines(session, user_id, **kw):
     """Query routines — no date column, ordered by title."""
     limit = kw.get("limit", 100)
