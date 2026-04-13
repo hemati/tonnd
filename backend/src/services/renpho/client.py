@@ -46,17 +46,11 @@ def renpho_login(email: str, password: str) -> dict:
 
 
 def get_measurements_for_date(email: str, password: str, target_date: date) -> dict:
-    """
-    Fetch Renpho measurements for a specific date.
+    """Fetch all Renpho measurements for a specific date.
 
-    Returns:
-        {
-            "weight": {"weight_kg": ..., "bmi": ..., "body_fat_percent": ..., ...},
-            "body_composition": {"body_fat_percent": ..., "muscle_mass_percent": ..., ...},
-            "errors": [],
-        }
+    Returns: {"data": [measurement_dict, ...], "errors": []}
     """
-    result = {"data": {}, "errors": []}
+    result: dict = {"data": [], "errors": []}
 
     try:
         client = RenphoClient(email, password)
@@ -67,33 +61,36 @@ def get_measurements_for_date(email: str, password: str, target_date: date) -> d
             if not ts:
                 continue
 
-            m_date = datetime.fromtimestamp(ts, tz=timezone.utc).date()
+            measured_at = datetime.fromtimestamp(ts, tz=timezone.utc)
+            m_date = measured_at.date()
             if m_date != target_date:
                 continue
 
             weight = m.get("weight")
-            if weight and weight > 0:
-                result["data"]["weight"] = {
-                    "weight_kg": weight,
-                    "bmi": m.get("bmi"),
-                    "body_fat_percent": m.get("bodyfat"),
-                }
+            if not weight or weight <= 0:
+                continue
 
-            result["data"]["body_composition"] = {
+            result["data"].append({
+                "date": m_date,
+                "measured_at": measured_at,
+                "weight_kg": weight,
+                "bmi": m.get("bmi"),
                 "body_fat_percent": m.get("bodyfat"),
                 "body_water_percent": m.get("water"),
                 "muscle_mass_percent": m.get("muscle"),
                 "bone_mass_kg": m.get("bone"),
-                "bmr_kcal": m.get("bmr"),
+                "bmr_kcal": int(m["bmr"]) if m.get("bmr") else None,
                 "visceral_fat": m.get("visfat"),
                 "subcutaneous_fat_percent": m.get("subfat"),
                 "protein_percent": m.get("protein"),
-                "body_age": m.get("bodyage"),
+                "body_age": int(m["bodyage"]) if m.get("bodyage") else None,
                 "lean_body_mass_kg": m.get("sinew"),
                 "fat_free_weight_kg": m.get("fatFreeWeight"),
-                "heart_rate": m.get("heartRate"),
-            }
-            break  # one measurement per date
+                "heart_rate": int(m["heartRate"]) if m.get("heartRate") else None,
+                "cardiac_index": m.get("cardiacIndex"),
+                "body_shape": int(m["bodyShape"]) if m.get("bodyShape") else None,
+                "sport_flag": bool(m.get("sport_flag")) if m.get("sport_flag") is not None else None,
+            })
 
     except Exception as e:
         result["errors"].append(f"renpho: {e}")

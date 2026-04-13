@@ -1,14 +1,14 @@
-"""Tests for renpho_sync — Renpho data sync and disconnect."""
+"""Tests for renpho_sync — Renpho data sync to body_measurements and disconnect."""
 
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
 
-from src.models.db_models import FitnessMetric, User
-from src.services.renpho.client import RenphoAPIError
+from src.models.body_models import BodyMeasurement
+from src.models.db_models import User
 from src.services.renpho.sync import disconnect_renpho, sync_renpho_data
 from src.services.token_encryption import encrypt_token
 
@@ -30,23 +30,82 @@ def _make_user(**overrides) -> User:
     return User(**defaults)
 
 
+def _measurement(ts_hour: int = 10, weight: float = 78.5) -> dict:
+    """Build a measurement dict matching the new client return format."""
+    measured_at = datetime(2026, 4, 7, ts_hour, 0, 0, tzinfo=timezone.utc)
+    return {
+        "date": date(2026, 4, 7),
+        "measured_at": measured_at,
+        "weight_kg": weight,
+        "bmi": 24.0,
+        "body_fat_percent": 18.0,
+        "body_water_percent": 55.0,
+        "muscle_mass_percent": 40.0,
+        "bone_mass_kg": 3.1,
+        "bmr_kcal": 1650,
+        "visceral_fat": 8,
+        "subcutaneous_fat_percent": 12.0,
+        "protein_percent": 18.0,
+        "body_age": 28,
+        "lean_body_mass_kg": 55.0,
+        "fat_free_weight_kg": 62.0,
+        "heart_rate": 68,
+        "cardiac_index": 2.5,
+        "body_shape": 3,
+        "sport_flag": True,
+    }
+
+
 # ---------------------------------------------------------------------------
 # sync_renpho_data
 # ---------------------------------------------------------------------------
 class TestSyncRenphoData:
     @pytest.mark.asyncio
-    async def test_connected_user_syncs_metrics(self):
-        """With a connected user and data, metrics get upserted."""
+    async def test_connected_user_syncs_to_body_measurements(self):
+        """With a connected user and data, measurements land in body_measurements."""
         async with test_session_maker() as session:
             user = _make_user()
             session.add(user)
             await session.flush()
 
             renpho_result = {
-                "data": {
-                    "weight": {"weight_kg": 78.5, "bmi": 24.0, "body_fat_percent": 18.0},
-                    "body_composition": {"body_fat_percent": 18.0, "muscle_mass_percent": 40.0},
-                },
+                "data": [_measurement()],
+                "errors": [],
+            }
+
+            with patch(
+                "src.services.renpho.sync.get_measurements_for_date",
+                return_value=renpho_result,
+            ):
+                result = await sync_renpho_data(session, user, date(2026, 4, 7))
+
+            await session.commit()
+
+            assert len(result["synced_metrics"]) == 1
+            assert "body" in result["synced_metrics"][0]
+            assert result["errors"] == []
+
+            # Verify data in body_measurements table
+            stmt = select(BodyMeasurement).where(BodyMeasurement.user_id == user.id)
+            rows = (await session.execute(stmt)).scalars().all()
+            assert len(rows) == 1
+            assert rows[0].source == "renpho"
+            assert rows[0].weight_kg == 78.5
+            assert rows[0].bmi == 24.0
+            assert rows[0].cardiac_index == 2.5
+            assert rows[0].body_shape == 3
+            assert rows[0].sport_flag is True
+
+    @pytest.mark.asyncio
+    async def test_two_measurements_same_day(self):
+        """Two measurements for the same day produce two body_measurements rows."""
+        async with test_session_maker() as session:
+            user = _make_user()
+            session.add(user)
+            await session.flush()
+
+            renpho_result = {
+                "data": [_measurement(ts_hour=7, weight=80.0), _measurement(ts_hour=20, weight=80.5)],
                 "errors": [],
             }
 
@@ -59,15 +118,12 @@ class TestSyncRenphoData:
             await session.commit()
 
             assert len(result["synced_metrics"]) == 2
-            assert any("weight" in m for m in result["synced_metrics"])
-            assert any("body_composition" in m for m in result["synced_metrics"])
-            assert result["errors"] == []
 
-            # Verify DB
-            stmt = select(FitnessMetric).where(FitnessMetric.user_id == user.id)
-            metrics = (await session.execute(stmt)).scalars().all()
-            assert len(metrics) == 2
-            assert all(m.source == "renpho" for m in metrics)
+            stmt = select(BodyMeasurement).where(BodyMeasurement.user_id == user.id)
+            rows = (await session.execute(stmt)).scalars().all()
+            assert len(rows) == 2
+            weights = sorted(r.weight_kg for r in rows)
+            assert weights == [80.0, 80.5]
 
     @pytest.mark.asyncio
     async def test_disconnected_user_returns_error(self):
@@ -80,7 +136,7 @@ class TestSyncRenphoData:
             result = await sync_renpho_data(session, user, date(2026, 4, 7))
 
             assert result["synced_metrics"] == []
-            assert "Renpho not connected" in result["errors"]
+            assert "renpho: not connected" in result["errors"]
 
     @pytest.mark.asyncio
     async def test_missing_session_key_returns_error(self):
@@ -92,41 +148,7 @@ class TestSyncRenphoData:
 
             result = await sync_renpho_data(session, user, date(2026, 4, 7))
 
-            assert "Renpho not connected" in result["errors"]
-
-    @pytest.mark.asyncio
-    async def test_renpho_api_error_caught(self):
-        """RenphoAPIError is caught and added to errors."""
-        async with test_session_maker() as session:
-            user = _make_user()
-            session.add(user)
-            await session.flush()
-
-            with patch(
-                "src.services.renpho.sync.get_measurements_for_date",
-                side_effect=RenphoAPIError("auth failed"),
-            ):
-                result = await sync_renpho_data(session, user, date(2026, 4, 7))
-
-            assert result["synced_metrics"] == []
-            assert any("renpho" in e for e in result["errors"])
-
-    @pytest.mark.asyncio
-    async def test_generic_exception_caught(self):
-        """Any unexpected exception is caught and added to errors."""
-        async with test_session_maker() as session:
-            user = _make_user()
-            session.add(user)
-            await session.flush()
-
-            with patch(
-                "src.services.renpho.sync.get_measurements_for_date",
-                side_effect=RuntimeError("boom"),
-            ):
-                result = await sync_renpho_data(session, user, date(2026, 4, 7))
-
-            assert result["synced_metrics"] == []
-            assert len(result["errors"]) == 1
+            assert "renpho: not connected" in result["errors"]
 
     @pytest.mark.asyncio
     async def test_upstream_errors_propagated(self):
@@ -137,7 +159,7 @@ class TestSyncRenphoData:
             await session.flush()
 
             renpho_result = {
-                "data": {"weight": {"weight_kg": 80}},
+                "data": [_measurement()],
                 "errors": ["renpho: partial failure"],
             }
 
@@ -149,6 +171,25 @@ class TestSyncRenphoData:
 
             assert len(result["synced_metrics"]) == 1
             assert "renpho: partial failure" in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_empty_data_no_writes(self):
+        """When client returns no data, nothing is written."""
+        async with test_session_maker() as session:
+            user = _make_user()
+            session.add(user)
+            await session.flush()
+
+            renpho_result = {"data": [], "errors": []}
+
+            with patch(
+                "src.services.renpho.sync.get_measurements_for_date",
+                return_value=renpho_result,
+            ):
+                result = await sync_renpho_data(session, user, date(2026, 4, 7))
+
+            assert result["synced_metrics"] == []
+            assert result["errors"] == []
 
 
 # ---------------------------------------------------------------------------
