@@ -13,6 +13,16 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 BASE_URL = "https://api.fitbit.com"
+
+
+def _safe_float(val) -> float | None:
+    """Fitbit API sometimes returns numeric values as strings."""
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (ValueError, TypeError):
+        return None
 AUTH_URL = "https://www.fitbit.com/oauth2/authorize"
 TOKEN_URL = "https://api.fitbit.com/oauth2/token"
 
@@ -375,7 +385,7 @@ class FitbitClient:
             distances = summary.get("distances", [])
             for d in distances:
                 if d.get("activity") == "total":
-                    data["activity"]["distance_km"] = d.get("distance")
+                    data["activity"]["distance_km"] = _safe_float(d.get("distance"))
                     break
         except Exception as e:
             errors.append(f"activity: {str(e)}")
@@ -415,7 +425,7 @@ class FitbitClient:
             hr_data = await self.get_heart_rate(date)
             hr_value = hr_data.get("activities-heart", [{}])[0].get("value", {})
             data["heart_rate"] = {
-                "resting_heart_rate": hr_value.get("restingHeartRate"),
+                "resting_heart_rate": _safe_float(hr_value.get("restingHeartRate")),
                 "zones": {
                     zone["name"]: {
                         "min": zone.get("min"),
@@ -436,8 +446,8 @@ class FitbitClient:
             if hrv_data.get("hrv") and len(hrv_data["hrv"]) > 0:
                 hrv_entry = hrv_data["hrv"][0].get("value", {})
                 data["hrv"] = {
-                    "daily_rmssd": hrv_entry.get("dailyRmssd"),
-                    "deep_rmssd": hrv_entry.get("deepRmssd"),
+                    "daily_rmssd": _safe_float(hrv_entry.get("dailyRmssd")),
+                    "deep_rmssd": _safe_float(hrv_entry.get("deepRmssd")),
                 }
         except Exception as e:
             errors.append(f"hrv: {str(e)}")
@@ -447,9 +457,9 @@ class FitbitClient:
             spo2_data = await self.get_spo2(date)
             if spo2_data.get("value"):
                 data["spo2"] = {
-                    "avg": spo2_data["value"].get("avg"),
-                    "min": spo2_data["value"].get("min"),
-                    "max": spo2_data["value"].get("max"),
+                    "avg": _safe_float(spo2_data["value"].get("avg")),
+                    "min": _safe_float(spo2_data["value"].get("min")),
+                    "max": _safe_float(spo2_data["value"].get("max")),
                 }
         except Exception as e:
             errors.append(f"spo2: {str(e)}")
@@ -460,7 +470,7 @@ class FitbitClient:
             if br_data.get("br") and len(br_data["br"]) > 0:
                 br_value = br_data["br"][0].get("value", {})
                 data["breathing_rate"] = {
-                    "breathing_rate": br_value.get("breathingRate"),
+                    "breathing_rate": _safe_float(br_value.get("breathingRate")),
                 }
         except Exception as e:
             errors.append(f"breathing_rate: {str(e)}")
@@ -471,7 +481,7 @@ class FitbitClient:
             if vo2_data.get("cardioScore") and len(vo2_data["cardioScore"]) > 0:
                 vo2_entry = vo2_data["cardioScore"][0].get("value", {})
                 data["vo2_max"] = {
-                    "vo2_max": vo2_entry.get("vo2Max"),
+                    "vo2_max": _safe_float(vo2_entry.get("vo2Max")),
                 }
         except Exception as e:
             errors.append(f"vo2_max: {str(e)}")
@@ -482,7 +492,7 @@ class FitbitClient:
             if temp_data.get("tempSkin") and len(temp_data["tempSkin"]) > 0:
                 temp_value = temp_data["tempSkin"][0].get("value", {})
                 data["temperature"] = {
-                    "relative_deviation": temp_value.get("nightlyRelative"),
+                    "relative_deviation": _safe_float(temp_value.get("nightlyRelative")),
                 }
         except Exception as e:
             errors.append(f"temperature: {str(e)}")
