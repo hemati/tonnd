@@ -633,3 +633,42 @@ class TestNewFieldsParsing:
         assert "2026-04-07" in wd["started_at"]
         assert "2026-04-07" in wd["ended_at"]
         assert wd["duration_minutes"] == 75
+
+
+# ---------------------------------------------------------------------------
+# parse_routines (routine fetching & parsing)
+# ---------------------------------------------------------------------------
+class TestParseRoutines:
+    def test_parses_routine_list(self):
+        from hevy_api.models.model import Routine as HevyRoutine, Exercise, Set
+
+        from src.services.hevy.routines import parse_routines
+
+        routines = [
+            HevyRoutine(
+                id="r1", title="Push Day", folder_id=42,
+                updated_at=datetime(2026, 4, 10), created_at=datetime(2026, 4, 1),
+                exercises=[
+                    Exercise(
+                        index=0, title="Bench Press",
+                        exercise_template_id="t1", supersets_id=None,
+                        notes="Pause at bottom",
+                        sets=[Set(index=0, type="normal", weight_kg=80, reps=8)],
+                    ),
+                ],
+            ),
+        ]
+        result = parse_routines(routines)
+        assert len(result) == 1
+        r = result[0]
+        assert r["external_id"] == "r1"
+        assert r["title"] == "Push Day"
+        assert r["folder_id"] == 42
+        assert len(r["exercises"]) == 1
+        assert r["exercises"][0]["notes"] == "Pause at bottom"
+        assert r["exercises"][0]["rest_seconds"] is None
+
+    def test_empty(self):
+        from src.services.hevy.routines import parse_routines
+
+        assert parse_routines([]) == []
