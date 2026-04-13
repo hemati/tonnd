@@ -100,9 +100,10 @@ tonnd/
 │       │   ├── intraday.py         # GET /api/v1/intraday (hourly_intraday table)
 │       │   ├── exercises.py        # GET /api/v1/exercises (exercise_logs table)
 │       │   ├── context.py          # GET /api/v1/context (user_context table)
-│       │   ├── workouts.py         # GET /api/v1/workouts (legacy fitness_metrics)
+│       │   ├── workouts.py         # GET /api/v1/workouts (typed workouts table)
+│       │   ├── routines.py         # GET /api/v1/routines (typed routines table)
 │       │   ├── recovery.py         # GET /api/v1/recovery
-│       │   ├── metrics.py          # GET /api/v1/metrics (legacy, Renpho/Hevy only)
+│       │   ├── metrics.py          # GET /api/v1/metrics (legacy, Renpho only)
 │       │   ├── tokens.py           # Token CRUD (JWT only)
 │       │   └── audit.py            # Audit log (JWT only)
 │       ├── auth/
@@ -115,6 +116,7 @@ tonnd/
 │       ├── models/
 │       │   ├── db_models.py        # User, OAuthAccount, FitnessMetric
 │       │   ├── fitbit_models.py    # 8 typed Fitbit tables (daily_vitals, daily_sleep, etc.)
+│       │   ├── hevy_models.py      # 3 typed Hevy tables (workouts, workout_exercises, routines)
 │       │   └── api_models.py       # APIToken, AuditLog
 │       ├── schemas/
 │       │   └── api_schemas.py      # Pydantic models for /api/v1/ responses
@@ -124,8 +126,9 @@ tonnd/
 │       │   ├── token_encryption.py # Fernet encrypt/decrypt
 │       │   ├── data_service.py     # Shared query logic (typed tables + legacy)
 │       │   ├── audit_service.py    # Audit log writer
-│       │   ├── sync_utils.py       # Legacy upsert_metric helper (Renpho/Hevy)
+│       │   ├── sync_utils.py       # Shared _upsert generic + legacy upsert_metric (Renpho)
 │       │   ├── fitbit_sync_utils.py # Typed upsert functions for Fitbit tables
+│       │   ├── hevy_sync_utils.py  # Typed upsert functions for Hevy tables
 │       │   ├── fitbit/
 │       │   │   ├── client.py       # Fitbit API wrapper + data parsing
 │       │   │   ├── sync.py         # Token refresh, disconnect
@@ -137,8 +140,9 @@ tonnd/
 │       │   │   ├── client.py       # Renpho cloud API wrapper
 │       │   │   └── sync.py         # Renpho sync logic
 │       │   └── hevy/
-│       │       ├── client.py       # Hevy API wrapper
-│       │       └── sync.py         # Hevy sync logic
+│       │       ├── client.py       # Hevy API wrapper + workout parsing
+│       │       ├── sync.py         # Hevy sync pipeline (typed tables + soft-delete)
+│       │       └── routines.py     # Routine fetching and parsing
 │       └── utils/
 │           └── security.py         # OAuth state, input validation
 │
@@ -217,19 +221,27 @@ tonnd/
 
 **`user_context`** — `(user_id, source)` unique. Columns: date_of_birth, gender, height_cm, timezone, utc_offset_ms, stride_length_walking/running, device_model, device_battery, last_device_sync.
 
-### Table: `fitness_metrics` (legacy — Renpho + Hevy only)
+### Typed Hevy Tables (v2 — replaces fitness_metrics for Hevy data)
+
+**`workouts`** — `(user_id, external_id, source)` unique. Individual workouts (not per-day aggregates). Columns: title, description, started_at, ended_at, duration_minutes, total_volume_kg (working sets only, excludes warmup), total_sets, total_reps, muscle_groups (JSONB), deleted_at (soft-delete).
+
+**`workout_exercises`** — FK to workouts.id (CASCADE). DELETE + re-INSERT per sync (no upsert). Columns: exercise_index, title, external_exercise_id, exercise_type, is_custom, supersets_id, notes, volume_kg, primary_muscle, secondary_muscles (JSONB), sets (JSONB).
+
+**`routines`** — `(user_id, external_id, source)` unique. Planned workout templates. Columns: title, folder_id, exercises (JSONB with target sets/reps/weight).
+
+### Table: `fitness_metrics` (legacy — Renpho only)
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | Primary key |
 | user_id | UUID | FK → user.id |
 | date | Date | |
-| metric_type | String(32) | body_composition, workout |
-| source | String(16) | renpho, hevy |
+| metric_type | String(32) | body_composition |
+| source | String(16) | renpho |
 | data | JSON | Metric-specific fields |
 | synced_at | DateTime(tz) | |
 
-**Note**: Fitbit data now uses typed tables above. This table will be removed after Renpho/Hevy get their own typed tables.
+**Note**: Fitbit and Hevy data now use typed tables. This table will be removed after Renpho gets its own typed tables.
 
 ### Table: `api_tokens` (Personal Access Tokens)
 
@@ -273,12 +285,19 @@ tonnd/
 | exercise_logs | Fitbit activity logs with avg_heart_rate, hr_zones, speed_kmh, log_type, started_at, ended_at |
 | user_context | date_of_birth, gender, height_cm, timezone, device_model, device_battery |
 
-### Legacy Metric Types (fitness_metrics table — Renpho/Hevy)
+### Hevy Data (typed tables)
+
+| Table | Key Fields |
+|-------|------------|
+| workouts | title, description, started_at, ended_at, duration_minutes, total_volume_kg (excludes warmup), muscle_groups, deleted_at (soft-delete) |
+| workout_exercises | exercise_index, title, exercise_type, is_custom, supersets_id, notes, volume_kg, primary_muscle, secondary_muscles, sets |
+| routines | title, folder_id, exercises (JSONB with planned sets/reps/weight) |
+
+### Legacy Metric Types (fitness_metrics table — Renpho only)
 
 | Type | Source | Data Fields |
 |------|--------|-------------|
 | body_composition | renpho | muscle_mass, body_fat, water, bone_mass, protein, etc. |
-| workout | hevy | exercises (with primary_muscle, secondary_muscles), volume, muscle_groups (weighted) |
 
 ---
 
@@ -362,8 +381,10 @@ npx tsc --noEmit          # Type check
 | Fitbit models | fitbit_models.py (8 typed tables), data_service.py (queries) |
 | Fitbit parsing | fitbit/stages.py, fitbit/intraday.py, fitbit/exercise_logs.py, fitbit/context.py |
 | Renpho | renpho/client.py, renpho/sync.py, app.py |
-| Hevy | hevy/client.py, hevy/sync.py, app.py |
-| Database | db_models.py, fitbit_models.py, api_models.py, database.py |
+| Hevy sync | scheduler.py (sync functions), hevy/client.py, hevy_sync_utils.py |
+| Hevy models | hevy_models.py (3 typed tables), data_service.py (queries) |
+| Hevy parsing | hevy/routines.py, hevy/client.py (_workout_to_metrics, _fetch_template_info) |
+| Database | db_models.py, fitbit_models.py, hevy_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
 | Security/Middleware | middleware/security_headers.py, middleware/rate_limit.py, middleware/audit.py |
