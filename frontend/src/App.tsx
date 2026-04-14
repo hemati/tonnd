@@ -47,6 +47,19 @@ function App() {
     }
   }, [isLoading])
 
+  // Auth callback must render before the loading gate — it sets the token
+  // that checkAuth() then validates. Without this, the protected route
+  // redirects to /login before the callback can store the token.
+  if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="/auth/callback" element={<AuthCallback />} />
+        </Routes>
+      </BrowserRouter>
+    )
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
