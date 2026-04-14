@@ -18,12 +18,13 @@ export default function BlogPost() {
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
       <SEO title={meta.title} description={meta.description} path={`/blog/${meta.slug}`} ogType="article" />
-      {meta.image && (
-        <Helmet>
-          <meta property="og:image" content={`https://tonnd.com${meta.image}`} />
-          <meta name="twitter:image" content={`https://tonnd.com${meta.image}`} />
-        </Helmet>
-      )}
+      <Helmet>
+        {meta.image && <meta property="og:image" content={`https://tonnd.com${meta.image}`} />}
+        {meta.image && <meta name="twitter:image" content={`https://tonnd.com${meta.image}`} />}
+        <meta property="article:published_time" content={`${meta.date}T00:00:00Z`} />
+        <meta property="article:modified_time" content={`${meta.date}T00:00:00Z`} />
+        <meta property="article:author" content="https://tonnd.com/about" />
+      </Helmet>
       <Helmet>
         <script type="application/ld+json">{JSON.stringify({
           '@context': 'https://schema.org',

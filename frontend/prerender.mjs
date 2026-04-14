@@ -141,13 +141,11 @@ async function prerender() {
       }
     })
 
-    // Extract above-the-fold critical CSS only (elements visible in viewport)
+    // Extract above-the-fold critical CSS (only rules matching visible elements)
     const criticalCss = await page.evaluate(() => {
       const viewportHeight = window.innerHeight || 900
       const used = new Set()
-      const sheets = Array.from(document.styleSheets)
 
-      // Check if element is above the fold
       function isAboveFold(selector) {
         try {
           const els = document.querySelectorAll(selector)
@@ -159,24 +157,26 @@ async function prerender() {
         } catch { return false }
       }
 
-      for (const sheet of sheets) {
+      for (const sheet of document.styleSheets) {
         try {
-          const rules = Array.from(sheet.cssRules || [])
-          for (const rule of rules) {
-            if (rule instanceof CSSMediaRule) {
-              const subRules = Array.from(rule.cssRules || [])
-              const matching = subRules.filter(sub =>
-                sub instanceof CSSStyleRule ? isAboveFold(sub.selectorText) : true
-              )
-              if (matching.length > 0) used.add(rule.cssText)
-            } else if (rule instanceof CSSStyleRule) {
+          for (const rule of sheet.cssRules || []) {
+            if (rule instanceof CSSStyleRule) {
               if (isAboveFold(rule.selectorText)) used.add(rule.cssText)
-            } else {
-              // @keyframes, @font-face, etc. — always include
-              used.add(rule.cssText)
+            } else if (rule instanceof CSSMediaRule) {
+              // Only include individual matching rules within the media query
+              const matched = []
+              for (const sub of rule.cssRules || []) {
+                if (sub instanceof CSSStyleRule && isAboveFold(sub.selectorText)) {
+                  matched.push(sub.cssText)
+                }
+              }
+              if (matched.length > 0) {
+                used.add(`${rule.conditionText ? `@media ${rule.conditionText}` : rule.cssText.split('{')[0]} { ${matched.join(' ')} }`)
+              }
             }
+            // Skip @keyframes, @font-face — they load with the async stylesheet
           }
-        } catch { /* cross-origin sheet, skip */ }
+        } catch { /* cross-origin, skip */ }
       }
 
       return Array.from(used).join('\n')
@@ -205,12 +205,19 @@ async function prerender() {
           }
         }
 
-        // Add noscript fallback for users without JS
+        // Remove any existing noscript stylesheet fallbacks
+        head.querySelectorAll('noscript').forEach(n => {
+          if (n.innerHTML.includes('stylesheet')) n.remove()
+        })
+
+        // Add noscript fallback with relative paths (not localhost)
         const noscript = document.createElement('noscript')
         for (const link of styleLinks) {
           const fallback = document.createElement('link')
           fallback.rel = 'stylesheet'
-          fallback.href = link.href
+          // Use getAttribute to get the original relative path, not the resolved localhost URL
+          const href = link.getAttribute('href') || new URL(link.href).pathname
+          fallback.setAttribute('href', href)
           noscript.appendChild(fallback)
         }
         head.appendChild(noscript)
