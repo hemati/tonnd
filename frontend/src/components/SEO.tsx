@@ -10,8 +10,8 @@ interface SEOProps {
 
 const BASE_URL = 'https://tonnd.com'
 const OG_IMAGE = `${BASE_URL}/og-image.png`
-const DEFAULT_TITLE = 'TONND — Self-host your health dashboard'
-const DEFAULT_DESC = 'Open-source, self-hosted health dashboard. Connect Fitbit and Renpho to track weight, sleep, heart rate, HRV, and body composition in one place.'
+const DEFAULT_TITLE = 'TONND — Ask your health data anything'
+const DEFAULT_DESC = 'Connect Fitbit, Renpho, and Hevy. Track 15+ health metrics on one dashboard. Ask Claude AI your data questions in plain language. Free and open source.'
 
 export default function SEO({ title, description, path = '/', noindex, ogType = 'website' }: SEOProps) {
   const fullTitle = title ? `${title} — TONND` : DEFAULT_TITLE

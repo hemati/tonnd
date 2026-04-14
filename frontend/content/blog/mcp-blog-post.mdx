@@ -1,0 +1,101 @@
+---
+title: "Your health data can talk now. You just have to ask."
+description: "Health apps collect great data but can't answer questions. We connected TONND to Claude via the Model Context Protocol so you can ask your Fitbit, Renpho, and Hevy data anything in plain language."
+date: "2026-04-14"
+tags: ["mcp", "ai", "claude", "health-tracking", "fitbit", "open-source"]
+author: "Wahed Hemati"
+image: "/blog/mcp-blog-post.png"
+---
+
+![TONND connected to Claude via MCP: ask your Fitbit, Renpho, and Hevy data anything in plain language](/blog/mcp-blog-post.png)
+
+Last week I opened Claude and typed: "My HRV dropped from 48 to 28 over the last three days. What did I do differently?"
+
+Claude pulled my Fitbit vitals, my Hevy workout logs, and my sleep data. It found that I had done deadlifts and squats on back-to-back days for the first time, my sleep efficiency dropped 12 points the night after the second session, and my resting heart rate was still elevated. It connected data from three different sources and gave me a specific answer in about four seconds.
+
+No dashboard could have done that. I would have had to open Fitbit, check HRV, open Hevy, scroll through workouts, open TONND, look at the sleep chart, and piece together the story myself. I've been doing that for months. It's useful but slow, and I only find patterns I already suspect.
+
+This is different. Now I can ask questions I haven't thought of yet. And the setup takes about two minutes. You don't need to write code, install anything, or understand what an API is. If you have a TONND account and a Claude account, you click connect and start asking.
+
+## The data is there. The questions aren't.
+
+The fitness tracking market generated [$10.6 billion in 2024](https://www.feed.fm/2026-digital-fitness-ecosystem-report). Hundreds of millions of people wear devices that record heart rate, sleep stages, step counts, and body composition around the clock. There's more data than ever.
+
+But the apps that collect it still work the same way they did five years ago. They show you charts. Maybe a weekly summary. Maybe a "readiness score" that tells you a number without explaining why it's low. You can look at a chart and spot a downward trend, but you can't ask the chart why the trend is happening.
+
+A [2025 article on wearable data integration](https://medium.com/@piotr.sedzik/why-wearables-data-still-breaks-health-products-and-what-needs-to-change-fcbf9207c6bd) put it well: what lands on the dashboard rarely feels like insight. Just charts and noise. The hardware keeps getting better. The software that's supposed to make sense of it hasn't kept up.
+
+The fragmentation makes it worse. A [research paper on health data interoperability](https://pubmed.ncbi.nlm.nih.gov/26581920/) spent eight years connecting health and fitness apps and concluded that data silos prevent users and clinicians from getting an integrated view. Your sleep tracker doesn't know you lifted heavy yesterday. Your scale doesn't know you slept four hours. Each app shows you one piece and ignores the rest.
+
+I [built TONND](/blog/fitbit-killed-the-dashboard) to put the pieces in one place. Fitbit, Renpho, and Hevy in a single dashboard. That solved the fragmentation problem. But it didn't solve the question problem. A dashboard shows you data. It doesn't interpret it.
+
+## What changed: the Model Context Protocol
+
+In November 2024, Anthropic released the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP), an open standard for connecting AI models to external data. Instead of copying data into a chat window, the AI queries your data directly through a structured interface. It asks for what it needs, gets a response, and reasons about it.
+
+Within a year, MCP went from an internal experiment to an [industry standard adopted by OpenAI, Google, and Microsoft](https://thenewstack.io/why-the-model-context-protocol-won/). By November 2025, over [5,800 MCP servers and 300 clients](https://guptadeepak.com/the-complete-guide-to-model-context-protocol-mcp-enterprise-adoption-market-trends-and-implementation-strategies/) existed. In December 2025, Anthropic [donated MCP to the Linux Foundation](https://www.pento.ai/blog/a-year-of-mcp-2025-review), making it vendor-neutral. People compared it to USB-C for AI: one connector instead of a dozen proprietary ones.
+
+I saw the announcement and immediately thought about health data. That's what was missing between a dashboard full of numbers and actually understanding what the numbers mean.
+
+## What TONND's MCP server does
+
+TONND now runs an MCP server that Claude can connect to. When you link your TONND account in Claude, it gets access to 10 tools that query your health data directly.
+
+From Fitbit, it can pull vitals (heart rate, HRV, SpO2, breathing rate, skin temperature, VO2 Max), sleep (stages, efficiency, start/end times, time to fall asleep), activity (steps, calories, active zone minutes, sedentary time), exercise logs from auto-detected walks and runs, and hourly intraday data.
+
+From Hevy, it gets your workouts (individual exercises with sets, reps, weight, and superset groupings), exercise type (barbell, bodyweight, machine), and your saved routine templates so it can compare what you planned vs. what you actually did.
+
+From Renpho, it pulls body composition: weight, BMI, body fat, muscle mass, visceral fat, bone mass, BMR, and about 10 more fields from the smart scale.
+
+Everything goes through OAuth 2.1. Claude sees your data only when you connect it, and only for the session. The data stays in your database. Nothing goes to a training pipeline.
+
+## What it actually looks like
+
+Here are questions I've asked in the last week. Not hypothetical. Things I actually typed.
+
+"Am I training enough? Compare my routine plan with what I actually did this month." Claude pulled my Hevy routines (planned 3x/week full body) and my actual workouts (2x last week, 3x the week before). It noticed I'd been skipping the third session and that my volume was identical across sessions, meaning I wasn't progressing weight.
+
+"What's my sleep like on workout days vs. rest days?" Claude queried my Fitbit sleep data and my Hevy workout dates, grouped them, and found that my deep sleep was actually 4 minutes longer on workout days but my sleep efficiency was 3 points lower. Mixed signal. Not the clear "exercise improves sleep" story I expected.
+
+"How has my body composition changed since I started training?" Claude pulled my Renpho measurements over the last month and my workout frequency from Hevy. With only a few data points from the scale, it couldn't draw conclusions yet but laid out exactly what it had and what it would need to say something meaningful. No hallucinated insights. Just an honest read of limited data.
+
+None of these required me to build a chart, pick a date range, or cross-reference apps. I asked in German (my first language, Claude handles it fine) and got answers that pulled from three different services.
+
+## Why this matters more than another dashboard feature
+
+Dashboards show you what happened. But they can only answer questions someone anticipated when designing them. If the designer put an HRV chart next to a workout chart, you might notice a correlation. If they didn't, you won't.
+
+An LLM with access to your raw data can answer questions nobody anticipated. "Did my weight plateau correlate with weeks where I had less than 6 hours of sleep and more than 2 rest days?" That's three variables across three data sources. No dashboard has a button for that.
+
+The [2026 Digital Fitness Ecosystem Report](https://www.feed.fm/2026-digital-fitness-ecosystem-report) from Feed.fm noted that users don't want a workout tracker or a wellness app or a health monitor. They want one thing that understands their full picture. MCP makes that possible without building a mega-app. You keep your Fitbit, your scale, your workout app. TONND collects the data. Claude reasons about it.
+
+## Privacy: what doesn't leave your server
+
+I keep coming back to this because it's the part most health-AI pitches skip.
+
+When you use TONND's MCP connection, your health data lives in a PostgreSQL database you control. If you self-host, it never leaves your machine. Claude queries it over HTTPS with an OAuth token, gets a JSON response, and reasons about it. The raw data is not stored by Anthropic and not used for training.
+
+This matters because health data is personal in a way that most data isn't. Your HRV at 3am, your body fat percentage, how many reps you failed on bench press. I don't want that in a training dataset somewhere. I don't want it aggregated and sold. I want it in a database I can delete.
+
+TONND is [open source (AGPL-3.0)](https://github.com/hemati/tonnd). The MCP server code is in the repo. You can read every line of what gets exposed and what doesn't.
+
+## How to set it up (no coding required)
+
+You need two things: a free account at [tonnd.com](https://tonnd.com) and a Claude account at [claude.ai](https://claude.ai).
+
+1. Sign up at tonnd.com and connect your Fitbit, Renpho, or Hevy accounts.
+2. Open claude.ai, go to your Connectors settings, and search for TONND.
+3. Click connect. Claude will ask you to authorize read access to your health data.
+4. Start a new chat and ask something. "What does my data look like?" is a good first one.
+
+That's it. No terminal, no config files, no Docker. You connect two accounts and start asking questions in plain language.
+
+If you're a developer and want to self-host, the MCP server is built into the FastAPI backend at `/mcp`. Point Claude Desktop at your server URL and authenticate with your TONND credentials. But for most people, the hosted version at tonnd.com is the easiest path.
+
+## Where this goes
+
+Right now Claude answers questions when you ask them. Eventually I want it to notice things you didn't ask about. Your HRV trending down for a week while your training volume went up. Your sleep efficiency dropping every Sunday night. Your weight flat but your muscle mass up and body fat down, which means recomposition is working even though the scale isn't moving.
+
+That's the kind of thing a coach would catch if they could see all your data at once. Most people don't have a coach. But they have a Fitbit, a scale, and a workout app. The data is already there. It just needed a way to talk.
+
+TONND is free and open source. [tonnd.com](https://tonnd.com) or self-host with Docker. Code is on [GitHub](https://github.com/hemati/tonnd).

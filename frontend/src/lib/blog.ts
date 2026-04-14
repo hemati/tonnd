@@ -51,6 +51,7 @@ export function getPost(slug: string): { meta: BlogPostMeta; Component: React.Co
       slug,
       tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
       author: String(fm.author || 'Wahed Hemati'),
+      image: fm.image ? String(fm.image) : undefined,
     },
     Component: mod.default,
   }
