@@ -65,14 +65,3 @@ body {
   background: #64748b;
 }
 
-/* Landing page animations */
-@keyframes lp-slide-up { from{opacity:0;transform:translateY(24px)} to{opacity:1;transform:translateY(0)} }
-@keyframes lp-bar { from{height:0} to{height:var(--h)} }
-.lp-appear{animation:lp-slide-up .6s cubic-bezier(.22,1,.36,1) both}
-.lp-appear-d2{animation-delay:.15s}
-.lp-appear-d3{animation-delay:.25s}
-.lp-bar-grow{animation:lp-bar .6s ease-out both}
-
-@media (prefers-reduced-motion: reduce) {
-  .lp-appear, .lp-bar-grow { animation: none; }
-}

@@ -260,7 +260,7 @@ export default function LandingPage() {
       {/* ═══ HERO ═══ */}
       <section className="max-w-5xl mx-auto px-5 pt-20 pb-16 lg:pt-28 lg:pb-24">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
-          <div className="lp-appear">
+          <div>
             <p className="text-[13px] text-white/45 font-medium tracking-wide mb-5">
               Fitbit &middot; Renpho &middot; Hevy &middot; Claude AI &mdash; no code required
             </p>
@@ -288,7 +288,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="lp-appear lp-appear-d2 hidden lg:block">
+          <div className="hidden lg:block">
             <ConversationMock />
           </div>
         </div>
@@ -299,10 +299,10 @@ export default function LandingPage() {
 
       {/* ═══ HOW IT WORKS ═══ */}
       <section id="how-it-works" className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">How it works</p>
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-12 lp-appear">Up and running in four steps.</h2>
+        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">How it works</p>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-12">Up and running in four steps.</h2>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-12 lp-appear">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-12">
           {[
             { n: '1', title: 'Create an account', desc: 'Sign up with Google or email. Takes 30 seconds.' },
             { n: '2', title: 'Connect your devices', desc: 'Link Fitbit, Renpho, and Hevy. Data flows automatically.' },
@@ -323,13 +323,13 @@ export default function LandingPage() {
 
       {/* ═══ AI SHOWCASE ═══ */}
       <section id="ai" className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Ask your data</p>
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Dashboards show data. Claude explains it.</h2>
-        <p className="text-[15px] text-white/40 mb-12 max-w-lg lp-appear">
+        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Ask your data</p>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Dashboards show data. Claude explains it.</h2>
+        <p className="text-[15px] text-white/40 mb-12 max-w-lg">
           Connect your TONND account in Claude.ai and ask questions in plain language. Claude pulls from your Fitbit, Renpho, and Hevy data and gives you answers no chart can.
         </p>
 
-        <div className="grid lg:grid-cols-5 gap-8 lp-appear">
+        <div className="grid lg:grid-cols-5 gap-8">
           {/* example questions — 3 columns */}
           <div className="lg:col-span-3 space-y-3">
             {[
@@ -383,12 +383,12 @@ export default function LandingPage() {
 
         {/* Connect */}
         <div className="mb-20">
-          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Connect</p>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Bring your devices together.</h2>
-          <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Connect</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Bring your devices together.</h2>
+          <p className="text-[15px] text-white/40 mb-8 max-w-lg">
             Link Fitbit, Renpho, and Hevy. Data flows automatically into your dashboard.
           </p>
-          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
+          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden">
             <div className="bg-[#0a0a0a] p-6">
               <div className="flex items-start gap-4">
                 <FitbitIcon className="w-8 h-8 flex-shrink-0" />
@@ -421,13 +421,13 @@ export default function LandingPage() {
 
         {/* Track */}
         <div className="mb-20">
-          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Track</p>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Every metric that matters.</h2>
-          <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Track</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Every metric that matters.</h2>
+          <p className="text-[15px] text-white/40 mb-8 max-w-lg">
             15+ health metrics in a single dashboard. Trends over days, weeks, and months.
           </p>
 
-          <div className="grid lg:grid-cols-2 gap-8 items-start lp-appear">
+          <div className="grid lg:grid-cols-2 gap-8 items-start">
             {/* metric grid */}
             <div className="grid sm:grid-cols-2 gap-px bg-white/[.06] rounded-lg overflow-hidden">
               {[
@@ -461,12 +461,12 @@ export default function LandingPage() {
 
         {/* Own */}
         <div>
-          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Open source</p>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your data, your rules.</h2>
-          <p className="text-[15px] text-white/40 mb-8 max-w-lg lp-appear">
+          <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Open source</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Your data, your rules.</h2>
+          <p className="text-[15px] text-white/40 mb-8 max-w-lg">
             TONND is fully open source. Use our managed cloud or run it on your own server &mdash; you always own your data.
           </p>
-          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden lp-appear">
+          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden">
             {[
               { title: 'Open Source', desc: 'AGPL-3.0 licensed. Read every line, contribute, or fork.' },
               { title: 'Self-Host Option', desc: 'docker compose up. Run TONND on your own hardware if you prefer.' },
@@ -486,13 +486,13 @@ export default function LandingPage() {
 
       {/* ═══ PRIVACY ═══ */}
       <section className="max-w-5xl mx-auto px-5 py-20">
-        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3 lp-appear">Privacy</p>
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4 lp-appear">Your health data is personal.</h2>
-        <p className="text-[15px] text-white/40 mb-12 max-w-lg lp-appear">
+        <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Privacy</p>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Your health data is personal.</h2>
+        <p className="text-[15px] text-white/40 mb-12 max-w-lg">
           TONND gives you full control. Use our cloud or self-host &mdash; either way, your data stays yours.
         </p>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12 lp-appear">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-12">
           {[
             { title: 'Privacy first', desc: 'No tracking, no ads, no third-party data sharing. Your health data never enters a training dataset.' },
             { title: 'Your data', desc: 'Standard PostgreSQL. Export or delete anytime.' },
@@ -538,7 +538,7 @@ export default function LandingPage() {
 
       {/* ═══ FINAL CTA ═══ */}
       <div className="border-t border-white/[.06]" />
-      <section className="max-w-5xl mx-auto px-5 py-24 text-center lp-appear">
+      <section className="max-w-5xl mx-auto px-5 py-24 text-center">
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white mb-4">
           Your health data has stories to tell.
         </h2>
