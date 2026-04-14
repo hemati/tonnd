@@ -5,6 +5,13 @@ date: "2026-04-14"
 tags: ["mcp", "ai", "claude", "health-tracking", "fitbit", "open-source"]
 author: "Wahed Hemati"
 image: "/blog/mcp-blog-post.png"
+faqs:
+  - q: "Do I need coding skills to use TONND with Claude?"
+    a: "No. Sign up at tonnd.com, connect your devices, then connect TONND in Claude.ai Connectors. No code, no terminal, no config files."
+  - q: "What data can Claude access from TONND?"
+    a: "Fitbit vitals (heart rate, HRV, SpO2, sleep, activity), Hevy workouts (exercises, sets, reps, volume), and Renpho body composition (weight, body fat, muscle mass, and 10+ fields)."
+  - q: "Is my health data sent to Anthropic for training?"
+    a: "No. Claude queries your data over HTTPS with an OAuth token and reasons about the response. The raw data is not stored by Anthropic and not used for training."
 ---
 
 ![TONND connected to Claude via MCP: ask your Fitbit, Renpho, and Hevy data anything in plain language](/blog/mcp-blog-post.png)

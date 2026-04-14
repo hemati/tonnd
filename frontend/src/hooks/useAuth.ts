@@ -15,9 +15,11 @@ export interface AuthState {
 }
 
 export function useAuth() {
+  const hasToken = typeof window !== 'undefined' && !!localStorage.getItem(TOKEN_KEY)
+
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
-    isLoading: true,
+    isLoading: hasToken, // Only show loading spinner if there's a token to validate
     user: null,
     accessToken: null,
   })

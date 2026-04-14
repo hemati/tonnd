@@ -28,6 +28,7 @@ const ROUTES = [
   '/blog/why-i-built-tonnd',
   '/blog/fitbit-killed-the-dashboard',
   '/blog/hrv-workout-recovery',
+  '/blog/mcp-blog-post',
 ]
 
 // Minimal static file server that serves dist/ with SPA fallback

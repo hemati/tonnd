@@ -29,6 +29,14 @@ export default function BlogIndex() {
                 { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://tonnd.com/' },
                 { '@type': 'ListItem', 'position': 2, 'name': 'Blog', 'item': 'https://tonnd.com/blog' }
               ]
+            },
+            {
+              '@type': 'ItemList',
+              'itemListElement': posts.map((post, i) => ({
+                '@type': 'ListItem',
+                'position': i + 1,
+                'url': `https://tonnd.com/blog/${post.slug}`
+              }))
             }
           ]
         })}</script>

@@ -20,9 +20,8 @@ export default defineConfig({
     rolldownOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('node_modules/recharts') || id.includes('node_modules/d3-')) {
-            return 'recharts'
-          }
+          // Let recharts + d3 stay in the lazy-loaded Dashboard chunk
+          // so they are NOT modulepreload-ed on every page
           if (id.includes('node_modules/@radix-ui')) {
             return 'radix-ui'
           }

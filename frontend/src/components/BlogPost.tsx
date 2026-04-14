@@ -35,7 +35,7 @@ export default function BlogPost() {
               datePublished: meta.date,
               dateModified: meta.date,
               image: meta.image ? `https://tonnd.com${meta.image}` : 'https://tonnd.com/og-image.png',
-              author: { '@type': 'Person', name: meta.author, url: 'https://tonnd.com/' },
+              author: { '@id': 'https://tonnd.com/#person-wahed' },
               publisher: { '@id': 'https://tonnd.com/#organization' },
               mainEntityOfPage: `https://tonnd.com/blog/${meta.slug}`,
               keywords: meta.tags.join(', '),
@@ -48,6 +48,14 @@ export default function BlogPost() {
                 { '@type': 'ListItem', position: 3, name: meta.title, item: `https://tonnd.com/blog/${meta.slug}` },
               ],
             },
+            ...(meta.faqs && meta.faqs.length > 0 ? [{
+              '@type': 'FAQPage',
+              'mainEntity': meta.faqs.map((faq: { q: string; a: string }) => ({
+                '@type': 'Question',
+                'name': faq.q,
+                'acceptedAnswer': { '@type': 'Answer', 'text': faq.a },
+              })),
+            }] : []),
           ],
         })}</script>
       </Helmet>

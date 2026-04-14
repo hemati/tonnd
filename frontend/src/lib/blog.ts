@@ -6,6 +6,7 @@ export interface BlogPostMeta {
   tags: string[]
   author: string
   image?: string
+  faqs?: { q: string; a: string }[]
 }
 
 interface MdxModule {
@@ -29,6 +30,7 @@ export function getAllPosts(): BlogPostMeta[] {
         tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
         author: String(fm.author || 'Wahed Hemati'),
         image: fm.image ? String(fm.image) : undefined,
+        faqs: Array.isArray(fm.faqs) ? fm.faqs : undefined,
       }
     })
     .filter((p) => p.title && p.date)
@@ -52,6 +54,7 @@ export function getPost(slug: string): { meta: BlogPostMeta; Component: React.Co
       tags: Array.isArray(fm.tags) ? fm.tags.map(String) : [],
       author: String(fm.author || 'Wahed Hemati'),
       image: fm.image ? String(fm.image) : undefined,
+      faqs: Array.isArray(fm.faqs) ? fm.faqs : undefined,
     },
     Component: mod.default,
   }

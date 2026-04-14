@@ -29,6 +29,13 @@ export default function About() {
               'sameAs': [
                 'https://github.com/hemati'
               ]
+            },
+            {
+              '@type': 'BreadcrumbList',
+              'itemListElement': [
+                { '@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': 'https://tonnd.com/' },
+                { '@type': 'ListItem', 'position': 2, 'name': 'About', 'item': 'https://tonnd.com/about' }
+              ]
             }
           ]
         })}</script>
@@ -104,16 +111,20 @@ export default function About() {
             I don't do gamification. There are no streaks, no badges, no push notifications trying to get you to open the app. Just your data, your trends, and the context you need to make sense of them.
           </p>
 
-          <h2 className="text-xl font-bold text-white/90 pt-4">What's next</h2>
+          <h2 className="text-xl font-bold text-white/90 pt-4">Where TONND is now</h2>
 
           <p>
-            Right now TONND pulls data from Fitbit, Renpho, and Hevy into a dashboard with recovery scores, body composition, and workout heatmaps. That's phase one.
+            Phase one (done): all your devices in one dashboard. Fitbit vitals, Renpho body composition, Hevy workouts, recovery scores, muscle heatmaps. 15+ metrics unified.
           </p>
           <p>
-            Phase two is connecting the data to an LLM. Take 30 days of sleep, HRV, weight, and training data, feed it to Claude or GPT, and get back analysis that's actually about you. Not "drink more water" advice.
+            Phase two (done): TONND connects to Claude via the <Link to="/blog/mcp-blog-post" className="text-white/60 underline hover:text-white/80">Model Context Protocol</Link>. You can ask your health data questions in plain language. No code, no exports. Just connect your TONND account in Claude.ai and start asking.
           </p>
           <p>
-            Phase three: the AI lives inside the dashboard. You open TONND and there's already a coach looking at your numbers.
+            Phase three (in progress): the AI notices things you didn't ask about. HRV trending down while training volume is up. Sleep efficiency dropping every Sunday. Recomposition happening even though the scale isn't moving.
+          </p>
+
+          <p className="text-[13px] text-white/30 italic mt-4">
+            TONND is a data tracking tool, not a medical device. Recovery scores and training insights are based on your personal data and general research, not clinical guidance. Consult a healthcare provider for medical decisions.
           </p>
 
           <h2 className="text-xl font-bold text-white/90 pt-4">Get in touch</h2>
