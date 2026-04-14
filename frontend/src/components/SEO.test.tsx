@@ -29,7 +29,7 @@ describe('SEO component', () => {
     renderSEO()
     await waitFor(() => {
       expect(document.title).toContain('TONND')
-      expect(document.title).toContain('Self-host')
+      expect(document.title).toContain('Ask your health data')
     })
   })
 
@@ -53,7 +53,7 @@ describe('SEO component', () => {
     renderSEO()
     await waitFor(() => {
       const desc = getMeta('name', 'description')
-      expect(desc?.content).toContain('Open-source')
+      expect(desc?.content).toContain('Connect Fitbit')
     })
   })
 
