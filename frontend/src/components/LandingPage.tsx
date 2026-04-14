@@ -18,7 +18,7 @@ function ConversationMock() {
       {/* top bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#a78bfa' }} />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22d3ee' }} />
           <span className="text-[11px] font-medium tracking-wider uppercase text-white/40">Claude + TONND</span>
         </div>
         <span className="text-[10px] text-white/25 font-mono">claude.ai</span>
@@ -308,7 +308,7 @@ export default function LandingPage() {
             { n: '4', title: 'Ask Claude', desc: 'Open claude.ai, connect TONND, and ask anything. No code needed.', accent: true },
           ].map((s) => (
             <div key={s.n}>
-              <div className={`text-[13px] font-mono mb-3 ${s.accent ? 'text-purple-400/60' : 'text-white/20'}`}>{s.n}.</div>
+              <div className={`text-[13px] font-mono mb-3 ${s.accent ? 'text-cyan-400/60' : 'text-white/20'}`}>{s.n}.</div>
               <h3 className="text-base font-semibold text-white/80 mb-2">{s.title}</h3>
               <p className="text-sm text-white/40 leading-relaxed">{s.desc}</p>
             </div>
@@ -359,7 +359,7 @@ export default function LandingPage() {
                   { n: '3', text: 'Start asking' },
                 ].map((step) => (
                   <div key={step.n} className="flex gap-3 items-start">
-                    <span className="text-[12px] font-mono text-purple-400/60 mt-0.5">{step.n}.</span>
+                    <span className="text-[12px] font-mono text-cyan-400/60 mt-0.5">{step.n}.</span>
                     <span className="text-[13px] text-white/55">{step.text}</span>
                   </div>
                 ))}
