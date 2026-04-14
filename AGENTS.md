@@ -129,7 +129,6 @@ tonnd/
 │       │   ├── sync_utils.py       # Shared _upsert generic helper
 │       │   ├── fitbit_sync_utils.py # Typed upsert functions for Fitbit tables
 │       │   ├── hevy_sync_utils.py  # Typed upsert functions for Hevy tables
-│       │   ├── body_sync_utils.py  # Upsert for body_measurements table
 │       │   ├── fitbit/
 │       │   │   ├── client.py       # Fitbit API wrapper + data parsing
 │       │   │   ├── sync.py         # Token refresh, disconnect
@@ -369,7 +368,7 @@ npx tsc --noEmit          # Type check
 | Fitbit sync | scheduler.py (sync functions), fitbit/client.py, fitbit_sync_utils.py |
 | Fitbit models | fitbit_models.py (8 typed tables), data_service.py (queries) |
 | Fitbit parsing | fitbit/stages.py, fitbit/intraday.py, fitbit/exercise_logs.py, fitbit/context.py |
-| Renpho sync | renpho/client.py, renpho/sync.py, body_sync_utils.py |
+| Renpho sync | renpho/client.py, renpho/sync.py, sync_utils.py (upsert_body_measurement) |
 | Body models | body_models.py (BodyMeasurement), data_service.py (query_body_measurements) |
 | Hevy sync | scheduler.py (sync functions), hevy/client.py, hevy_sync_utils.py |
 | Hevy models | hevy_models.py (3 typed tables), data_service.py (queries) |

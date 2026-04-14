@@ -146,7 +146,7 @@ async def sync_fitbit_daily(
         measured_at = weight.pop("measured_at", None)
         if not measured_at:
             measured_at = datetime(sync_date.year, sync_date.month, sync_date.day, tzinfo=timezone.utc)
-        from src.services.body_sync_utils import upsert_body_measurement
+        from src.services.sync_utils import upsert_body_measurement
         await upsert_body_measurement(
             session, user.id, "fitbit", measured_at,
             date=sync_date, **weight,

@@ -6,7 +6,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.models.db_models import User
-from src.services.body_sync_utils import upsert_body_measurement
+from src.services.sync_utils import upsert_body_measurement
 from src.services.renpho.client import get_measurements_for_date
 from src.services.token_encryption import decrypt_token
 

@@ -5,6 +5,7 @@ Fitbit API client for OAuth and data retrieval.
 import base64
 import logging
 import os
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -360,19 +361,13 @@ class FitbitClient:
                     weight_date = latest.get("date", date)
                     weight_time = latest.get("time", "00:00:00")
                     try:
-                        from datetime import datetime as dt_cls
-                        from datetime import timezone as tz
-
-                        measured_at = dt_cls.strptime(
+                        measured_at = datetime.strptime(
                             f"{weight_date} {weight_time}", "%Y-%m-%d %H:%M:%S"
-                        ).replace(tzinfo=tz.utc)
+                        ).replace(tzinfo=timezone.utc)
                     except (ValueError, TypeError):
-                        from datetime import datetime as dt_cls
-                        from datetime import timezone as tz
-
-                        measured_at = dt_cls.strptime(
+                        measured_at = datetime.strptime(
                             str(weight_date), "%Y-%m-%d"
-                        ).replace(tzinfo=tz.utc)
+                        ).replace(tzinfo=timezone.utc)
 
                     data["weight"] = {
                         "weight_kg": _safe_float(latest.get("weight")),

@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 
 from src.models.body_models import BodyMeasurement
-from src.services.body_sync_utils import upsert_body_measurement
+from src.services.sync_utils import upsert_body_measurement
 
 from tests.conftest import test_session_maker
 

@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.models.body_models import BodyMeasurement
+
 
 async def _upsert(
     session: AsyncSession, model, lookup: dict, fields: dict,
@@ -24,3 +26,10 @@ async def _upsert(
         row = model(**lookup, **fields)
         session.add(row)
     return row
+
+
+async def upsert_body_measurement(
+    session: AsyncSession, user_id, source: str, measured_at: datetime, **fields
+) -> None:
+    await _upsert(session, BodyMeasurement,
+                  {"user_id": user_id, "source": source, "measured_at": measured_at}, fields)
