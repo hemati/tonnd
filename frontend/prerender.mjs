@@ -141,35 +141,38 @@ async function prerender() {
       }
     })
 
-    // Extract critical CSS (styles actually used by rendered DOM)
+    // Extract above-the-fold critical CSS only (elements visible in viewport)
     const criticalCss = await page.evaluate(() => {
+      const viewportHeight = window.innerHeight || 900
       const used = new Set()
       const sheets = Array.from(document.styleSheets)
+
+      // Check if element is above the fold
+      function isAboveFold(selector) {
+        try {
+          const els = document.querySelectorAll(selector)
+          for (const el of els) {
+            const rect = el.getBoundingClientRect()
+            if (rect.top < viewportHeight && rect.bottom > 0) return true
+          }
+          return false
+        } catch { return false }
+      }
 
       for (const sheet of sheets) {
         try {
           const rules = Array.from(sheet.cssRules || [])
           for (const rule of rules) {
             if (rule instanceof CSSMediaRule) {
-              // Include media queries if any contained rule matches
               const subRules = Array.from(rule.cssRules || [])
-              const matchingRules = subRules.filter(sub => {
-                if (sub instanceof CSSStyleRule) {
-                  try { return document.querySelector(sub.selectorText) } catch { return false }
-                }
-                return true
-              })
-              if (matchingRules.length > 0) {
-                used.add(rule.cssText)
-              }
+              const matching = subRules.filter(sub =>
+                sub instanceof CSSStyleRule ? isAboveFold(sub.selectorText) : true
+              )
+              if (matching.length > 0) used.add(rule.cssText)
             } else if (rule instanceof CSSStyleRule) {
-              try {
-                if (document.querySelector(rule.selectorText)) {
-                  used.add(rule.cssText)
-                }
-              } catch { /* invalid selector, skip */ }
+              if (isAboveFold(rule.selectorText)) used.add(rule.cssText)
             } else {
-              // @keyframes, @font-face, etc. — include
+              // @keyframes, @font-face, etc. — always include
               used.add(rule.cssText)
             }
           }
@@ -179,21 +182,38 @@ async function prerender() {
       return Array.from(used).join('\n')
     })
 
-    // Inline critical CSS and make full stylesheet async
+    // Inline critical CSS and make full stylesheets async
     if (criticalCss.length > 0) {
       await page.evaluate((css) => {
-        // Add inline critical CSS
+        const head = document.head
+
+        // Remove any existing data-critical blocks (from nested renders)
+        head.querySelectorAll('style[data-critical]').forEach(s => s.remove())
+
+        // Add single inline critical CSS block
         const style = document.createElement('style')
         style.setAttribute('data-critical', '')
         style.textContent = css
-        // Insert before the first <link rel="stylesheet">
-        const firstLink = document.head.querySelector('link[rel="stylesheet"]')
-        if (firstLink) {
-          document.head.insertBefore(style, firstLink)
-          // Make the external stylesheet non-render-blocking
-          firstLink.setAttribute('media', 'print')
-          firstLink.setAttribute('onload', "this.media='all'")
+
+        // Insert before the first <link rel="stylesheet"> and make all stylesheets async
+        const styleLinks = head.querySelectorAll('link[rel="stylesheet"]')
+        if (styleLinks.length > 0) {
+          head.insertBefore(style, styleLinks[0])
+          for (const link of styleLinks) {
+            link.setAttribute('media', 'print')
+            link.setAttribute('onload', "this.media='all'")
+          }
         }
+
+        // Add noscript fallback for users without JS
+        const noscript = document.createElement('noscript')
+        for (const link of styleLinks) {
+          const fallback = document.createElement('link')
+          fallback.rel = 'stylesheet'
+          fallback.href = link.href
+          noscript.appendChild(fallback)
+        }
+        head.appendChild(noscript)
       }, criticalCss)
     }
 
