@@ -10,6 +10,8 @@ import SEO from './SEO'
 import Logo from './Logo'
 import Footer from './Footer'
 
+const ACCENT = '#22d3ee'
+
 /* ─── conversation mock (hero) ──────────────────────────────────────────── */
 
 function ConversationMock() {
@@ -18,7 +20,7 @@ function ConversationMock() {
       {/* top bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22d3ee' }} />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ACCENT }} />
           <span className="text-[11px] font-medium tracking-wider uppercase text-white/40">Claude + TONND</span>
         </div>
         <span className="text-[10px] text-white/25 font-mono">claude.ai</span>
@@ -64,7 +66,7 @@ function DashboardMock() {
       {/* top bar */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#22d3ee' }} />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ACCENT }} />
           <span className="text-[11px] font-medium tracking-wider uppercase text-white/40">Health Dashboard</span>
         </div>
         <span className="text-[10px] text-white/25 font-mono">tonnd.com</span>
@@ -161,7 +163,7 @@ function DashboardMock() {
                 side="front"
                 gender="male"
                 scale={0.6}
-                colors={['#0c4a5e', '#0e7490', '#22d3ee']}
+                colors={['#0c4a5e', '#0e7490', ACCENT]}
                 border="#1e293b"
               />
             </div>
