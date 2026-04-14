@@ -44,9 +44,9 @@ function ConversationMock() {
             <li className="flex gap-2"><span className="text-white/25">&#8226;</span>Resting heart rate is still 8 bpm above your baseline</li>
           </ul>
           <div className="flex gap-1.5 mt-3">
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[.05] text-white/30">Fitbit</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[.05] text-white/30">Hevy</span>
-            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[.05] text-white/30">Sleep</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-white/[.08] text-white/50 border border-white/[.08]">Fitbit</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-white/[.08] text-white/50 border border-white/[.08]">Hevy</span>
+            <span className="text-[10px] px-2 py-0.5 rounded bg-white/[.08] text-white/50 border border-white/[.08]">Sleep</span>
           </div>
         </div>
         <span className="text-[9px] text-white/20 mt-1 block">Claude</span>
@@ -342,7 +342,7 @@ export default function LandingPage() {
                 <p className="text-[14px] text-white/70 leading-relaxed mb-2">{item.q}</p>
                 <div className="flex gap-1.5">
                   {item.sources.map((s) => (
-                    <span key={s} className="text-[9px] px-1.5 py-0.5 rounded bg-white/[.05] text-white/30">{s}</span>
+                    <span key={s} className="text-[10px] px-2 py-0.5 rounded bg-white/[.08] text-white/50 border border-white/[.08]">{s}</span>
                   ))}
                 </div>
               </div>
