@@ -333,8 +333,8 @@ export default function LandingPage() {
             {[
               { q: 'My HRV dropped from 48 to 28. What did I do differently?', sources: ['Fitbit Vitals', 'Hevy', 'Sleep'] },
               { q: "What's my sleep like on workout days vs. rest days?", sources: ['Sleep', 'Hevy'] },
-              { q: 'Am I sticking to my training plan this month?', sources: ['Routines', 'Workouts'] },
-              { q: 'How has my body composition changed since I started training?', sources: ['Renpho', 'Hevy'] },
+              { q: 'My weight stalled for two weeks. What changed?', sources: ['Renpho', 'Hevy', 'Fitbit Sleep'] },
+              { q: "Am I gaining weight because I'm training less or sleeping worse?", sources: ['Renpho', 'Hevy', 'Fitbit Activity'] },
             ].map((item) => (
               <div key={item.q} className="rounded-lg border border-white/[.06] bg-white/[.02] p-4">
                 <p className="text-[14px] text-white/70 leading-relaxed mb-2">{item.q}</p>
