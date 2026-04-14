@@ -62,8 +62,14 @@ MAX_LIMIT = 365
 
 
 def _parse_dates(start_date: str | None, end_date: str | None) -> tuple[date | None, date | None]:
-    sd = date.fromisoformat(start_date) if start_date else None
-    ed = date.fromisoformat(end_date) if end_date else None
+    try:
+        sd = date.fromisoformat(start_date) if start_date else None
+    except (ValueError, TypeError):
+        sd = None
+    try:
+        ed = date.fromisoformat(end_date) if end_date else None
+    except (ValueError, TypeError):
+        ed = None
     return sd, ed
 
 
