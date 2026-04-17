@@ -15,11 +15,12 @@ export interface AuthState {
 }
 
 export function useAuth() {
+  const isCallbackRoute = typeof window !== 'undefined' && window.location.pathname === '/auth/callback'
   const hasToken = typeof window !== 'undefined' && !!localStorage.getItem(TOKEN_KEY)
 
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
-    isLoading: hasToken, // Only show loading spinner if there's a token to validate
+    isLoading: hasToken && !isCallbackRoute,
     user: null,
     accessToken: null,
   })
@@ -35,7 +36,13 @@ export function useAuth() {
       const res = await fetch(`${API_URL}/users/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
-      if (!res.ok) throw new Error('Invalid token')
+      if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem(TOKEN_KEY)
+        }
+        setAuthState({ isAuthenticated: false, isLoading: false, user: null, accessToken: null })
+        return
+      }
 
       const data = await res.json()
       setAuthState({
@@ -45,14 +52,20 @@ export function useAuth() {
         accessToken: token,
       })
     } catch {
-      localStorage.removeItem(TOKEN_KEY)
+      // Network error / cancelled fetch (e.g. in-flight during navigation) —
+      // keep the token. Evicting it here races with AuthCallback's setItem
+      // and causes the new token to be wiped before /dashboard loads.
       setAuthState({ isAuthenticated: false, isLoading: false, user: null, accessToken: null })
     }
   }, [])
 
   useEffect(() => {
+    // Skip on /auth/callback: AuthCallback stores the token and navigates to
+    // /dashboard. Running checkAuth here starts a fetch that gets cancelled
+    // by the navigation, which would hit the error path above.
+    if (isCallbackRoute) return
     checkAuth()
-  }, [checkAuth])
+  }, [checkAuth, isCallbackRoute])
 
   const login = async (email: string, password: string) => {
     const res = await fetch(`${API_URL}/auth/jwt/login`, {
