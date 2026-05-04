@@ -7,6 +7,7 @@
  * 1. Deduplicates <head> tags (React Helmet injects page-specific tags, but
  *    the SPA shell's default tags persist — we keep only the last of each type)
  * 2. Inlines critical (above-the-fold) CSS and makes the full stylesheet async
+ * 3. Strips client-only UI (cookie consent banner) to avoid hydration CLS
  *
  * Usage: node prerender.mjs (run after `vite build`)
  */
@@ -141,10 +142,11 @@ async function prerender() {
       }
     })
 
-    // Extract above-the-fold critical CSS (only rules matching visible elements)
+    // Extract above-the-fold critical CSS (only rules matching visible elements).
+    // Tailwind v4 wraps utilities in @layer blocks (CSSLayerBlockRule in CSSOM),
+    // so we must recurse into layers, media queries, and supports blocks.
     const criticalCss = await page.evaluate(() => {
       const viewportHeight = window.innerHeight || 900
-      const used = new Set()
 
       function isAboveFold(selector) {
         try {
@@ -157,29 +159,46 @@ async function prerender() {
         } catch { return false }
       }
 
+      // Recursively collect matching rules from a CSSRuleList.
+      // Returns an array of cssText strings for rules that match above-fold elements.
+      function collectRules(rules) {
+        const matched = []
+        for (const rule of rules) {
+          if (rule instanceof CSSStyleRule) {
+            if (isAboveFold(rule.selectorText)) matched.push(rule.cssText)
+          } else if (rule instanceof CSSMediaRule) {
+            const inner = collectRules(rule.cssRules || [])
+            if (inner.length > 0) {
+              const cond = rule.conditionText
+                ? `@media ${rule.conditionText}`
+                : rule.cssText.split('{')[0]
+              matched.push(`${cond} { ${inner.join(' ')} }`)
+            }
+          } else if (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) {
+            const inner = collectRules(rule.cssRules || [])
+            if (inner.length > 0) {
+              // Preserve the @layer wrapper so cascade ordering is correct
+              matched.push(`@layer ${rule.name} { ${inner.join(' ')} }`)
+            }
+          } else if (typeof CSSSupportsRule !== 'undefined' && rule instanceof CSSSupportsRule) {
+            const inner = collectRules(rule.cssRules || [])
+            if (inner.length > 0) {
+              matched.push(`@supports ${rule.conditionText} { ${inner.join(' ')} }`)
+            }
+          }
+          // Skip @keyframes, @font-face, @property — they load with the async stylesheet
+        }
+        return matched
+      }
+
+      const parts = []
       for (const sheet of document.styleSheets) {
         try {
-          for (const rule of sheet.cssRules || []) {
-            if (rule instanceof CSSStyleRule) {
-              if (isAboveFold(rule.selectorText)) used.add(rule.cssText)
-            } else if (rule instanceof CSSMediaRule) {
-              // Only include individual matching rules within the media query
-              const matched = []
-              for (const sub of rule.cssRules || []) {
-                if (sub instanceof CSSStyleRule && isAboveFold(sub.selectorText)) {
-                  matched.push(sub.cssText)
-                }
-              }
-              if (matched.length > 0) {
-                used.add(`${rule.conditionText ? `@media ${rule.conditionText}` : rule.cssText.split('{')[0]} { ${matched.join(' ')} }`)
-              }
-            }
-            // Skip @keyframes, @font-face — they load with the async stylesheet
-          }
+          parts.push(...collectRules(sheet.cssRules || []))
         } catch { /* cross-origin, skip */ }
       }
 
-      return Array.from(used).join('\n')
+      return parts.join('\n')
     })
 
     // Inline critical CSS and make full stylesheets async
@@ -224,6 +243,19 @@ async function prerender() {
       }, criticalCss)
     }
 
+    // Remove client-only UI that depends on localStorage/cookies.
+    // The cookie consent banner is rendered by Puppeteer (no stored consent)
+    // but causes CLS during hydration (React removes it then re-adds via useEffect).
+    await page.evaluate(() => {
+      // Cookie consent: overlay (div.fixed.inset-0.bg-black/60) + banner (div.fixed.bottom-0)
+      document.querySelectorAll('div.fixed').forEach(el => {
+        const text = el.textContent || ''
+        if (text.includes('cookie') || text.includes('Cookie')) {
+          el.remove()
+        }
+      })
+    })
+
     const html = await page.content()
 
     // Write the pre-rendered HTML to the correct path
@@ -233,7 +265,7 @@ async function prerender() {
 
     mkdirSync(dirname(outPath), { recursive: true })
     writeFileSync(outPath, html)
-    console.log(`  ✓ ${route} → ${outPath.replace(DIST, 'dist')}`)
+    console.log(`  \u2713 ${route} \u2192 ${outPath.replace(DIST, 'dist')}`)
 
     await page.close()
   }

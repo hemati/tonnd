@@ -9,7 +9,7 @@ interface SourceIconProps {
 }
 
 function SourceIcon({ src, alt, className = 'w-8 h-8' }: { src: string; alt: string; className?: string }) {
-  return <img src={src} alt={alt} className={className} style={ICON_STYLE} />
+  return <img src={src} alt={alt} className={className} style={ICON_STYLE} width={32} height={32} />
 }
 
 export const FitbitIcon = (p: SourceIconProps) => <SourceIcon src={fitbitSvg} alt="Fitbit" {...p} />
