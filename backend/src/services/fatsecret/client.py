@@ -139,7 +139,10 @@ async def fetch_request_token(callback_url: str, http: httpx.AsyncClient) -> dic
         )
     data = _parse_form(resp.text)
     if "oauth_token" not in data or "oauth_token_secret" not in data:
-        raise FatSecretAPIError(f"request_token missing fields: {data}")
+        # Don't echo `data` — partial responses can include the secret field.
+        raise FatSecretAPIError(
+            f"request_token missing fields (got keys: {sorted(data.keys())})"
+        )
     return data
 
 
@@ -172,7 +175,10 @@ async def fetch_access_token(
         )
     data = _parse_form(resp.text)
     if "oauth_token" not in data or "oauth_token_secret" not in data:
-        raise FatSecretAPIError(f"access_token missing fields: {data}")
+        # Don't echo `data` — partial responses can include the secret field.
+        raise FatSecretAPIError(
+            f"access_token missing fields (got keys: {sorted(data.keys())})"
+        )
     return data
 
 
@@ -181,30 +187,71 @@ def _date_to_int(target: date_type) -> int:
     return (target - _EPOCH).days
 
 
+# Hard ceiling for any per-entry numeric. Largest plausible single-entry
+# values: ~10000 calories, ~10000g of any macro (a 10kg block of food).
+# Anything larger is corrupted / hostile data and would overflow the
+# Postgres Integer column when summed into daily_nutrition.calories_in.
+_NUMERIC_MAX = 1_000_000.0
+
+
 def _clean_numeric(val: Any) -> float | None:
-    """Coerce to float, drop NaN/inf, clamp negatives to None."""
+    """Coerce to float, drop NaN/inf/negative, cap absurdly large values.
+
+    Returning None for >_NUMERIC_MAX is intentional: silently clamping to
+    the cap would write a misleading "1M calories" record. Dropping the
+    field forces the user to notice (the entry shows incomplete macros).
+    """
     f = safe_float(val)
     if f is None:
         return None
-    if math.isnan(f) or math.isinf(f) or f < 0:
+    if math.isnan(f) or math.isinf(f) or f < 0 or f > _NUMERIC_MAX:
         return None
     return f
+
+
+# DB column-width caps. Truncating in the client keeps INSERT/flush from
+# crashing on oversized FatSecret-supplied strings; widths must match
+# food_models.FoodEntry exactly.
+_STR_LIMITS = {
+    "external_id": 64,
+    "food_entry_name": 256,
+    "meal": 32,
+    "food_id": 64,
+    "serving_id": 64,
+    "food_entry_description": 512,
+}
+
+
+def _raw_external_id(raw: dict) -> str | None:
+    """Extract the food_entry_id from a raw FatSecret entry, truncated to DB width.
+
+    Used both by _normalize_entry and by the sync reconciliation pass — the
+    reconciliation needs to know "what the API claims exists" independent of
+    whether an entry is otherwise well-formed enough to persist.
+    """
+    eid = raw.get("food_entry_id")
+    if not eid:
+        return None
+    return str(eid)[:_STR_LIMITS["external_id"]]
 
 
 def _normalize_entry(raw: dict, target_date: date_type) -> dict | None:
     """Transform a FatSecret food_entry dict into FoodEntry-ready fields.
 
     Returns None if the entry is malformed (missing external_id or food_entry_name).
+    Callers reconciling soft-deletes should use _raw_external_id() instead of
+    inferring "API has this id" from the presence of a normalized entry — a
+    malformed entry that returns None still represents a server-side row.
     """
-    external_id = raw.get("food_entry_id")
+    external_id = _raw_external_id(raw)
     name = raw.get("food_entry_name")
     if not external_id or not name:
         return None
 
     fields: dict[str, Any] = {
-        "external_id": str(external_id),
+        "external_id": external_id,
         "date": target_date,
-        "food_entry_name": str(name)[:256],
+        "food_entry_name": str(name)[:_STR_LIMITS["food_entry_name"]],
     }
     for raw_key, val in raw.items():
         if raw_key in ("food_entry_id", "food_entry_name", "date_int"):
@@ -214,9 +261,8 @@ def _normalize_entry(raw: dict, target_date: date_type) -> dict | None:
             cleaned = _clean_numeric(val)
             if cleaned is not None:
                 fields[col] = cleaned
-        elif col in {"meal", "food_id", "serving_id", "food_entry_description"}:
-            limit = 512 if col == "food_entry_description" else 64
-            fields[col] = str(val)[:limit]
+        elif col in _STR_LIMITS:
+            fields[col] = str(val)[:_STR_LIMITS[col]]
     return fields
 
 
@@ -247,8 +293,22 @@ async def get_food_entries_for_date(
     oauth_token_secret: str,
     target_date: date_type,
     http: httpx.AsyncClient,
-) -> list[dict]:
-    """Fetch and normalize all food diary entries for one date."""
+) -> dict:
+    """Fetch food diary entries for one date.
+
+    Returns:
+        {
+            "normalized": [field-dict ready for upsert_food_entry, ...],
+            "api_external_ids": {raw_external_id, ...}  # ALL ids the API claims
+                                                         # exist for the date,
+                                                         # incl. entries we
+                                                         # couldn't normalize
+        }
+
+    Reconciliation uses `api_external_ids`, not the normalized list — a
+    malformed entry that we drop on parse must NOT be treated as deleted by
+    the reconciliation pass.
+    """
     consumer_key, consumer_secret = get_credentials()
     uri, headers = _sign(
         REST_URL,
@@ -281,8 +341,12 @@ async def get_food_entries_for_date(
             raise FatSecretAuthError(f"FatSecret API error: {err}")
         raise FatSecretAPIError(f"FatSecret API error: {err}")
 
-    return [
-        normalized
-        for entry in _extract_entries(payload)
-        if (normalized := _normalize_entry(entry, target_date)) is not None
+    raw_entries = _extract_entries(payload)
+    api_external_ids: set[str] = {
+        rid for rid in (_raw_external_id(e) for e in raw_entries) if rid
+    }
+    normalized = [
+        n for entry in raw_entries
+        if (n := _normalize_entry(entry, target_date)) is not None
     ]
+    return {"normalized": normalized, "api_external_ids": api_external_ids}

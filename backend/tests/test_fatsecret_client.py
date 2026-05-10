@@ -162,6 +162,15 @@ class TestCleanNumeric:
     def test_drops_negative(self):
         assert fs._clean_numeric(-5) is None
 
+    def test_drops_above_cap(self):
+        # Anything past _NUMERIC_MAX is dropped to prevent integer overflow
+        # when summed into PostgreSQL Integer columns.
+        assert fs._clean_numeric(1e20) is None
+        assert fs._clean_numeric(fs._NUMERIC_MAX + 1) is None
+
+    def test_accepts_at_cap(self):
+        assert fs._clean_numeric(fs._NUMERIC_MAX) == fs._NUMERIC_MAX
+
     def test_drops_unparseable(self):
         assert fs._clean_numeric("abc") is None
         assert fs._clean_numeric(None) is None
@@ -244,6 +253,19 @@ class TestNormalizeEntry:
         out = fs._normalize_entry(raw, date(2026, 5, 9))
         assert len(out["food_entry_name"]) == 256
 
+    def test_long_external_id_truncated_to_db_width(self):
+        raw = {"food_entry_id": "x" * 200, "food_entry_name": "Apple"}
+        out = fs._normalize_entry(raw, date(2026, 5, 9))
+        # FoodEntry.external_id is String(64); truncating in the client
+        # prevents an INSERT crash.
+        assert len(out["external_id"]) == 64
+
+    def test_long_meal_truncated_to_db_width(self):
+        raw = {"food_entry_id": "1", "food_entry_name": "Apple", "meal": "x" * 100}
+        out = fs._normalize_entry(raw, date(2026, 5, 9))
+        # FoodEntry.meal is String(32).
+        assert len(out["meal"]) == 32
+
 
 # ─── end-to-end fetch ─────────────────────────────────────────────────────
 
@@ -259,16 +281,32 @@ class TestGetFoodEntriesForDate:
             ]}
         })
         out = await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
-        assert len(out) == 2
-        assert out[0]["external_id"] == "1"
-        assert out[0]["calories"] == 95.0
-        assert out[0]["carbs_g"] == 25.0
-        assert out[1]["external_id"] == "2"
+        assert len(out["normalized"]) == 2
+        assert out["normalized"][0]["external_id"] == "1"
+        assert out["normalized"][0]["calories"] == 95.0
+        assert out["normalized"][0]["carbs_g"] == 25.0
+        assert out["normalized"][1]["external_id"] == "2"
+        assert out["api_external_ids"] == {"1", "2"}
+
+    async def test_malformed_entry_kept_in_api_ids(self):
+        """An entry missing food_entry_name still counts as 'API has this id'
+        so the soft-delete reconciliation in sync.py won't soft-delete it."""
+        http = _mock_http(json_data={
+            "food_entries": {"food_entry": [
+                {"food_entry_id": "good", "food_entry_name": "Apple"},
+                {"food_entry_id": "bad_no_name"},  # malformed but present
+            ]}
+        })
+        out = await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
+        assert len(out["normalized"]) == 1
+        assert out["normalized"][0]["external_id"] == "good"
+        assert out["api_external_ids"] == {"good", "bad_no_name"}
 
     async def test_empty_day(self):
         http = _mock_http(json_data={"food_entries": ""})
         out = await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
-        assert out == []
+        assert out["normalized"] == []
+        assert out["api_external_ids"] == set()
 
     async def test_401_raises_auth_error(self):
         http = _mock_http(status=401, text="rejected")
@@ -314,10 +352,13 @@ class TestGetFoodEntriesForDate:
         http = _mock_http(json_data={
             "food_entries": {"food_entry": [
                 {"food_entry_id": "1", "food_entry_name": "OK"},
-                {"food_entry_name": "missing id"},
+                {"food_entry_name": "missing id"},  # missing id → no api_external_id
                 "not a dict",
             ]}
         })
         out = await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
-        assert len(out) == 1
-        assert out[0]["external_id"] == "1"
+        assert len(out["normalized"]) == 1
+        assert out["normalized"][0]["external_id"] == "1"
+        # The missing-id entry is not normalized AND not in api_external_ids
+        # (we can't reconcile what we can't identify).
+        assert out["api_external_ids"] == {"1"}

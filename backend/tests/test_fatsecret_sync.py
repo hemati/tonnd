@@ -34,11 +34,19 @@ def _user(**kwargs) -> User:
     return User(**defaults)
 
 
-def _patch_fetch(entries):
+def _patch_fetch(entries, api_ids=None):
+    """Patch get_food_entries_for_date with the new dict return shape.
+
+    `api_ids` defaults to the set of external_ids in `entries` — most callers
+    want them to match. Tests for malformed-entry reconciliation pass a
+    superset to simulate "API saw an id we couldn't normalize".
+    """
+    if api_ids is None:
+        api_ids = {e["external_id"] for e in entries if "external_id" in e}
     return patch(
         "src.services.fatsecret.sync.get_food_entries_for_date",
         new_callable=AsyncMock,
-        return_value=entries,
+        return_value={"normalized": entries, "api_external_ids": api_ids},
     )
 
 
@@ -209,6 +217,85 @@ class TestSyncForDate:
 
 
 # ─── backfill ─────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestAdversarialRegressions:
+    async def test_api_failure_with_no_existing_entries_does_not_write_zero(self):
+        """End-of-plan adversarial finding: a transient API failure with an
+        empty diary used to write a "trusted 0 calories" daily_nutrition row,
+        misleading the user. Now we skip aggregation in that case."""
+        async with test_session_maker() as session:
+            user = _user()
+            session.add(user)
+            await session.flush()
+
+            with _patch_fetch_raises(FatSecretAPIError("transient")):
+                await sync_fatsecret_for_date(
+                    session, user, date(2026, 5, 9), MagicMock(spec=httpx.AsyncClient),
+                )
+            await session.flush()
+
+            agg = (await session.execute(
+                select(DailyNutrition).where(DailyNutrition.user_id == user.id)
+            )).scalar_one_or_none()
+            assert agg is None
+
+    async def test_malformed_entry_does_not_soft_delete_existing(self):
+        """End-of-plan adversarial finding: a FatSecret response missing
+        food_entry_name on an existing entry used to silently soft-delete the
+        stored row because the malformed entry returned None from
+        _normalize_entry and dropped out of the upserted set used for
+        reconciliation. Reconciliation now uses api_external_ids (which
+        includes ids of entries we couldn't normalize)."""
+        async with test_session_maker() as session:
+            user = _user()
+            session.add(user)
+            await session.flush()
+            session.add(FoodEntry(
+                user_id=user.id, external_id="fe1", source="fatsecret",
+                date=date(2026, 5, 9), food_entry_name="Apple",
+                calories=95.0,
+            ))
+            await session.flush()
+
+            # API returns the entry but malformed (no name) — _normalize_entry
+            # drops it. api_external_ids still contains "fe1".
+            with _patch_fetch([], api_ids={"fe1"}):
+                await sync_fatsecret_for_date(
+                    session, user, date(2026, 5, 9), MagicMock(spec=httpx.AsyncClient),
+                )
+            await session.flush()
+
+            row = (await session.execute(
+                select(FoodEntry).where(FoodEntry.external_id == "fe1")
+            )).scalar_one()
+            assert row.deleted_at is None
+
+    async def test_api_failure_with_existing_entries_still_aggregates(self):
+        """If we have stored data, an API failure shouldn't block recompute —
+        the aggregate against current DB state is still meaningful."""
+        async with test_session_maker() as session:
+            user = _user()
+            session.add(user)
+            await session.flush()
+            session.add(FoodEntry(
+                user_id=user.id, external_id="fe1", source="fatsecret",
+                date=date(2026, 5, 9), food_entry_name="Apple",
+                calories=95.0, carbs_g=25.0,
+            ))
+            await session.flush()
+
+            with _patch_fetch_raises(FatSecretAPIError("transient")):
+                await sync_fatsecret_for_date(
+                    session, user, date(2026, 5, 9), MagicMock(spec=httpx.AsyncClient),
+                )
+            await session.flush()
+
+            agg = (await session.execute(
+                select(DailyNutrition).where(DailyNutrition.user_id == user.id)
+            )).scalar_one()
+            assert agg.calories_in == 95
 
 
 @pytest.mark.asyncio

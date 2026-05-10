@@ -65,24 +65,26 @@ async def _sync_entries_for_date(
     # Pass decrypted tokens inline to avoid binding them to named locals; the
     # call frame holds them only as args of the called function, mitigating
     # exfiltration via tracebacks captured with locals (Sentry, structlog).
-    raw_entries = await get_food_entries_for_date(
+    fetched = await get_food_entries_for_date(
         _decrypt_or_disconnect(user.fatsecret_oauth_token),
         _decrypt_or_disconnect(user.fatsecret_oauth_token_secret),
         target_date, http,
     )
 
-    synced_external_ids: set[str] = set()
-    for entry in raw_entries:
+    for entry in fetched["normalized"]:
         external_id = entry.pop("external_id", None)
         if not external_id:
             continue
         await upsert_food_entry(
             session, user.id, external_id, SOURCE, **entry,
         )
-        synced_external_ids.add(external_id)
 
-    # Soft-delete reconciliation: any active row for this date+user not in
-    # the API response is now considered deleted in FatSecret.
+    # Soft-delete reconciliation uses `api_external_ids` — the set of ids the
+    # API claims exist on this date, INCLUDING entries we couldn't normalize.
+    # If we used the upsert set instead, a single malformed API entry (missing
+    # food_entry_name, etc.) would silently soft-delete the user's existing
+    # data for that id.
+    api_ids: set[str] = fetched["api_external_ids"]
     stored = (await session.execute(
         select(FoodEntry).where(
             FoodEntry.user_id == user.id,
@@ -93,7 +95,7 @@ async def _sync_entries_for_date(
     )).scalars().all()
     now = datetime.now(timezone.utc)
     for row in stored:
-        if row.external_id not in synced_external_ids:
+        if row.external_id not in api_ids:
             row.deleted_at = now
 
 
@@ -103,38 +105,64 @@ async def sync_fatsecret_for_date(
     target_date: date_type,
     http: httpx.AsyncClient,
 ) -> dict:
-    """Sync entries + aggregate daily_nutrition for one date. Always aggregates."""
+    """Sync entries + aggregate daily_nutrition for one date.
+
+    Aggregation runs on success and on entry-sync errors that come AFTER we've
+    seen at least one stored row — the recompute against current DB state is
+    still meaningful. It is intentionally SKIPPED when entry-sync fails AND
+    there is no stored data for the date, to avoid writing a misleading
+    "trusted 0 calories" row when the user's diary was simply unreachable.
+    """
     errors: list[str] = []
+    entry_sync_ok = True
     try:
         await _sync_entries_for_date(session, user, target_date, http)
     except FatSecretAuthError:
-        # Re-raise to let the scheduler/route disconnect the user.
+        # Re-raise so the scheduler/route disconnects the user.
         raise
     except FatSecretAPIError as e:
+        entry_sync_ok = False
         errors.append(f"fatsecret:{target_date}:entries: {e}")
         logger.warning(
             "FatSecret entry sync failed for user=%s date=%s: %s",
             user.id, target_date, e,
         )
     except Exception as e:
+        entry_sync_ok = False
         errors.append(f"fatsecret:{target_date}:entries: {e}")
         logger.exception(
             "FatSecret entry sync crashed for user=%s date=%s",
             user.id, target_date,
         )
 
-    # Always re-aggregate, even on entry-sync failure or empty day. This is
-    # what makes a fully-deleted day correctly zero out — see Step 2 docstring.
-    try:
-        await aggregate_daily_nutrition(session, user.id, target_date, source=SOURCE)
-    except Exception as e:
-        errors.append(f"fatsecret:{target_date}:aggregate: {e}")
-        logger.exception(
-            "FatSecret aggregation failed for user=%s date=%s",
-            user.id, target_date,
-        )
+    should_aggregate = entry_sync_ok or await _has_existing_entries(
+        session, user.id, target_date,
+    )
+    if should_aggregate:
+        try:
+            await aggregate_daily_nutrition(session, user.id, target_date, source=SOURCE)
+        except Exception as e:
+            errors.append(f"fatsecret:{target_date}:aggregate: {e}")
+            logger.exception(
+                "FatSecret aggregation failed for user=%s date=%s",
+                user.id, target_date,
+            )
 
     return {"errors": errors}
+
+
+async def _has_existing_entries(
+    session: AsyncSession, user_id, target_date: date_type,
+) -> bool:
+    """Cheap existence check used to gate aggregation when entry-sync fails."""
+    from sqlalchemy import exists, select
+    stmt = select(exists().where(
+        FoodEntry.user_id == user_id,
+        FoodEntry.source == SOURCE,
+        FoodEntry.date == target_date,
+        FoodEntry.deleted_at.is_(None),
+    ))
+    return bool((await session.execute(stmt)).scalar())
 
 
 async def backfill_fatsecret(

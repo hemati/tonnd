@@ -123,6 +123,8 @@ curl -H "Authorization: Bearer tonnd_your_token_here" \
 | `GET /api/v1/sleep` | Sleep duration, stages, efficiency |
 | `GET /api/v1/activity` | Steps, calories, active minutes |
 | `GET /api/v1/workouts` | Workout history, exercises, muscle groups |
+| `GET /api/v1/nutrition/daily` | Per-day macro aggregates (calories, carbs/fat/protein/fiber) |
+| `GET /api/v1/nutrition/entries` | Per-meal food diary entries with full macros + micros |
 | `GET /api/v1/recovery` | Recovery score (0-100) |
 | `GET /api/v1/metrics` | All raw metrics (filterable) |
 
@@ -130,7 +132,7 @@ All data endpoints support `?start_date=`, `?end_date=`, `?source=`, `?limit=`, 
 
 ### Scopes
 
-Tokens can be scoped: `read:vitals`, `read:body`, `read:sleep`, `read:activity`, `read:workouts`, `read:recovery`, or `read:all`.
+Tokens can be scoped: `read:vitals`, `read:body`, `read:sleep`, `read:activity`, `read:workouts`, `read:nutrition`, `read:recovery`, or `read:all`. Note: `read:nutrition` (and `read:all`) expose `food_entry_name` — the user-typed text describing each logged meal, treat as personal data.
 
 ## MCP Server (Claude Desktop)
 

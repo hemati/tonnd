@@ -21,12 +21,21 @@ TTL = timedelta(minutes=10)
 # practice; 256 leaves generous headroom without enabling abuse.
 MAX_TOKEN_LEN = 256
 
+# Per-user limit on outstanding (un-completed) handshakes. A logged-in user
+# spamming Connect could otherwise accumulate one entry per fresh
+# request_token FatSecret issues, until TTL.
+MAX_INFLIGHT_PER_USER = 5
+
 # oauth_token -> (user_id, request_token_secret, expires_at)
 _STORE: dict[str, tuple[uuid.UUID, str, datetime]] = {}
 
 
 class TokenTooLongError(ValueError):
     """Raised when a put receives an unreasonably long oauth_token."""
+
+
+class TooManyInFlightError(RuntimeError):
+    """Raised when a user has too many outstanding OAuth handshakes."""
 
 
 def _now() -> datetime:
@@ -47,6 +56,12 @@ def put(oauth_token: str, user_id: uuid.UUID, request_token_secret: str) -> None
     if len(oauth_token) > MAX_TOKEN_LEN or len(request_token_secret) > MAX_TOKEN_LEN:
         raise TokenTooLongError(f"oauth token exceeds {MAX_TOKEN_LEN} chars")
     _drop_expired()
+    in_flight = sum(1 for uid, _, _ in _STORE.values() if uid == user_id)
+    if in_flight >= MAX_INFLIGHT_PER_USER and oauth_token not in _STORE:
+        raise TooManyInFlightError(
+            f"user has {in_flight} unfinished OAuth flows; "
+            f"max {MAX_INFLIGHT_PER_USER}"
+        )
     _STORE[oauth_token] = (user_id, request_token_secret, _now() + TTL)
 
 
