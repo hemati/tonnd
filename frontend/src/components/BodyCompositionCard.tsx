@@ -1,5 +1,6 @@
 import { ScaleIcon } from '@heroicons/react/24/outline'
 import { Link } from 'react-router-dom'
+import { ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import ExpandableCard from './ExpandableCard'
 import { useBodyMeasurements, useLatestBodyMeasurement } from '../hooks/useQueries'
 import { detectDataState, daysBetween, pickComparisonMeasurement, formatDelta, getDeltaColor } from '../lib/bodyComposition'
@@ -63,7 +64,7 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
   return (
     <div data-testid="body-card-root">
       <ExpandableCard title="Body Composition" icon={ScaleIcon} preview={preview}>
-        <div data-testid="chart-placeholder" className="h-[250px] bg-white/[.02] rounded" />
+        <BodyChart rangeData={rangeData} showWeight={false} isSinglePoint={state === 'single-point'} />
         <StatStrip rangeData={rangeData} />
       </ExpandableCard>
     </div>
@@ -187,6 +188,53 @@ function StatStrip({ rangeData }: { rangeData: BodyMeasurement[] }) {
           />
         )
       })}
+    </div>
+  )
+}
+
+function deriveFatMassKg(m: BodyMeasurement): number | undefined {
+  if (m.weight_kg !== undefined && m.body_fat_percent !== undefined) {
+    return +(m.weight_kg * (m.body_fat_percent / 100)).toFixed(2)
+  }
+  return undefined
+}
+
+function buildChartData(rangeData: BodyMeasurement[]) {
+  return rangeData.map((m) => ({
+    date: m.date,
+    lbm: m.lean_body_mass_kg,
+    fat_mass: deriveFatMassKg(m),
+    weight: m.weight_kg,
+  }))
+}
+
+interface BodyChartProps {
+  rangeData: BodyMeasurement[]
+  showWeight: boolean
+  isSinglePoint: boolean
+}
+
+function BodyChart({ rangeData, showWeight, isSinglePoint }: BodyChartProps) {
+  const chartData = buildChartData(rangeData)
+  return (
+    <div data-testid="body-chart" className="mt-4">
+      <ResponsiveContainer width="100%" height={250}>
+        <ComposedChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,.05)" />
+          <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
+          <YAxis yAxisId="lbm" stroke="#9CA3AF" fontSize={11} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={(v) => `${v}kg`} />
+          <YAxis yAxisId="fat" orientation="right" stroke="#9CA3AF" fontSize={11} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={(v) => `${v}kg`} />
+          <Tooltip contentStyle={{ backgroundColor: '#0a0a0a', border: '1px solid rgba(255,255,255,.1)' }} />
+          <Line yAxisId="lbm" type="monotone" dataKey="lbm" name="LBM" stroke="#22d3ee" strokeWidth={2.5} dot={{ fill: '#22d3ee', r: 3 }} />
+          <Line yAxisId="fat" type="monotone" dataKey="fat_mass" name="Fat Mass" stroke="#f59e0b" strokeWidth={2} dot={{ fill: '#f59e0b', r: 3 }} />
+          {showWeight && (
+            <Line yAxisId="lbm" type="monotone" dataKey="weight" name="Weight" stroke="rgba(255,255,255,0.3)" strokeWidth={1.5} strokeDasharray="4 3" dot={false} />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+      {isSinglePoint && (
+        <p className="text-center text-white/40 text-xs mt-2">Take more measurements to see trends</p>
+      )}
     </div>
   )
 }

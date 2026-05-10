@@ -99,4 +99,17 @@ describe('BodyCompositionCard', () => {
     expect(screen.getByTestId('stat-value-water_pct')).toHaveTextContent('58.4')
     expect(screen.getByTestId('stat-value-visceral_fat')).toHaveTextContent('4.2')
   })
+
+  it('renders chart with LBM and Fat Mass lines when data has 2+ points', async () => {
+    const m1 = makeMeasurement(14, { lean_body_mass_kg: 63.5, body_fat_percent: 17.2, weight_kg: 76.6 })
+    const m2 = makeMeasurement(7, { lean_body_mass_kg: 63.8, body_fat_percent: 17.0, weight_kg: 76.9 })
+    const m3 = makeMeasurement(0, { lean_body_mass_kg: 64.2, body_fat_percent: 16.6, weight_kg: 77.0 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [m3] }
+      return { count: 3, data: [m1, m2, m3] }
+    })
+
+    renderCard(30)
+    expect(await screen.findByTestId('body-chart')).toBeInTheDocument()
+  })
 })
