@@ -244,3 +244,76 @@ class TestDisconnect:
         disconnect_fatsecret(u)
         assert u.fatsecret_oauth_token is None
         assert u.fatsecret_oauth_token_secret is None
+
+
+# ─── decrypt failure handling ─────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+class TestDecryptFailure:
+    async def test_missing_token_raises_auth_error(self):
+        async with test_session_maker() as session:
+            user = _user(fatsecret_oauth_token=None)
+            session.add(user)
+            await session.flush()
+            with _patch_fetch([]):
+                with pytest.raises(FatSecretAuthError):
+                    await sync_fatsecret_for_date(
+                        session, user, date(2026, 5, 9),
+                        MagicMock(spec=httpx.AsyncClient),
+                    )
+
+    async def test_corrupt_token_raises_auth_error(self):
+        async with test_session_maker() as session:
+            # A non-Fernet ciphertext triggers InvalidToken on decrypt.
+            user = _user(fatsecret_oauth_token="not-a-valid-fernet-ciphertext")
+            session.add(user)
+            await session.flush()
+            with _patch_fetch([]):
+                with pytest.raises(FatSecretAuthError):
+                    await sync_fatsecret_for_date(
+                        session, user, date(2026, 5, 9),
+                        MagicMock(spec=httpx.AsyncClient),
+                    )
+
+    async def test_auth_error_message_omits_underlying_detail(self):
+        async with test_session_maker() as session:
+            user = _user(fatsecret_oauth_token="not-a-valid-fernet-ciphertext")
+            session.add(user)
+            await session.flush()
+            with _patch_fetch([]):
+                with pytest.raises(FatSecretAuthError) as exc_info:
+                    await sync_fatsecret_for_date(
+                        session, user, date(2026, 5, 9),
+                        MagicMock(spec=httpx.AsyncClient),
+                    )
+            # Message must not echo the encrypted value back.
+            assert "not-a-valid-fernet-ciphertext" not in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+class TestBackfillCapping:
+    async def test_clamps_num_days_to_max(self):
+        async with test_session_maker() as session:
+            user = _user()
+            session.add(user)
+            await session.flush()
+            with _patch_fetch([]) as fetch:
+                from src.services.fatsecret.sync import MAX_BACKFILL_DAYS
+                await backfill_fatsecret(
+                    session, user, num_days=10_000,
+                    http=MagicMock(spec=httpx.AsyncClient),
+                )
+            assert fetch.call_count == MAX_BACKFILL_DAYS
+
+    async def test_clamps_negative_to_zero(self):
+        async with test_session_maker() as session:
+            user = _user()
+            session.add(user)
+            await session.flush()
+            with _patch_fetch([]) as fetch:
+                await backfill_fatsecret(
+                    session, user, num_days=-5,
+                    http=MagicMock(spec=httpx.AsyncClient),
+                )
+            assert fetch.call_count == 0

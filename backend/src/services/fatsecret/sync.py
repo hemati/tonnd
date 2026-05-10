@@ -19,11 +19,34 @@ from src.services.fatsecret_sync_utils import (
     aggregate_daily_nutrition,
     upsert_food_entry,
 )
-from src.services.token_encryption import decrypt_token
+from src.services.token_encryption import decrypt_token  # used by _decrypt_or_disconnect
 
 logger = logging.getLogger(__name__)
 
 SOURCE = "fatsecret"
+
+# Cap the after-connect backfill so a misconfigured caller cannot pin the
+# event loop or hammer the FatSecret API. Routes default to 30; raising past
+# this requires editing here intentionally.
+MAX_BACKFILL_DAYS = 30
+
+
+def _decrypt_or_disconnect(encrypted: str | None) -> str:
+    """Decrypt a stored token. Convert any failure into a FatSecretAuthError so
+    the caller treats it as a permanent token problem (key rotation, tampering,
+    or cleared columns) and disconnects the user instead of silently retrying.
+
+    The exception message intentionally omits the underlying error text — Fernet
+    failure messages can echo input fragments and we don't want them in logs.
+    """
+    if not encrypted:
+        raise FatSecretAuthError("FatSecret token missing")
+    try:
+        return decrypt_token(encrypted)
+    except Exception as e:
+        raise FatSecretAuthError(
+            f"FatSecret token decryption failed ({type(e).__name__})"
+        )
 
 
 async def _sync_entries_for_date(
@@ -39,11 +62,13 @@ async def _sync_entries_for_date(
     so older deletions (>2 days) stay in DB as not-deleted. Acceptable for v1
     since aggregation only re-runs for the sync window.
     """
-    oauth_token = decrypt_token(user.fatsecret_oauth_token)
-    oauth_secret = decrypt_token(user.fatsecret_oauth_token_secret)
-
+    # Pass decrypted tokens inline to avoid binding them to named locals; the
+    # call frame holds them only as args of the called function, mitigating
+    # exfiltration via tracebacks captured with locals (Sentry, structlog).
     raw_entries = await get_food_entries_for_date(
-        oauth_token, oauth_secret, target_date, http,
+        _decrypt_or_disconnect(user.fatsecret_oauth_token),
+        _decrypt_or_disconnect(user.fatsecret_oauth_token_secret),
+        target_date, http,
     )
 
     synced_external_ids: set[str] = set()
@@ -118,7 +143,12 @@ async def backfill_fatsecret(
     num_days: int,
     http: httpx.AsyncClient,
 ) -> dict:
-    """Sync the last `num_days` days (today inclusive). Used after first connect."""
+    """Sync the last `num_days` days (today inclusive). Used after first connect.
+
+    `num_days` is clamped to [0, MAX_BACKFILL_DAYS] — the caller can never
+    push past the cap by passing a huge or negative value.
+    """
+    num_days = max(0, min(num_days, MAX_BACKFILL_DAYS))
     today = datetime.now(timezone.utc).date()
     all_errors: list[str] = []
     for i in range(num_days):
