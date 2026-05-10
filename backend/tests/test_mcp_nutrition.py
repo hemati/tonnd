@@ -23,9 +23,10 @@ def test_remote_server_registers_both_tools():
     assert "get_food_entries" in names
 
 
-def test_local_server_registers_both_tools():
-    import os
-    os.environ["TONND_API_TOKEN"] = "tonnd_test"
+def test_local_server_registers_both_tools(monkeypatch):
+    # mcp_server.py reads TONND_API_TOKEN at import time; use monkeypatch so
+    # the env var doesn't leak to later tests.
+    monkeypatch.setenv("TONND_API_TOKEN", "tonnd_test")
     import importlib
     import mcp_server
     importlib.reload(mcp_server)

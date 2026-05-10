@@ -219,6 +219,7 @@ async def get_activity(
 async def get_nutrition_daily(
     start_date: str | None = None,
     end_date: str | None = None,
+    source: str | None = None,
     limit: int = 30,
 ) -> dict:
     """Get daily nutrition aggregates: calories_in, carbs_g, fat_g, protein_g, fiber_g.
@@ -228,13 +229,15 @@ async def get_nutrition_daily(
     Args:
         start_date: Start date (YYYY-MM-DD).
         end_date: End date (YYYY-MM-DD).
+        source: Filter by source (e.g. "fatsecret").
         limit: Max results (default 30).
     """
     user_id = _get_user_id("read:nutrition")
     sd, ed = _parse_dates(start_date, end_date)
     async with async_session_maker() as session:
         rows = await query_daily_nutrition(
-            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+            session, user_id, start_date=sd, end_date=ed,
+            source=source, limit=_clamp_limit(limit),
         )
     return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
@@ -243,19 +246,25 @@ async def get_nutrition_daily(
 async def get_food_entries(
     start_date: str | None = None,
     end_date: str | None = None,
+    source: str | None = None,
     meal: str | None = None,
     limit: int = 100,
 ) -> dict:
     """Get per-meal food diary entries with full macros + micros.
 
-    Each entry is one logged item with its macros (calories, carbs_g, fat_g,
-    protein_g, fiber_g, sugar_g, saturated/poly/mono fat) and micros
-    (cholesterol_mg, sodium_mg, calcium_mg, iron_mg, potassium_mg,
-    vitamin_a_iu, vitamin_c_mg). NULL fields omitted; soft-deleted excluded.
+    PRIVACY: each entry includes `food_entry_name` — a user-typed string
+    describing what they ate. Treat as personal data; avoid leaking to
+    third-party contexts unless authorized.
+
+    Macros: calories, carbs_g, fat_g, protein_g, fiber_g, sugar_g, plus
+    saturated/poly/mono fat. Micros: cholesterol_mg, sodium_mg, calcium_mg,
+    iron_mg, potassium_mg, vitamin_a_iu, vitamin_c_mg. NULL fields omitted;
+    soft-deleted entries excluded.
 
     Args:
         start_date: Start date (YYYY-MM-DD).
         end_date: End date (YYYY-MM-DD).
+        source: Filter by source (e.g. "fatsecret").
         meal: Filter to a single meal (e.g. "Breakfast"). Case-sensitive exact match.
         limit: Max results (default 100).
     """
@@ -264,7 +273,7 @@ async def get_food_entries(
     async with async_session_maker() as session:
         rows = await query_food_entries(
             session, user_id, start_date=sd, end_date=ed,
-            meal=meal, limit=_clamp_limit(limit),
+            source=source, meal=meal, limit=_clamp_limit(limit),
         )
     return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 

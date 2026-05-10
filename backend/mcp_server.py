@@ -178,6 +178,7 @@ async def get_activity(
 async def get_nutrition_daily(
     start_date: str | None = None,
     end_date: str | None = None,
+    source: str | None = None,
     limit: int = 30,
 ) -> dict:
     """Get daily nutrition aggregates: calories_in, carbs_g, fat_g, protein_g, fiber_g.
@@ -188,11 +189,12 @@ async def get_nutrition_daily(
     Args:
         start_date: Start date (YYYY-MM-DD). Defaults to ~30 days ago.
         end_date: End date (YYYY-MM-DD). Defaults to today.
+        source: Filter by source (e.g. "fatsecret").
         limit: Max results (default 30).
     """
     return await _get(
         "/api/v1/nutrition/daily",
-        start_date=start_date, end_date=end_date, limit=limit,
+        start_date=start_date, end_date=end_date, source=source, limit=limit,
     )
 
 
@@ -200,20 +202,25 @@ async def get_nutrition_daily(
 async def get_food_entries(
     start_date: str | None = None,
     end_date: str | None = None,
+    source: str | None = None,
     meal: str | None = None,
     limit: int = 100,
 ) -> dict:
     """Get per-meal food diary entries with full macros + micros.
 
-    Each entry is one item the user logged (e.g. "Apple", "Coffee with milk")
-    along with its macros (calories, carbs_g, fat_g, protein_g, fiber_g, sugar_g),
-    saturated/poly/mono fat, and micros (cholesterol_mg, sodium_mg, calcium_mg,
-    iron_mg, potassium_mg, vitamin_a_iu, vitamin_c_mg). NULL fields are omitted.
-    Soft-deleted entries are excluded.
+    PRIVACY: each entry includes `food_entry_name` — a user-typed string
+    describing what they ate (e.g. "Apple", "Coffee with milk"). Treat as
+    personal data; avoid leaking to third-party contexts unless authorized.
+
+    Macros: calories, carbs_g, fat_g, protein_g, fiber_g, sugar_g, plus
+    saturated/poly/mono fat. Micros: cholesterol_mg, sodium_mg, calcium_mg,
+    iron_mg, potassium_mg, vitamin_a_iu, vitamin_c_mg. NULL fields omitted;
+    soft-deleted entries excluded.
 
     Args:
         start_date: Start date (YYYY-MM-DD).
         end_date: End date (YYYY-MM-DD).
+        source: Filter by source (e.g. "fatsecret").
         meal: Filter to a single meal (Breakfast / Lunch / Dinner / Snacks / Other).
             Match is case-sensitive and exact — localized accounts may store
             non-English values (e.g. "Frühstück").
@@ -221,7 +228,8 @@ async def get_food_entries(
     """
     return await _get(
         "/api/v1/nutrition/entries",
-        start_date=start_date, end_date=end_date, meal=meal, limit=limit,
+        start_date=start_date, end_date=end_date,
+        source=source, meal=meal, limit=limit,
     )
 
 
