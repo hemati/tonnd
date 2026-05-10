@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickComparisonMeasurement, daysBetween } from './bodyComposition'
+import { pickComparisonMeasurement, daysBetween, formatDelta } from './bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
 function m(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
@@ -87,5 +87,30 @@ describe('daysBetween', () => {
     const a = '2026-01-01T08:00:00Z'
     const b = '2026-01-08T20:00:00Z'  // 7.5 days
     expect(daysBetween(a, b)).toBe(8)
+  })
+})
+
+describe('formatDelta', () => {
+  it('formats positive values with + sign and unit', () => {
+    expect(formatDelta(0.8, 'kg')).toBe('+0.8 kg')
+    expect(formatDelta(0.6, 'pp')).toBe('+0.6 pp')
+    expect(formatDelta(0.5, 'pts')).toBe('+0.5 pts')
+  })
+
+  it('formats negative values with minus sign (U+2212) and unit', () => {
+    expect(formatDelta(-1.4, 'kg')).toBe('−1.4 kg')
+    expect(formatDelta(-1.8, 'pp')).toBe('−1.8 pp')
+    expect(formatDelta(-0.3, 'pts')).toBe('−0.3 pts')
+  })
+
+  it('formats values below 0.1 magnitude as flat ±0.0', () => {
+    expect(formatDelta(0.05, 'kg')).toBe('±0.0')
+    expect(formatDelta(-0.09, 'pp')).toBe('±0.0')
+    expect(formatDelta(0, 'pts')).toBe('±0.0')
+  })
+
+  it('rounds to 1 decimal place', () => {
+    expect(formatDelta(0.83, 'kg')).toBe('+0.8 kg')
+    expect(formatDelta(-1.45, 'pp')).toBe('−1.5 pp')
   })
 })

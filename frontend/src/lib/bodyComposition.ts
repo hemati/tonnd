@@ -36,3 +36,15 @@ export function daysBetween(isoA: string, isoB: string): number {
   const ms = Math.abs(new Date(isoA).getTime() - new Date(isoB).getTime())
   return Math.round(ms / DAY_MS)
 }
+
+export type DeltaUnit = 'kg' | 'pp' | 'pts'
+
+const FLAT_THRESHOLD = 0.1
+
+export function formatDelta(value: number, unit: DeltaUnit): string {
+  if (Math.abs(value) < FLAT_THRESHOLD) return '±0.0'
+  const absValue = Math.abs(value)
+  const rounded = Math.round(absValue * 10) / 10
+  const sign = value > 0 ? '+' : '−' // U+2212 minus sign (typographic)
+  return `${sign}${rounded.toFixed(1)} ${unit}`
+}
