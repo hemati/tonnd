@@ -2,7 +2,8 @@ import { ScaleIcon } from '@heroicons/react/24/outline'
 import { Link } from 'react-router-dom'
 import ExpandableCard from './ExpandableCard'
 import { useBodyMeasurements, useLatestBodyMeasurement } from '../hooks/useQueries'
-import { detectDataState } from '../lib/bodyComposition'
+import { detectDataState, daysBetween } from '../lib/bodyComposition'
+import type { BodyMeasurement } from '../services/api'
 
 interface BodyCompositionCardProps {
   rangeDays: 7 | 14 | 30
@@ -30,6 +31,15 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
       <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
         <EmptyHeader rangeDays={rangeDays} />
         <NoDataEver />
+      </div>
+    )
+  }
+
+  if (state === 'no-data-in-range') {
+    return (
+      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
+        <EmptyHeader rangeDays={rangeDays} />
+        <NoDataInRange rangeDays={rangeDays} latest={latestData[0]} />
       </div>
     )
   }
@@ -68,6 +78,16 @@ function NoDataEver() {
       >
         Connect Renpho
       </Link>
+    </div>
+  )
+}
+
+function NoDataInRange({ rangeDays, latest }: { rangeDays: number; latest: BodyMeasurement }) {
+  const daysSince = daysBetween(latest.measured_at, new Date().toISOString())
+  return (
+    <div className="mt-6 text-center py-8">
+      <p className="text-white/60 text-sm">No measurements in last {rangeDays} days.</p>
+      <p className="text-white/40 text-xs mt-1">Last measurement was {daysSince} days ago.</p>
     </div>
   )
 }
