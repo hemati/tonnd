@@ -67,3 +67,15 @@ export function getDeltaColor(field: DeltaField, value: number): DeltaColor {
   const actual = value > 0 ? 'up' : 'down'
   return actual === direction ? 'cyan' : 'warning'
 }
+
+export type DataState = 'no-data-ever' | 'no-data-in-range' | 'single-point' | 'full'
+
+export function detectDataState(
+  rangeMeasurements: BodyMeasurement[],
+  latestMeasurements: BodyMeasurement[],
+): DataState {
+  if (rangeMeasurements.length === 0 && latestMeasurements.length === 0) return 'no-data-ever'
+  if (rangeMeasurements.length === 0) return 'no-data-in-range'
+  if (rangeMeasurements.length === 1) return 'single-point'
+  return 'full'
+}

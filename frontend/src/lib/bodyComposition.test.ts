@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickComparisonMeasurement, daysBetween, formatDelta, getDeltaColor } from './bodyComposition'
+import { pickComparisonMeasurement, daysBetween, formatDelta, getDeltaColor, detectDataState } from './bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
 function m(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
@@ -144,5 +144,23 @@ describe('getDeltaColor', () => {
     expect(getDeltaColor('lbm', 0.05)).toBe('neutral')
     expect(getDeltaColor('fat_mass', -0.09)).toBe('neutral')
     expect(getDeltaColor('muscle_mass_pct', 0)).toBe('neutral')
+  })
+})
+
+describe('detectDataState', () => {
+  it('returns "no-data-ever" when both queries are empty', () => {
+    expect(detectDataState([], [])).toBe('no-data-ever')
+  })
+
+  it('returns "no-data-in-range" when range is empty but latest has data', () => {
+    expect(detectDataState([], [m(45)])).toBe('no-data-in-range')
+  })
+
+  it('returns "single-point" when range has exactly one measurement', () => {
+    expect(detectDataState([m(7)], [m(7)])).toBe('single-point')
+  })
+
+  it('returns "full" when range has 2+ measurements', () => {
+    expect(detectDataState([m(7), m(14)], [m(7)])).toBe('full')
   })
 })
