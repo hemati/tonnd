@@ -30,6 +30,9 @@ renpho-api>=0.1.0
 # Hevy workout tracking
 hevy-api @ git+https://github.com/remuzel/hevy-api.git@e63434d3a65ef8c51b07970ea662772cb62e77a4
 
+# FatSecret OAuth 1.0a signing (3-legged flow for food diary access)
+oauthlib>=3.2.2
+
 # Migrations
 psycopg2-binary>=2.9.11
 
