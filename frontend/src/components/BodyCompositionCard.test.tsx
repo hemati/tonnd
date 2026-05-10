@@ -174,6 +174,38 @@ describe('BodyCompositionCard', () => {
     expect(rootAfter).toBe(rootBefore)
   })
 
+  it('treats the newest measurement as latest after API returns desc order', async () => {
+    // Backend returns rows newest-first by default; component must sort
+    // ascending so that rangeData[length-1] is actually newest.
+    const newest = makeMeasurement(0, { lean_body_mass_kg: 65.0 })
+    const middle = makeMeasurement(7, { lean_body_mass_kg: 64.5 })
+    const oldest = makeMeasurement(14, { lean_body_mass_kg: 64.0 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [newest] }
+      // Simulate backend desc order
+      return { count: 3, data: [newest, middle, oldest] }
+    })
+
+    renderCard(30)
+    // Preview shows newest LBM (65.0), not the desc-tail's "65.0" by coincidence.
+    // Use the ExpandableCard's collapsed preview text rendering.
+    expect(await screen.findByText(/65\.0 kg LBM/i)).toBeInTheDocument()
+  })
+
+  it('excludes measurements outside the selected range from displayed state', async () => {
+    // Range: 30 days. Buffer: rangeDays + 35 = 65 days. Only measurement is at 45 days back.
+    // The 45-day-old row should NOT make this look like "populated" — should be no-data-in-range.
+    const old = makeMeasurement(45, { lean_body_mass_kg: 63.0 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [old] }
+      // Buffer fetch returns the 45-day-old row (in 65-day buffer, not in 30-day window)
+      return { count: 1, data: [old] }
+    })
+
+    renderCard(30)
+    expect(await screen.findByText(/No measurements in last 30 days/i)).toBeInTheDocument()
+  })
+
   it('useSyncFitbit onSuccess invalidates the body queryKey', async () => {
     // This tests the wiring in hooks/useQueries.ts. Lives here for proximity
     // to the body card's cache concerns; move to Dashboard.test.tsx once that

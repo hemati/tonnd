@@ -1,11 +1,25 @@
 import { describe, it, expect } from 'vitest'
-import { pickComparisonMeasurement, daysBetween, formatDelta, getDeltaColor, detectDataState } from './bodyComposition'
+import { pickComparisonMeasurement, daysBetween, formatDelta, getDeltaColor, detectDataState, filterToRange } from './bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
 function m(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
   // Use fixed base time so day arithmetic is exact (no fractional ms issues)
   const baseTime = new Date('2026-05-10T00:00:00Z').getTime()
   const ts = baseTime - daysBack * 24 * 60 * 60 * 1000
+  const d = new Date(ts)
+  const iso = d.toISOString()
+  return {
+    date: iso.slice(0, 10),
+    source: 'renpho',
+    measured_at: iso,
+    ...fields,
+  }
+}
+
+// Helper for filterToRange tests: anchored to "now" because filterToRange
+// uses Date.now() as its cutoff, so we need measurements relative to real time.
+function mNow(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
+  const ts = Date.now() - daysBack * 24 * 60 * 60 * 1000
   const d = new Date(ts)
   const iso = d.toISOString()
   return {
@@ -162,5 +176,30 @@ describe('detectDataState', () => {
 
   it('returns "full" when range has 2+ measurements', () => {
     expect(detectDataState([m(7), m(14)], [m(7)])).toBe('full')
+  })
+})
+
+describe('filterToRange', () => {
+  it('keeps measurements within the rangeDays window', () => {
+    const measurements = [mNow(40), mNow(20), mNow(10), mNow(0)]
+    const filtered = filterToRange(measurements, 30)
+    expect(filtered.map(x => x.measured_at)).toEqual([
+      measurements[1].measured_at,  // 20d back, in range
+      measurements[2].measured_at,  // 10d back, in range
+      measurements[3].measured_at,  // 0d back, in range
+    ])
+  })
+
+  it('excludes measurements older than rangeDays', () => {
+    const filtered = filterToRange([mNow(40), mNow(50)], 30)
+    expect(filtered).toEqual([])
+  })
+
+  it('preserves input order (no implicit sort)', () => {
+    const m1 = mNow(20)
+    const m2 = mNow(10)
+    const filtered = filterToRange([m1, m2], 30)
+    expect(filtered[0]).toBe(m1)
+    expect(filtered[1]).toBe(m2)
   })
 })

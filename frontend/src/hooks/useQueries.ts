@@ -51,7 +51,15 @@ export function useBodyMeasurements(rangeDays: number) {
   const startDate = isoDaysAgo(rangeDays + 35)
   return useQuery<BodyMeasurementsResponse, Error>({
     queryKey: queryKeys.bodyRange(rangeDays),
-    queryFn: () => fetchBodyMeasurements({ source: 'renpho', startDate, limit: 180 }),
+    queryFn: async () => {
+      // Backend returns rows in DESC order (newest first) by default.
+      // Sort ASC here so consumers can rely on `data[length-1]` being the newest.
+      const res = await fetchBodyMeasurements({ source: 'renpho', startDate, limit: 180 })
+      return {
+        count: res.count,
+        data: [...res.data].sort((a, b) => a.measured_at.localeCompare(b.measured_at)),
+      }
+    },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 3,

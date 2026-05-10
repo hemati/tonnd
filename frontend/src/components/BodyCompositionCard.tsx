@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import ExpandableCard from './ExpandableCard'
 import { useBodyMeasurements, useLatestBodyMeasurement } from '../hooks/useQueries'
-import { detectDataState, daysBetween, pickComparisonMeasurement, formatDelta, getDeltaColor } from '../lib/bodyComposition'
+import { detectDataState, daysBetween, pickComparisonMeasurement, formatDelta, getDeltaColor, filterToRange } from '../lib/bodyComposition'
 import type { DeltaField, DeltaUnit, DeltaColor } from '../lib/bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
@@ -26,7 +26,11 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
     )
   }
 
-  const rangeData = range.data?.data ?? []
+  // The hook fetches `rangeDays + 35` days to keep the 4-week comparison point
+  // in scope. `comparisonPool` includes that buffer; `rangeData` is filtered to
+  // the user-visible window for chart, state detection, and current-value display.
+  const comparisonPool = range.data?.data ?? []
+  const rangeData = filterToRange(comparisonPool, rangeDays)
   const latestData = latest.data?.data ?? []
   const state = detectDataState(rangeData, latestData)
 
@@ -51,7 +55,9 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
   // Populated states (single-point or full): use ExpandableCard
   const latestPoint = rangeData[rangeData.length - 1]
   const lbm = latestPoint.lean_body_mass_kg
-  const lbmComparison = rangeData.length >= 2 ? pickComparisonMeasurement(rangeData, latestPoint) : null
+  // Δ uses the buffered comparisonPool so the 4-week-back point is reachable
+  // even when the user-selected window is shorter than 28 days.
+  const lbmComparison = comparisonPool.length >= 2 ? pickComparisonMeasurement(comparisonPool, latestPoint) : null
   const lbmDelta = lbm !== undefined && lbmComparison?.lean_body_mass_kg !== undefined
     ? lbm - lbmComparison.lean_body_mass_kg
     : null
@@ -78,7 +84,7 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
           </button>
         </div>
         <BodyChart rangeData={rangeData} showWeight={showWeight} isSinglePoint={state === 'single-point'} />
-        <StatStrip rangeData={rangeData} />
+        <StatStrip rangeData={rangeData} comparisonPool={comparisonPool} />
       </ExpandableCard>
     </div>
   )
@@ -183,9 +189,11 @@ function StatCell({ field, label, currentValue, delta, unit, format, daysBack }:
   )
 }
 
-function StatStrip({ rangeData }: { rangeData: BodyMeasurement[] }) {
+function StatStrip({ rangeData, comparisonPool }: { rangeData: BodyMeasurement[]; comparisonPool: BodyMeasurement[] }) {
   const latest = rangeData[rangeData.length - 1]
-  const comparison = rangeData.length >= 2 ? pickComparisonMeasurement(rangeData, latest) : null
+  // Use the buffered comparisonPool (rangeDays + 35 days) so the 4-week-back
+  // point can be picked even on short ranges.
+  const comparison = comparisonPool.length >= 2 ? pickComparisonMeasurement(comparisonPool, latest) : null
   const daysBack = comparison ? daysBetween(comparison.measured_at, latest.measured_at) : null
 
   return (

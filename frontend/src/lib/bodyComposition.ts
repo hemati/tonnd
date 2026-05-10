@@ -4,6 +4,11 @@ const DAY_MS = 24 * 60 * 60 * 1000
 const TARGET_DAYS_BACK = 28
 const TOLERANCE_DAYS = 7
 
+export function filterToRange(measurements: BodyMeasurement[], rangeDays: number): BodyMeasurement[] {
+  const cutoffMs = Date.now() - rangeDays * DAY_MS
+  return measurements.filter((m) => new Date(m.measured_at).getTime() >= cutoffMs)
+}
+
 export function pickComparisonMeasurement(
   measurements: BodyMeasurement[],
   latest: BodyMeasurement,
