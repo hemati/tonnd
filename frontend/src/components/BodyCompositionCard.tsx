@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { ScaleIcon } from '@heroicons/react/24/outline'
 import { Link } from 'react-router-dom'
 import { ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
@@ -14,6 +15,7 @@ interface BodyCompositionCardProps {
 export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardProps) {
   const range = useBodyMeasurements(rangeDays)
   const latest = useLatestBodyMeasurement()
+  const [showWeight, setShowWeight] = useState(false)
 
   if (range.isLoading || latest.isLoading) {
     return (
@@ -64,7 +66,18 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
   return (
     <div data-testid="body-card-root">
       <ExpandableCard title="Body Composition" icon={ScaleIcon} preview={preview}>
-        <BodyChart rangeData={rangeData} showWeight={false} isSinglePoint={state === 'single-point'} />
+        <div className="flex justify-end">
+          <button
+            type="button"
+            data-testid="weight-toggle"
+            aria-pressed={showWeight}
+            onClick={() => setShowWeight((v) => !v)}
+            className="text-xs text-white/50 hover:text-white/80"
+          >
+            {showWeight ? 'Hide weight' : 'Show weight'}
+          </button>
+        </div>
+        <BodyChart rangeData={rangeData} showWeight={showWeight} isSinglePoint={state === 'single-point'} />
         <StatStrip rangeData={rangeData} />
       </ExpandableCard>
     </div>

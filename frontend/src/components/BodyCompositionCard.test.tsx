@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import BodyCompositionCard from './BodyCompositionCard'
@@ -111,5 +111,21 @@ describe('BodyCompositionCard', () => {
 
     renderCard(30)
     expect(await screen.findByTestId('body-chart')).toBeInTheDocument()
+  })
+
+  it('weight toggle reveals the dotted weight line on click', async () => {
+    const m1 = makeMeasurement(14, { lean_body_mass_kg: 63.5, weight_kg: 76.6, body_fat_percent: 17 })
+    const m2 = makeMeasurement(0, { lean_body_mass_kg: 64.2, weight_kg: 77.0, body_fat_percent: 16.6 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [m2] }
+      return { count: 2, data: [m1, m2] }
+    })
+    renderCard(30)
+    // Test against aria-pressed (locale-independent + a11y signal),
+    // not the visible text label which may be localized later.
+    const toggle = await screen.findByTestId('weight-toggle')
+    expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-pressed', 'true')
   })
 })
