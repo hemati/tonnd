@@ -13,7 +13,7 @@ export function pickComparisonMeasurement(
   const toleranceMs = TOLERANCE_DAYS * DAY_MS
 
   const candidates = measurements
-    .filter((m) => m.measured_at !== latest.measured_at)
+    .filter((m) => m !== latest)
     .map((m) => ({
       m,
       ts: new Date(m.measured_at).getTime(),

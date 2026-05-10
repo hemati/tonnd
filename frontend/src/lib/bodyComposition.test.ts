@@ -47,4 +47,30 @@ describe('pickComparisonMeasurement', () => {
     const picked = pickComparisonMeasurement(measurements, latest)
     expect(picked).toBeNull()
   })
+
+  it('includes a measurement at exactly 21 days back (lower edge of window)', () => {
+    const m21 = m(21)
+    const measurements = [m21, latest]
+    const picked = pickComparisonMeasurement(measurements, latest)
+    expect(picked?.measured_at).toBe(m21.measured_at)
+  })
+
+  it('includes a measurement at exactly 35 days back (upper edge of window)', () => {
+    const m35 = m(35)
+    const measurements = [m35, latest]
+    const picked = pickComparisonMeasurement(measurements, latest)
+    expect(picked?.measured_at).toBe(m35.measured_at)
+  })
+
+  it('excludes a measurement at 20 days back (just below lower edge)', () => {
+    const measurements = [m(20), latest]
+    const picked = pickComparisonMeasurement(measurements, latest)
+    expect(picked).toBeNull()
+  })
+
+  it('excludes a measurement at 36 days back (just above upper edge)', () => {
+    const measurements = [m(36), latest]
+    const picked = pickComparisonMeasurement(measurements, latest)
+    expect(picked).toBeNull()
+  })
 })
