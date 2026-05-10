@@ -5,6 +5,7 @@ import logging
 import time
 from datetime import date, datetime, timedelta, timezone
 
+import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -345,8 +346,7 @@ async def sync_user(session: AsyncSession, user: User) -> str:
     # FatSecret — typed pipeline + auto-aggregation per date
     if user.fatsecret_oauth_token:
         try:
-            import httpx as _httpx
-            async with _httpx.AsyncClient(timeout=30) as http:
+            async with httpx.AsyncClient(timeout=30) as http:
                 for days_ago in [1, 0]:
                     sync_date = date.today() - timedelta(days=days_ago)
                     fs_result = await sync_fatsecret_for_date(session, user, sync_date, http)

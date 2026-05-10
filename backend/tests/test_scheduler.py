@@ -445,20 +445,59 @@ class TestSyncUserFatSecret:
 
     @pytest.mark.asyncio
     async def test_daily_sync_all_includes_fatsecret_only_users(self):
+        """Real-DB test: actually exercises the OR filter in daily_sync_all.
+
+        The mock-session helper used by other tests returns the user list
+        regardless of the SQL, so it can't catch a regression where the
+        FatSecret column gets removed from the filter. This test inserts
+        a FatSecret-only user into the real test DB and asserts the SQL
+        picks them up.
+        """
         from src.scheduler import daily_sync_all
-        user = _make_user(
-            fatsecret_oauth_token=encrypt_token("acc_t"),
-            fatsecret_oauth_token_secret=encrypt_token("acc_s"),
-        )
-        mock_maker = _mock_session_maker_factory([user])
+
+        async with test_session_maker() as session:
+            user = _make_user(
+                fatsecret_oauth_token=encrypt_token("acc_t"),
+                fatsecret_oauth_token_secret=encrypt_token("acc_s"),
+            )
+            session.add(user)
+            await session.commit()
+
         with patch(
-            "src.scheduler.async_session_maker", mock_maker
+            "src.scheduler.async_session_maker", test_session_maker
         ), patch(
             "src.scheduler.sync_user",
             new_callable=AsyncMock,
             return_value="success",
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
+        ) as mock_sync, patch("asyncio.sleep", new_callable=AsyncMock):
             stats = await daily_sync_all()
-        # User with only FatSecret connected gets picked up.
+
         assert stats["success"] == 1
+        assert mock_sync.call_count == 1
+        # The user passed to sync_user must be the FatSecret-only one.
+        called_user = mock_sync.call_args.args[1]
+        assert called_user.fatsecret_oauth_token is not None
+
+    @pytest.mark.asyncio
+    async def test_daily_sync_all_skips_users_without_any_source(self):
+        """Inverse-coverage test for the OR filter: a user with NO connected
+        sources must not appear in the result set."""
+        from src.scheduler import daily_sync_all
+
+        async with test_session_maker() as session:
+            user = _make_user()  # no source columns set
+            session.add(user)
+            await session.commit()
+
+        with patch(
+            "src.scheduler.async_session_maker", test_session_maker
+        ), patch(
+            "src.scheduler.sync_user",
+            new_callable=AsyncMock,
+            return_value="success",
+        ) as mock_sync, patch("asyncio.sleep", new_callable=AsyncMock):
+            stats = await daily_sync_all()
+
+        assert stats["success"] == 0
+        assert mock_sync.call_count == 0
 
