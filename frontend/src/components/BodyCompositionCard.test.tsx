@@ -32,4 +32,12 @@ describe('BodyCompositionCard', () => {
     expect(screen.getByText(/Body Composition/i)).toBeInTheDocument()
     expect(screen.getByText(/Loading/i)).toBeInTheDocument()
   })
+
+  it('renders empty state with Renpho CTA when no data exists for any source', async () => {
+    vi.spyOn(api, 'fetchBodyMeasurements').mockResolvedValue({ count: 0, data: [] })
+    renderCard()
+    expect(await screen.findByText(/Renpho needed for muscle mass and lean body mass tracking/i)).toBeInTheDocument()
+    const cta = screen.getByRole('link', { name: /Connect Renpho/i })
+    expect(cta).toHaveAttribute('href', '/sources#renpho')
+  })
 })
