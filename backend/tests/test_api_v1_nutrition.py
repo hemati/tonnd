@@ -97,6 +97,29 @@ class TestJWTAccess:
         assert body["count"] == 1
         assert body["data"][0]["meal"] == "Breakfast"
 
+    async def test_date_range_filter_on_daily(self, client):
+        jwt = await _register_and_login(client, "jwt-range@test.com")
+        uid = await _user_id(client, jwt)
+        await _seed(uid)
+        today = date.today().isoformat()
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        # Single-day range should hit exactly one row.
+        r = await client.get(
+            f"/api/v1/nutrition/daily?start_date={yesterday}&end_date={yesterday}",
+            headers=_auth(jwt),
+        )
+        assert r.status_code == 200
+        assert r.json()["count"] == 1
+
+    async def test_pagination_on_entries(self, client):
+        jwt = await _register_and_login(client, "jwt-page@test.com")
+        uid = await _user_id(client, jwt)
+        await _seed(uid)  # seeds 3 entries
+        r1 = await client.get("/api/v1/nutrition/entries?limit=2", headers=_auth(jwt))
+        r2 = await client.get("/api/v1/nutrition/entries?limit=2&offset=2", headers=_auth(jwt))
+        assert r1.json()["count"] == 2
+        assert r2.json()["count"] == 1
+
     async def test_excludes_other_users(self, client):
         jwt_a = await _register_and_login(client, "user-a@test.com")
         jwt_b = await _register_and_login(client, "user-b@test.com")
