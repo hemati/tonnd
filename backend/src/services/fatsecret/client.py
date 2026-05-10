@@ -1,20 +1,27 @@
 """FatSecret OAuth 1.0a client + food diary fetcher.
 
 OAuth1 (3-legged) is required because FatSecret's OAuth2 client_credentials
-flow can only read generic data, not the user's food diary. We sign requests
-with HMAC-SHA1 via oauthlib and ship them through httpx.AsyncClient.
+flow can only read generic data, not the user's food diary. We sign with
+HMAC-SHA1 via oauthlib and ship through httpx.AsyncClient.
+
+Signature is delivered in the Authorization header (not the URL query) so
+OAuth tokens cannot leak via request-URL logging in proxies or middleware.
 """
 
+import json as _json
 import logging
 import math
 import os
 from datetime import date as date_type
-from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, urlencode
 
 import httpx
-from oauthlib.oauth1 import SIGNATURE_HMAC_SHA1, SIGNATURE_TYPE_QUERY, Client as OAuth1Client
+from oauthlib.oauth1 import (
+    SIGNATURE_HMAC_SHA1,
+    SIGNATURE_TYPE_AUTH_HEADER,
+    Client as OAuth1Client,
+)
 
 from src.utils.safe_parse import safe_float
 
@@ -28,8 +35,8 @@ REST_URL = "https://platform.fatsecret.com/rest/server.api"
 # Day-since-epoch encoding the FatSecret API expects on `food_entries.get`.
 _EPOCH = date_type(1970, 1, 1)
 
-# Map FatSecret raw field name → our column name. Pass-through for keys that
-# already match (calories, meal, food_entry_name, etc.).
+# Map FatSecret raw field name → our column name. Keys missing from this map
+# (calories, meal, food_entry_name, ...) are passed through as-is.
 _FIELD_MAP = {
     "carbohydrate": "carbs_g",
     "fat": "fat_g",
@@ -48,7 +55,6 @@ _FIELD_MAP = {
     "vitamin_c": "vitamin_c_mg",
 }
 
-# Numeric fields we coerce + sanity-check (drop NaN/inf, clamp negatives to None).
 _NUMERIC_FIELDS = {
     "number_of_units", "calories",
     "carbs_g", "fat_g", "protein_g", "fiber_g", "sugar_g",
@@ -56,6 +62,11 @@ _NUMERIC_FIELDS = {
     "cholesterol_mg", "sodium_mg", "calcium_mg", "iron_mg", "potassium_mg",
     "vitamin_a_iu", "vitamin_c_mg",
 }
+
+# FatSecret error codes that mean the user's token is permanently invalid.
+# Code 5 (invalid signature) is intentionally NOT here — it fires on transient
+# clock skew and shouldn't auto-disconnect users.
+_AUTH_FATAL_CODES = {13, 14}
 
 
 class FatSecretAPIError(Exception):
@@ -83,31 +94,28 @@ def _sign(
     consumer_secret: str,
     resource_owner_key: str | None = None,
     resource_owner_secret: str | None = None,
-    extra_params: dict | None = None,
-) -> str:
-    """Sign an OAuth1 GET request and return the fully-qualified, signed URL.
+    callback_uri: str | None = None,
+    verifier: str | None = None,
+    query_params: dict | None = None,
+) -> tuple[str, dict]:
+    """Sign a GET request. Returns (uri, headers); call as http.get(uri, headers=headers).
 
-    Signature mode: HMAC-SHA1, query-string (FatSecret accepts and prefers
-    query-string signing for REST endpoints).
+    Tokens land in the Authorization header, not the query string.
     """
     client = OAuth1Client(
         consumer_key,
         client_secret=consumer_secret,
         resource_owner_key=resource_owner_key,
         resource_owner_secret=resource_owner_secret,
+        callback_uri=callback_uri,
+        verifier=verifier,
         signature_method=SIGNATURE_HMAC_SHA1,
-        signature_type=SIGNATURE_TYPE_QUERY,
-        callback_uri=extra_params.get("oauth_callback") if extra_params else None,
+        signature_type=SIGNATURE_TYPE_AUTH_HEADER,
     )
-    if extra_params:
-        # Build URL with non-OAuth params first; oauthlib appends OAuth params.
-        from urllib.parse import urlencode
-        non_oauth = {k: v for k, v in extra_params.items() if k != "oauth_callback"}
-        if non_oauth:
-            sep = "&" if "?" in url else "?"
-            url = f"{url}{sep}{urlencode(non_oauth)}"
-    signed_uri, _, _ = client.sign(url, http_method="GET")
-    return signed_uri
+    if query_params:
+        url = f"{url}?{urlencode(query_params)}"
+    uri, headers, _body = client.sign(url, http_method="GET")
+    return uri, headers
 
 
 def _parse_form(text: str) -> dict[str, str]:
@@ -119,12 +127,12 @@ def _parse_form(text: str) -> dict[str, str]:
 async def fetch_request_token(callback_url: str, http: httpx.AsyncClient) -> dict[str, str]:
     """3-legged OAuth1 step 1: get a temporary request_token + secret."""
     consumer_key, consumer_secret = get_credentials()
-    signed = _sign(
+    uri, headers = _sign(
         REQUEST_TOKEN_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
-        extra_params={"oauth_callback": callback_url},
+        callback_uri=callback_url,
     )
-    resp = await http.get(signed)
+    resp = await http.get(uri, headers=headers)
     if resp.status_code != 200:
         raise FatSecretAPIError(
             f"request_token failed: {resp.status_code} {resp.text[:200]}"
@@ -148,14 +156,14 @@ async def fetch_access_token(
 ) -> dict[str, str]:
     """3-legged OAuth1 step 3: trade verifier for the long-lived access_token."""
     consumer_key, consumer_secret = get_credentials()
-    signed = _sign(
+    uri, headers = _sign(
         ACCESS_TOKEN_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
         resource_owner_key=oauth_token,
         resource_owner_secret=oauth_token_secret,
-        extra_params={"oauth_verifier": oauth_verifier},
+        verifier=oauth_verifier,
     )
-    resp = await http.get(signed)
+    resp = await http.get(uri, headers=headers)
     if resp.status_code == 401:
         raise FatSecretAuthError(f"access_token rejected: {resp.text[:200]}")
     if resp.status_code != 200:
@@ -184,7 +192,7 @@ def _clean_numeric(val: Any) -> float | None:
 
 
 def _normalize_entry(raw: dict, target_date: date_type) -> dict | None:
-    """Transform a FatSecret food_entry dict into a FoodEntry-ready field dict.
+    """Transform a FatSecret food_entry dict into FoodEntry-ready fields.
 
     Returns None if the entry is malformed (missing external_id or food_entry_name).
     """
@@ -207,19 +215,23 @@ def _normalize_entry(raw: dict, target_date: date_type) -> dict | None:
             if cleaned is not None:
                 fields[col] = cleaned
         elif col in {"meal", "food_id", "serving_id", "food_entry_description"}:
-            fields[col] = str(val)[:512] if col == "food_entry_description" else str(val)[:64]
+            limit = 512 if col == "food_entry_description" else 64
+            fields[col] = str(val)[:limit]
     return fields
 
 
 def _extract_entries(payload: dict) -> list[dict]:
-    """Normalize FatSecret's three response shapes for `food_entries.get`:
+    """Normalize FatSecret's three documented response shapes for `food_entries.get`:
       {"food_entries": ""}                              → []
       {"food_entries": {"food_entry": {...}}}           → [{...}]
       {"food_entries": {"food_entry": [{...}, {...}]}}  → [{...}, {...}]
+    Anything else is treated as a protocol violation and raises.
     """
     container = payload.get("food_entries")
-    if not isinstance(container, dict):
+    if container == "" or container is None:
         return []
+    if not isinstance(container, dict):
+        raise FatSecretAPIError(f"unexpected food_entries shape: {type(container).__name__}")
     inner = container.get("food_entry")
     if inner is None:
         return []
@@ -236,35 +248,36 @@ async def get_food_entries_for_date(
     target_date: date_type,
     http: httpx.AsyncClient,
 ) -> list[dict]:
-    """Fetch and normalize all food diary entries for one date.
-
-    Returns a list of field dicts ready to pass into `upsert_food_entry`.
-    """
+    """Fetch and normalize all food diary entries for one date."""
     consumer_key, consumer_secret = get_credentials()
-    signed = _sign(
+    uri, headers = _sign(
         REST_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
         resource_owner_key=oauth_token,
         resource_owner_secret=oauth_token_secret,
-        extra_params={
+        query_params={
             "method": "food_entries.get",
             "format": "json",
             "date": str(_date_to_int(target_date)),
         },
     )
-    resp = await http.get(signed)
+    resp = await http.get(uri, headers=headers)
     if resp.status_code == 401:
         raise FatSecretAuthError("food_entries.get: token rejected")
     if resp.status_code != 200:
         raise FatSecretAPIError(
             f"food_entries.get failed: {resp.status_code} {resp.text[:200]}"
         )
-    payload = resp.json()
+    try:
+        payload = resp.json()
+    except (ValueError, _json.JSONDecodeError):
+        raise FatSecretAPIError(
+            f"food_entries.get returned non-JSON body: {resp.text[:200]}"
+        )
     if isinstance(payload, dict) and "error" in payload:
         err = payload["error"]
-        # FatSecret OAuth-related errors usually have code 5/13/14 → invalid token
         code = err.get("code") if isinstance(err, dict) else None
-        if code in (5, 13, 14):
+        if code in _AUTH_FATAL_CODES:
             raise FatSecretAuthError(f"FatSecret API error: {err}")
         raise FatSecretAPIError(f"FatSecret API error: {err}")
 
@@ -273,7 +286,3 @@ async def get_food_entries_for_date(
         for entry in _extract_entries(payload)
         if (normalized := _normalize_entry(entry, target_date)) is not None
     ]
-
-
-def utcnow() -> datetime:
-    return datetime.now(timezone.utc)

@@ -50,16 +50,42 @@ class TestAuthorizeURL:
 
 
 class TestSign:
-    def test_sign_attaches_oauth_params_to_query(self):
-        signed = fs._sign(
+    def test_sign_returns_uri_with_query_and_auth_header(self):
+        uri, headers = fs._sign(
             "https://example.com/api",
             consumer_key="ck", consumer_secret="cs",
-            extra_params={"method": "food_entries.get", "format": "json"},
+            query_params={"method": "food_entries.get", "format": "json"},
         )
-        assert "oauth_signature=" in signed
-        assert "oauth_consumer_key=ck" in signed
-        assert "method=food_entries.get" in signed
-        assert "format=json" in signed
+        # Non-OAuth params on URL, OAuth signature in Authorization header.
+        assert "method=food_entries.get" in uri
+        assert "format=json" in uri
+        assert uri.startswith("https://example.com/api?")
+        auth = headers["Authorization"]
+        assert auth.startswith("OAuth ")
+        assert 'oauth_consumer_key="ck"' in auth
+        assert "oauth_signature=" in auth
+        # Tokens MUST NOT be in the URL — that's the whole point of the header.
+        assert "oauth_signature" not in uri
+        assert "oauth_consumer_key" not in uri
+
+    def test_sign_with_callback_uri_passes_to_oauthlib(self):
+        uri, headers = fs._sign(
+            "https://example.com/oauth/request_token",
+            consumer_key="ck", consumer_secret="cs",
+            callback_uri="https://app/cb",
+        )
+        # callback ends up in the Authorization header (URL-encoded).
+        assert "oauth_callback" in headers["Authorization"]
+        assert "https%3A%2F%2Fapp%2Fcb" in headers["Authorization"]
+
+    def test_sign_with_verifier(self):
+        uri, headers = fs._sign(
+            "https://example.com/oauth/access_token",
+            consumer_key="ck", consumer_secret="cs",
+            resource_owner_key="rt", resource_owner_secret="rs",
+            verifier="abc123",
+        )
+        assert 'oauth_verifier="abc123"' in headers["Authorization"]
 
 
 # ─── form parsing ─────────────────────────────────────────────────────────
@@ -249,14 +275,39 @@ class TestGetFoodEntriesForDate:
         with pytest.raises(fs.FatSecretAuthError):
             await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
 
-    async def test_api_error_payload_invalid_token(self):
-        http = _mock_http(json_data={"error": {"code": 5, "message": "Invalid signature"}})
+    async def test_api_error_invalid_token_disconnects(self):
+        # Code 13 = invalid OAuth token → permanent, raise AuthError.
+        http = _mock_http(json_data={"error": {"code": 13, "message": "Invalid OAuth token"}})
         with pytest.raises(fs.FatSecretAuthError):
             await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
+
+    async def test_api_error_invalid_signature_is_transient(self):
+        # Code 5 = invalid signature; can be transient (clock skew). Don't auto-disconnect.
+        http = _mock_http(json_data={"error": {"code": 5, "message": "Invalid signature"}})
+        with pytest.raises(fs.FatSecretAPIError) as exc_info:
+            await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
+        assert not isinstance(exc_info.value, fs.FatSecretAuthError)
 
     async def test_api_error_payload_other(self):
         http = _mock_http(json_data={"error": {"code": 1, "message": "Internal error"}})
         with pytest.raises(fs.FatSecretAPIError):
+            await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
+
+    async def test_non_json_response_raises_api_error(self):
+        # FatSecret maintenance pages or proxies sometimes return HTML on 200.
+        mock = MagicMock(spec=httpx.AsyncClient)
+        resp = MagicMock()
+        resp.status_code = 200
+        resp.text = "<html>Maintenance</html>"
+        resp.json = MagicMock(side_effect=ValueError("not json"))
+        mock.get = AsyncMock(return_value=resp)
+        with pytest.raises(fs.FatSecretAPIError, match="non-JSON body"):
+            await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), mock)
+
+    async def test_unexpected_food_entries_shape_raises(self):
+        # A non-empty string in food_entries is a protocol violation.
+        http = _mock_http(json_data={"food_entries": "garbage"})
+        with pytest.raises(fs.FatSecretAPIError, match="unexpected food_entries shape"):
             await fs.get_food_entries_for_date("rt", "rs", date(2026, 5, 9), http)
 
     async def test_skips_malformed_entries(self):
