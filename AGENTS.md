@@ -119,6 +119,7 @@ tonnd/
 │       │   ├── fitbit_models.py    # 7 typed Fitbit tables (daily_vitals, daily_sleep, etc.)
 │       │   ├── hevy_models.py      # 3 typed Hevy tables (workouts, workout_exercises, routines)
 │       │   ├── body_models.py      # BodyMeasurement (Renpho + Fitbit weight)
+│       │   ├── food_models.py      # FoodEntry (FatSecret food diary, soft-delete)
 │       │   └── api_models.py       # APIToken, AuditLog
 │       ├── schemas/
 │       │   └── api_schemas.py      # Pydantic models for /api/v1/ responses
@@ -221,7 +222,7 @@ tonnd/
 
 **`daily_activity`** — `(user_id, date, source)` unique. Columns: steps, calories_burned, distance_km, active_minutes, sedentary_minutes, lightly_active_minutes, floors, calories_bmr, fat_burn/cardio/peak/total_azm.
 
-**`daily_nutrition`** — Reserved (sync not implemented). Columns: calories_in, carbs/fat/protein/fiber_g, water_ml.
+**`daily_nutrition`** — `(user_id, date, source)` unique. Per-day macro aggregates recomputed from non-deleted `food_entries` on every FatSecret sync. Columns: calories_in, carbs/fat/protein/fiber_g, water_ml. Source today is `"fatsecret"`; future trackers can write here too.
 
 **`hourly_intraday`** — `(user_id, date, hour, metric_type, source)` unique. Columns: avg_value, min_value, max_value, sample_count, extra (JSONB).
 
@@ -393,7 +394,7 @@ npx tsc --noEmit          # Type check
 | FatSecret OAuth | fatsecret/client.py (OAuth1 signing, food_entries.get), fatsecret/oauth_state.py (in-memory request-token store), app.py (init/callback routes) |
 | FatSecret sync | fatsecret/sync.py (sync_fatsecret_for_date, backfill_fatsecret), fatsecret_sync_utils.py (upsert_food_entry, aggregate_daily_nutrition) |
 | FatSecret models | food_models.py (FoodEntry), fitbit_models.py::DailyNutrition |
-| Database | db_models.py, fitbit_models.py, hevy_models.py, body_models.py, api_models.py, database.py |
+| Database | db_models.py, fitbit_models.py, hevy_models.py, body_models.py, food_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
 | Security/Middleware | middleware/security_headers.py, middleware/rate_limit.py, middleware/audit.py |

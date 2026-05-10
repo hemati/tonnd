@@ -88,7 +88,12 @@ async def lifespan(app: FastAPI):
     # Multi-worker breaks the FatSecret OAuth1 handshake (in-memory request-token
     # store is process-local). Warn loudly so a misconfigured deployment doesn't
     # silently regress users mid-connect.
-    workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+    workers_raw = os.environ.get("WEB_CONCURRENCY", "1")
+    try:
+        workers = int(workers_raw)
+    except ValueError:
+        logger.warning("WEB_CONCURRENCY=%r is not an integer; assuming 1.", workers_raw)
+        workers = 1
     if workers > 1:
         logger.warning(
             "WEB_CONCURRENCY=%d > 1: FatSecret OAuth handshake will fail "
