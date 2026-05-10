@@ -154,4 +154,31 @@ describe('BodyCompositionCard', () => {
     const rootAfter = await findByTestId('body-card-root')
     expect(rootAfter).toBe(rootBefore)
   })
+
+  it('useSyncFitbit onSuccess invalidates the body queryKey', async () => {
+    // This tests the wiring in hooks/useQueries.ts. Lives here for proximity
+    // to the body card's cache concerns; move to Dashboard.test.tsx once that
+    // suite exists.
+    const { useSyncFitbit } = await import('../hooks/useQueries')
+    const { renderHook, waitFor } = await import('@testing-library/react')
+
+    vi.spyOn(api, 'syncFitbitData').mockResolvedValue({
+      success: true,
+      message: 'ok',
+      synced_metrics: [],
+      errors: [],
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidateSpy = vi.spyOn(client, 'invalidateQueries')
+
+    const { result } = renderHook(() => useSyncFitbit(), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    })
+
+    result.current.mutate({ days: 1 })
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['body'] })
+  })
 })
