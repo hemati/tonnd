@@ -63,6 +63,7 @@ def _params(
     start_date: str | None = None,
     end_date: str | None = None,
     source: str | None = None,
+    meal: str | None = None,
     limit: int = 50,
 ) -> dict:
     p: dict = {"limit": limit, "order": "desc"}
@@ -72,6 +73,8 @@ def _params(
         p["end_date"] = end_date
     if source:
         p["source"] = source
+    if meal:
+        p["meal"] = meal
     return p
 
 
@@ -169,6 +172,57 @@ async def get_activity(
         limit: Max results (default 14).
     """
     return await _get("/api/v1/activity", start_date=start_date, end_date=end_date, limit=limit)
+
+
+@mcp.tool()
+async def get_nutrition_daily(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 30,
+) -> dict:
+    """Get daily nutrition aggregates: calories_in, carbs_g, fat_g, protein_g, fiber_g.
+
+    One row per date+source. NULL fields (e.g. water_ml) are omitted. Source is
+    "fatsecret" today; future trackers can write here too.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD). Defaults to ~30 days ago.
+        end_date: End date (YYYY-MM-DD). Defaults to today.
+        limit: Max results (default 30).
+    """
+    return await _get(
+        "/api/v1/nutrition/daily",
+        start_date=start_date, end_date=end_date, limit=limit,
+    )
+
+
+@mcp.tool()
+async def get_food_entries(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    meal: str | None = None,
+    limit: int = 100,
+) -> dict:
+    """Get per-meal food diary entries with full macros + micros.
+
+    Each entry is one item the user logged (e.g. "Apple", "Coffee with milk")
+    along with its macros (calories, carbs_g, fat_g, protein_g, fiber_g, sugar_g),
+    saturated/poly/mono fat, and micros (cholesterol_mg, sodium_mg, calcium_mg,
+    iron_mg, potassium_mg, vitamin_a_iu, vitamin_c_mg). NULL fields are omitted.
+    Soft-deleted entries are excluded.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        meal: Filter to a single meal (Breakfast / Lunch / Dinner / Snacks / Other).
+            Match is case-sensitive and exact — localized accounts may store
+            non-English values (e.g. "Frühstück").
+        limit: Max results (default 100).
+    """
+    return await _get(
+        "/api/v1/nutrition/entries",
+        start_date=start_date, end_date=end_date, meal=meal, limit=limit,
+    )
 
 
 @mcp.tool()

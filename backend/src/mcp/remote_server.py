@@ -18,9 +18,11 @@ from src.services.data_service import (
     compute_recovery_score,
     query_body_measurements,
     query_daily_activity,
+    query_daily_nutrition,
     query_daily_sleep,
     query_daily_vitals,
     query_exercise_logs,
+    query_food_entries,
     query_hourly_intraday,
     query_routines,
     query_user_context,
@@ -209,6 +211,60 @@ async def get_activity(
     async with async_session_maker() as session:
         rows = await query_daily_activity(
             session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
+
+
+@mcp.tool()
+async def get_nutrition_daily(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    limit: int = 30,
+) -> dict:
+    """Get daily nutrition aggregates: calories_in, carbs_g, fat_g, protein_g, fiber_g.
+
+    One row per date+source. NULL fields (e.g. water_ml) are omitted.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        limit: Max results (default 30).
+    """
+    user_id = _get_user_id("read:nutrition")
+    sd, ed = _parse_dates(start_date, end_date)
+    async with async_session_maker() as session:
+        rows = await query_daily_nutrition(
+            session, user_id, start_date=sd, end_date=ed, limit=_clamp_limit(limit),
+        )
+    return {"count": len(rows), "data": [r.to_dict() for r in rows]}
+
+
+@mcp.tool()
+async def get_food_entries(
+    start_date: str | None = None,
+    end_date: str | None = None,
+    meal: str | None = None,
+    limit: int = 100,
+) -> dict:
+    """Get per-meal food diary entries with full macros + micros.
+
+    Each entry is one logged item with its macros (calories, carbs_g, fat_g,
+    protein_g, fiber_g, sugar_g, saturated/poly/mono fat) and micros
+    (cholesterol_mg, sodium_mg, calcium_mg, iron_mg, potassium_mg,
+    vitamin_a_iu, vitamin_c_mg). NULL fields omitted; soft-deleted excluded.
+
+    Args:
+        start_date: Start date (YYYY-MM-DD).
+        end_date: End date (YYYY-MM-DD).
+        meal: Filter to a single meal (e.g. "Breakfast"). Case-sensitive exact match.
+        limit: Max results (default 100).
+    """
+    user_id = _get_user_id("read:nutrition")
+    sd, ed = _parse_dates(start_date, end_date)
+    async with async_session_maker() as session:
+        rows = await query_food_entries(
+            session, user_id, start_date=sd, end_date=ed,
+            meal=meal, limit=_clamp_limit(limit),
         )
     return {"count": len(rows), "data": [r.to_dict() for r in rows]}
 
