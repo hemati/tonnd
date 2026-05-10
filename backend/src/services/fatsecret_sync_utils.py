@@ -22,34 +22,37 @@ async def upsert_food_entry(
     )
 
 
+def _zero_or_float(v) -> float:
+    return float(v) if v is not None else 0.0
+
+
 async def aggregate_daily_nutrition(
     session: AsyncSession, user_id, target_date: date_type, source: str = "fatsecret",
 ) -> None:
     """Recompute daily_nutrition from non-deleted food_entries for one (user, date, source).
 
-    Always upserts the daily_nutrition row, even when no entries exist for the date —
-    callers rely on this to zero out a day when all entries get soft-deleted.
+    Always upserts even with zero entries so a fully-deleted day overwrites stale totals.
     """
     stmt = select(
-        func.coalesce(func.sum(FoodEntry.calories), 0.0),
-        func.sum(FoodEntry.carbs_g),
-        func.sum(FoodEntry.fat_g),
-        func.sum(FoodEntry.protein_g),
-        func.sum(FoodEntry.fiber_g),
+        func.sum(FoodEntry.calories).label("calories"),
+        func.sum(FoodEntry.carbs_g).label("carbs_g"),
+        func.sum(FoodEntry.fat_g).label("fat_g"),
+        func.sum(FoodEntry.protein_g).label("protein_g"),
+        func.sum(FoodEntry.fiber_g).label("fiber_g"),
     ).where(
         FoodEntry.user_id == user_id,
         FoodEntry.source == source,
         FoodEntry.date == target_date,
         FoodEntry.deleted_at.is_(None),
     )
-    cal, carbs, fat, protein, fiber = (await session.execute(stmt)).one()
+    row = (await session.execute(stmt)).mappings().one()
 
     fields = {
-        "calories_in": int(round(cal)) if cal is not None else 0,
-        "carbs_g": float(carbs) if carbs is not None else 0.0,
-        "fat_g": float(fat) if fat is not None else 0.0,
-        "protein_g": float(protein) if protein is not None else 0.0,
-        "fiber_g": float(fiber) if fiber is not None else 0.0,
+        "calories_in": int(round(_zero_or_float(row["calories"]))),
+        "carbs_g": _zero_or_float(row["carbs_g"]),
+        "fat_g": _zero_or_float(row["fat_g"]),
+        "protein_g": _zero_or_float(row["protein_g"]),
+        "fiber_g": _zero_or_float(row["fiber_g"]),
     }
     await _upsert(
         session, DailyNutrition,

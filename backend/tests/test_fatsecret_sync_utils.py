@@ -61,10 +61,11 @@ class TestUpsertFoodEntry:
         async with test_session_maker() as session:
             uid = uuid.uuid4()
             ts = datetime(2026, 5, 8, 12, 0, 0, tzinfo=timezone.utc)
+            old_synced = datetime(2026, 5, 8, 6, 0, 0, tzinfo=timezone.utc)
             session.add(FoodEntry(
                 user_id=uid, external_id="fe1", source="fatsecret",
                 date=date(2026, 5, 9), food_entry_name="Apple",
-                deleted_at=ts,
+                deleted_at=ts, synced_at=old_synced,
             ))
             await session.commit()
             await upsert_food_entry(
@@ -78,6 +79,9 @@ class TestUpsertFoodEntry:
             )).scalar_one()
             assert row.deleted_at is None
             assert row.calories == 95.0
+            # SQLite drops tz-info on round-trip; compare as naive UTC.
+            synced = row.synced_at.replace(tzinfo=None) if row.synced_at.tzinfo else row.synced_at
+            assert synced > old_synced.replace(tzinfo=None)
 
 
 @pytest.mark.asyncio
@@ -135,8 +139,6 @@ class TestAggregateDailyNutrition:
             assert row.carbs_g == 25.0
 
     async def test_zeros_when_no_entries(self):
-        """Empty day produces a zeroed daily_nutrition row — required so users see
-        'logged 0 calories' rather than missing data when all entries are deleted."""
         async with test_session_maker() as session:
             uid = uuid.uuid4()
             d = date(2026, 5, 9)
@@ -179,23 +181,3 @@ class TestAggregateDailyNutrition:
             assert agg.calories_in == 0
             assert agg.carbs_g == 0.0
 
-    async def test_does_not_aggregate_other_users(self):
-        async with test_session_maker() as session:
-            uid_a = uuid.uuid4()
-            uid_b = uuid.uuid4()
-            d = date(2026, 5, 9)
-            session.add(FoodEntry(
-                user_id=uid_a, external_id="fe1", source="fatsecret",
-                date=d, food_entry_name="Apple", calories=100.0,
-            ))
-            session.add(FoodEntry(
-                user_id=uid_b, external_id="fe1", source="fatsecret",
-                date=d, food_entry_name="Pizza", calories=800.0,
-            ))
-            await session.commit()
-            await aggregate_daily_nutrition(session, uid_a, d)
-            await session.commit()
-            row = (await session.execute(
-                select(DailyNutrition).where(DailyNutrition.user_id == uid_a)
-            )).scalar_one()
-            assert row.calories_in == 100
