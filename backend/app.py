@@ -5,8 +5,9 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
 
+import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -16,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.v1.router import router as api_v1_router
-from src.database import engine, get_async_session
+from src.database import async_session_maker, engine, get_async_session
 from src.middleware.audit import AuditMiddleware
 from src.middleware.rate_limit import limiter
 from src.middleware.security_headers import SecurityHeadersMiddleware
@@ -35,6 +36,19 @@ from src.services.data_service import (
     query_body_measurements, query_daily_activity, query_daily_sleep,
     query_daily_vitals,
     query_workouts, workout_with_exercises,
+)
+from src.services.fatsecret import oauth_state as fs_oauth_state
+from src.services.fatsecret.client import (
+    FatSecretAPIError,
+    FatSecretAuthError,
+    authorize_url as fatsecret_authorize_url,
+    fetch_access_token as fatsecret_fetch_access_token,
+    fetch_request_token as fatsecret_fetch_request_token,
+)
+from src.services.fatsecret.sync import (
+    backfill_fatsecret,
+    disconnect_fatsecret,
+    sync_fatsecret_for_date,
 )
 from src.services.hevy.client import validate_hevy_api_key
 from src.services.hevy.sync import disconnect_hevy, sync_hevy_workouts, sync_hevy_routines
@@ -319,6 +333,95 @@ async def hevy_disconnect(
     return {"connected": False, "message": "Hevy disconnected"}
 
 
+# ─── FatSecret OAuth1 (3-legged) ─────────────────────────────────────────────
+
+FATSECRET_BACKFILL_DAYS = 30
+
+
+async def _run_fatsecret_backfill(user_id: uuid.UUID, num_days: int) -> None:
+    """Background-task wrapper: opens its own DB session + HTTP client."""
+    async with async_session_maker() as session:
+        user = await session.get(User, user_id)
+        if not user:
+            return
+        async with httpx.AsyncClient(timeout=30) as http:
+            try:
+                await backfill_fatsecret(session, user, num_days, http)
+            except FatSecretAuthError:
+                disconnect_fatsecret(user)
+            await session.commit()
+
+
+@app.get("/auth/fatsecret/init", tags=["fatsecret"])
+async def fatsecret_init(
+    request: Request,
+    user: User = Depends(current_active_user),
+):
+    """Step 1 of OAuth1: get a request_token, stash secret, return authorize URL."""
+    callback_url = str(request.url_for("fatsecret_callback"))
+    async with httpx.AsyncClient(timeout=30) as http:
+        try:
+            tokens = await fatsecret_fetch_request_token(callback_url, http)
+        except FatSecretAPIError as e:
+            raise HTTPException(status_code=502, detail=f"FatSecret request_token failed: {e}")
+    fs_oauth_state.put(tokens["oauth_token"], user.id, tokens["oauth_token_secret"])
+    return {"authorization_url": fatsecret_authorize_url(tokens["oauth_token"])}
+
+
+@app.get("/auth/fatsecret/callback", tags=["fatsecret"])
+async def fatsecret_callback(
+    background_tasks: BackgroundTasks,
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+    oauth_token: str = Query(...),
+    oauth_verifier: str = Query(...),
+):
+    """Step 3 of OAuth1: exchange verifier for access_token, encrypt + persist,
+    redirect immediately, then backfill in background."""
+    stashed = fs_oauth_state.pop_if_valid(oauth_token)
+    if stashed is None:
+        raise HTTPException(status_code=400, detail="OAuth token expired or unknown")
+    stashed_user_id, request_token_secret = stashed
+
+    # Token-binding: the user who initiated must be the user completing the flow.
+    # Without this check, a stolen oauth_token could be used by another logged-in
+    # user to bind the FatSecret account to themselves.
+    if stashed_user_id != user.id:
+        raise HTTPException(status_code=403, detail="OAuth token does not belong to this user")
+
+    async with httpx.AsyncClient(timeout=30) as http:
+        try:
+            access = await fatsecret_fetch_access_token(
+                oauth_token, request_token_secret, oauth_verifier, http,
+            )
+        except FatSecretAuthError as e:
+            raise HTTPException(status_code=400, detail=f"FatSecret rejected verifier: {e}")
+        except FatSecretAPIError as e:
+            raise HTTPException(status_code=502, detail=f"FatSecret access_token failed: {e}")
+
+    user.fatsecret_oauth_token = encrypt_token(access["oauth_token"])
+    user.fatsecret_oauth_token_secret = encrypt_token(access["oauth_token_secret"])
+    await session.commit()
+
+    # Backfill runs after the response is sent so the UI gets "connected" immediately.
+    # Errors are logged + tokens cleared on auth failure inside _run_fatsecret_backfill.
+    background_tasks.add_task(_run_fatsecret_backfill, user.id, FATSECRET_BACKFILL_DAYS)
+
+    return RedirectResponse(
+        f"{FRONTEND_URL}/auth/callback?success=true&fatsecret=connected"
+    )
+
+
+@app.delete("/auth/fatsecret/disconnect", tags=["fatsecret"])
+async def fatsecret_disconnect(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    disconnect_fatsecret(user)
+    await session.commit()
+    return {"connected": False, "message": "FatSecret disconnected"}
+
+
 # ─── API routes ──────────────────────────────────────────────────────────────
 
 
@@ -331,6 +434,7 @@ async def get_user(user: User = Depends(current_active_user)):
         "fitbit_user_id": user.fitbit_user_id,
         "renpho_connected": user.renpho_session_key is not None,
         "hevy_connected": user.hevy_api_key is not None,
+        "fatsecret_connected": user.fatsecret_oauth_token is not None,
         "last_sync": user.last_sync.isoformat() + "Z" if user.last_sync else None,
     }
 
@@ -341,7 +445,7 @@ async def sync_all_sources(
     session: AsyncSession = Depends(get_async_session),
     sync_date: Optional[str] = None,
     days: int = Query(default=1, ge=1, le=30),
-    source: Optional[Literal["fitbit", "renpho", "hevy"]] = Query(default=None, description="Sync only this source"),
+    source: Optional[Literal["fitbit", "renpho", "hevy", "fatsecret"]] = Query(default=None, description="Sync only this source"),
 ):
     synced_metrics = []
     errors = []
@@ -355,6 +459,7 @@ async def sync_all_sources(
     sync_fitbit = source in (None, "fitbit")
     sync_renpho = source in (None, "renpho")
     sync_hevy = source in (None, "hevy")
+    sync_fatsecret = source in (None, "fatsecret")
 
     # Sync Fitbit — new typed pipeline
     if sync_fitbit and user.fitbit_access_token:
@@ -415,7 +520,23 @@ async def sync_all_sources(
         routine_errors = await sync_hevy_routines(session, user, hevy_api_key)
         errors.extend(routine_errors)
 
-    if not user.fitbit_access_token and not user.renpho_session_key and not user.hevy_api_key:
+    # Sync FatSecret (typed pipeline; aggregates daily_nutrition automatically)
+    if sync_fatsecret and user.fatsecret_oauth_token:
+        async with httpx.AsyncClient(timeout=30) as http:
+            for i in range(days):
+                current_date = base_date - timedelta(days=i)
+                try:
+                    fs_result = await sync_fatsecret_for_date(session, user, current_date, http)
+                    errors.extend(fs_result["errors"])
+                    if not fs_result["errors"]:
+                        synced_metrics.append(f"fatsecret:{current_date.isoformat()}#nutrition")
+                except FatSecretAuthError:
+                    disconnect_fatsecret(user)
+                    errors.append("fatsecret: token rejected, disconnected")
+                    break
+
+    if (not user.fitbit_access_token and not user.renpho_session_key
+            and not user.hevy_api_key and not user.fatsecret_oauth_token):
         raise HTTPException(status_code=400, detail="No data sources connected")
 
     user.last_sync = datetime.now(timezone.utc)
