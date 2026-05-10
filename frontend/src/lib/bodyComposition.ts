@@ -31,3 +31,8 @@ export function pickComparisonMeasurement(
 
   return candidates[0].m
 }
+
+export function daysBetween(isoA: string, isoB: string): number {
+  const ms = Math.abs(new Date(isoA).getTime() - new Date(isoB).getTime())
+  return Math.round(ms / DAY_MS)
+}

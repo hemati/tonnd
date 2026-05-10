@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickComparisonMeasurement } from './bodyComposition'
+import { pickComparisonMeasurement, daysBetween } from './bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
 function m(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
@@ -72,5 +72,20 @@ describe('pickComparisonMeasurement', () => {
     const measurements = [m(36), latest]
     const picked = pickComparisonMeasurement(measurements, latest)
     expect(picked).toBeNull()
+  })
+})
+
+describe('daysBetween', () => {
+  it('returns positive integer days between two ISO timestamps regardless of order', () => {
+    const a = '2026-01-01T08:00:00Z'
+    const b = '2026-01-15T08:00:00Z'
+    expect(daysBetween(a, b)).toBe(14)
+    expect(daysBetween(b, a)).toBe(14)
+  })
+
+  it('rounds to the nearest day for sub-day differences', () => {
+    const a = '2026-01-01T08:00:00Z'
+    const b = '2026-01-08T20:00:00Z'  // 7.5 days
+    expect(daysBetween(a, b)).toBe(8)
   })
 })
