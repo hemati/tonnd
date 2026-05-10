@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from src.models.db_models import User
+from src.services.fatsecret.client import FatSecretAuthError
 from src.services.fitbit.client import RateLimitError, TokenExpiredError
 from src.services.token_encryption import encrypt_token
 
@@ -395,3 +396,69 @@ class TestDailySyncAll:
 
         assert stats["failed"] == 1
         assert stats["success"] == 0
+
+
+# ---------------------------------------------------------------------------
+# FatSecret integration in sync_user
+# ---------------------------------------------------------------------------
+class TestSyncUserFatSecret:
+    @pytest.mark.asyncio
+    async def test_fatsecret_connected_runs_sync(self):
+        from src.scheduler import sync_user
+        async with test_session_maker() as session:
+            user = _make_user(
+                fatsecret_oauth_token=encrypt_token("acc_t"),
+                fatsecret_oauth_token_secret=encrypt_token("acc_s"),
+            )
+            session.add(user)
+            await session.flush()
+            with patch(
+                "src.scheduler.sync_fatsecret_for_date",
+                new_callable=AsyncMock,
+                return_value={"errors": []},
+            ) as mock_sync:
+                status = await sync_user(session, user)
+            assert status == "success"
+            # Called twice (yesterday + today).
+            assert mock_sync.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_fatsecret_auth_error_disconnects(self):
+        from src.scheduler import sync_user
+        async with test_session_maker() as session:
+            user = _make_user(
+                fatsecret_oauth_token=encrypt_token("acc_t"),
+                fatsecret_oauth_token_secret=encrypt_token("acc_s"),
+            )
+            session.add(user)
+            await session.flush()
+            with patch(
+                "src.scheduler.sync_fatsecret_for_date",
+                new_callable=AsyncMock,
+                side_effect=FatSecretAuthError("rejected"),
+            ):
+                status = await sync_user(session, user)
+            # Status still success — auth error doesn't fail the whole user sync.
+            assert status == "success"
+            assert user.fatsecret_oauth_token is None
+            assert user.fatsecret_oauth_token_secret is None
+
+    @pytest.mark.asyncio
+    async def test_daily_sync_all_includes_fatsecret_only_users(self):
+        from src.scheduler import daily_sync_all
+        user = _make_user(
+            fatsecret_oauth_token=encrypt_token("acc_t"),
+            fatsecret_oauth_token_secret=encrypt_token("acc_s"),
+        )
+        mock_maker = _mock_session_maker_factory([user])
+        with patch(
+            "src.scheduler.async_session_maker", mock_maker
+        ), patch(
+            "src.scheduler.sync_user",
+            new_callable=AsyncMock,
+            return_value="success",
+        ), patch("asyncio.sleep", new_callable=AsyncMock):
+            stats = await daily_sync_all()
+        # User with only FatSecret connected gets picked up.
+        assert stats["success"] == 1
+

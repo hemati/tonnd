@@ -24,6 +24,8 @@ from src.services.fitbit_sync_utils import (
     upsert_hourly_intraday,
     upsert_user_context,
 )
+from src.services.fatsecret.client import FatSecretAuthError
+from src.services.fatsecret.sync import disconnect_fatsecret, sync_fatsecret_for_date
 from src.services.hevy.sync import sync_hevy_workouts, sync_hevy_routines
 from src.services.renpho.sync import sync_renpho_data
 
@@ -340,6 +342,22 @@ async def sync_user(session: AsyncSession, user: User) -> str:
         except Exception as e:
             logger.error(f"Hevy sync failed for user {user.id}: {e}")
 
+    # FatSecret — typed pipeline + auto-aggregation per date
+    if user.fatsecret_oauth_token:
+        try:
+            import httpx as _httpx
+            async with _httpx.AsyncClient(timeout=30) as http:
+                for days_ago in [1, 0]:
+                    sync_date = date.today() - timedelta(days=days_ago)
+                    fs_result = await sync_fatsecret_for_date(session, user, sync_date, http)
+                    if fs_result["errors"]:
+                        logger.warning(f"FatSecret errors for user {user.id}: {fs_result['errors']}")
+        except FatSecretAuthError:
+            disconnect_fatsecret(user)
+            logger.warning(f"FatSecret token rejected for user {user.id} — disconnected")
+        except Exception as e:
+            logger.error(f"FatSecret sync failed for user {user.id}: {e}")
+
     user.last_sync = datetime.now(timezone.utc)
     await session.commit()
     return status
@@ -356,6 +374,7 @@ async def daily_sync_all():
                 User.fitbit_access_token.isnot(None),
                 User.renpho_session_key.isnot(None),
                 User.hevy_api_key.isnot(None),
+                User.fatsecret_oauth_token.isnot(None),
             )
         )
         result = await session.execute(stmt)
