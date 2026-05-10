@@ -59,9 +59,38 @@ export interface SyncResponse {
 
 export interface WeightData {
   date: string
+  source?: string  // 'fitbit' | 'renpho'; backend includes it via to_dict()
   weight_kg: number | null
   body_fat_percent: number | null
   bmi?: number | null
+}
+
+export interface BodyMeasurement {
+  date: string
+  source: string
+  measured_at: string
+  weight_kg?: number
+  bmi?: number
+  body_fat_percent?: number
+  body_water_percent?: number
+  muscle_mass_percent?: number
+  bone_mass_kg?: number
+  bmr_kcal?: number
+  visceral_fat?: number
+  subcutaneous_fat_percent?: number
+  protein_percent?: number
+  body_age?: number
+  lean_body_mass_kg?: number
+  fat_free_weight_kg?: number
+  heart_rate?: number
+  cardiac_index?: number
+  body_shape?: number
+  sport_flag?: boolean
+}
+
+export interface BodyMeasurementsResponse {
+  count: number
+  data: BodyMeasurement[]
 }
 
 export interface SleepData {
@@ -216,6 +245,21 @@ export const initFitbitAuth = async (): Promise<FitbitInitResponse> => {
 export const syncFitbitData = async (params: { days?: number; date?: string } = {}): Promise<SyncResponse> => {
   const { days = 1, date } = params
   const { data } = await api.post<SyncResponse>('/api/sync', { days, ...(date && { date }) })
+  return data
+}
+
+export const fetchBodyMeasurements = async (params: {
+  source?: string
+  startDate?: string
+  endDate?: string
+  limit?: number
+}): Promise<BodyMeasurementsResponse> => {
+  const query = new URLSearchParams()
+  if (params.source) query.set('source', params.source)
+  if (params.startDate) query.set('start_date', params.startDate)
+  if (params.endDate) query.set('end_date', params.endDate)
+  query.set('limit', String(params.limit ?? 180))
+  const { data } = await api.get<BodyMeasurementsResponse>(`/api/v1/body?${query.toString()}`)
   return data
 }
 
