@@ -10,7 +10,7 @@ from urllib.parse import urlencode
 
 import httpx
 
-from src.utils.safe_parse import _safe_float
+from src.utils.safe_parse import safe_float
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -363,9 +363,9 @@ class FitbitClient:
                         ).replace(tzinfo=timezone.utc)
 
                     data["weight"] = {
-                        "weight_kg": _safe_float(latest.get("weight")),
-                        "body_fat_percent": _safe_float(latest.get("fat")),
-                        "bmi": _safe_float(latest.get("bmi")),
+                        "weight_kg": safe_float(latest.get("weight")),
+                        "body_fat_percent": safe_float(latest.get("fat")),
+                        "bmi": safe_float(latest.get("bmi")),
                         "measured_at": measured_at,
                     }
         except Exception as e:
@@ -391,7 +391,7 @@ class FitbitClient:
             distances = summary.get("distances", [])
             for d in distances:
                 if d.get("activity") == "total":
-                    data["activity"]["distance_km"] = _safe_float(d.get("distance"))
+                    data["activity"]["distance_km"] = safe_float(d.get("distance"))
                     break
         except Exception as e:
             errors.append(f"activity: {str(e)}")
@@ -431,7 +431,7 @@ class FitbitClient:
             hr_data = await self.get_heart_rate(date)
             hr_value = hr_data.get("activities-heart", [{}])[0].get("value", {})
             data["heart_rate"] = {
-                "resting_heart_rate": _safe_float(hr_value.get("restingHeartRate")),
+                "resting_heart_rate": safe_float(hr_value.get("restingHeartRate")),
                 "zones": {
                     zone["name"]: {
                         "min": zone.get("min"),
@@ -452,8 +452,8 @@ class FitbitClient:
             if hrv_data.get("hrv") and len(hrv_data["hrv"]) > 0:
                 hrv_entry = hrv_data["hrv"][0].get("value", {})
                 data["hrv"] = {
-                    "daily_rmssd": _safe_float(hrv_entry.get("dailyRmssd")),
-                    "deep_rmssd": _safe_float(hrv_entry.get("deepRmssd")),
+                    "daily_rmssd": safe_float(hrv_entry.get("dailyRmssd")),
+                    "deep_rmssd": safe_float(hrv_entry.get("deepRmssd")),
                 }
         except Exception as e:
             errors.append(f"hrv: {str(e)}")
@@ -463,9 +463,9 @@ class FitbitClient:
             spo2_data = await self.get_spo2(date)
             if spo2_data.get("value"):
                 data["spo2"] = {
-                    "avg": _safe_float(spo2_data["value"].get("avg")),
-                    "min": _safe_float(spo2_data["value"].get("min")),
-                    "max": _safe_float(spo2_data["value"].get("max")),
+                    "avg": safe_float(spo2_data["value"].get("avg")),
+                    "min": safe_float(spo2_data["value"].get("min")),
+                    "max": safe_float(spo2_data["value"].get("max")),
                 }
         except Exception as e:
             errors.append(f"spo2: {str(e)}")
@@ -476,7 +476,7 @@ class FitbitClient:
             if br_data.get("br") and len(br_data["br"]) > 0:
                 br_value = br_data["br"][0].get("value", {})
                 data["breathing_rate"] = {
-                    "breathing_rate": _safe_float(br_value.get("breathingRate")),
+                    "breathing_rate": safe_float(br_value.get("breathingRate")),
                 }
         except Exception as e:
             errors.append(f"breathing_rate: {str(e)}")
@@ -487,7 +487,7 @@ class FitbitClient:
             if vo2_data.get("cardioScore") and len(vo2_data["cardioScore"]) > 0:
                 vo2_entry = vo2_data["cardioScore"][0].get("value", {})
                 data["vo2_max"] = {
-                    "vo2_max": _safe_float(vo2_entry.get("vo2Max")),
+                    "vo2_max": safe_float(vo2_entry.get("vo2Max")),
                 }
         except Exception as e:
             errors.append(f"vo2_max: {str(e)}")
@@ -498,7 +498,7 @@ class FitbitClient:
             if temp_data.get("tempSkin") and len(temp_data["tempSkin"]) > 0:
                 temp_value = temp_data["tempSkin"][0].get("value", {})
                 data["temperature"] = {
-                    "relative_deviation": _safe_float(temp_value.get("nightlyRelative")),
+                    "relative_deviation": safe_float(temp_value.get("nightlyRelative")),
                 }
         except Exception as e:
             errors.append(f"temperature: {str(e)}")
