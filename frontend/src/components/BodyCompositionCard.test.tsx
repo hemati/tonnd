@@ -68,4 +68,35 @@ describe('BodyCompositionCard', () => {
     expect(await screen.findByText(/No measurements in last 30 days/i)).toBeInTheDocument()
     expect(screen.getByText(/Last measurement was 45 days ago/i)).toBeInTheDocument()
   })
+
+  it('renders stat strip with the four fields in correct order', async () => {
+    const latestMeasurement = makeMeasurement(0, {
+      lean_body_mass_kg: 64.2,
+      body_fat_percent: 16.6,
+      muscle_mass_percent: 42.1,
+      body_water_percent: 58.4,
+      visceral_fat: 4.2,
+    })
+    const olderMeasurement = makeMeasurement(7, {
+      lean_body_mass_kg: 63.8,
+      body_fat_percent: 17.0,
+      muscle_mass_percent: 41.8,
+      body_water_percent: 58.5,
+      visceral_fat: 4.4,
+    })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [latestMeasurement] }
+      return { count: 2, data: [olderMeasurement, latestMeasurement] }
+    })
+
+    renderCard(30)
+    // All four stat labels should appear in order
+    const labels = await screen.findAllByTestId('stat-label')
+    expect(labels.map((el) => el.textContent)).toEqual(['Body Fat %', 'Muscle Mass %', 'Water %', 'Visceral Fat'])
+    // Current values
+    expect(screen.getByTestId('stat-value-body_fat_pct')).toHaveTextContent('16.6')
+    expect(screen.getByTestId('stat-value-muscle_mass_pct')).toHaveTextContent('42.1')
+    expect(screen.getByTestId('stat-value-water_pct')).toHaveTextContent('58.4')
+    expect(screen.getByTestId('stat-value-visceral_fat')).toHaveTextContent('4.2')
+  })
 })
