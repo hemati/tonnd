@@ -43,6 +43,10 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
     # Hevy (workout tracking — user provides their own API key)
     hevy_api_key: Mapped[str | None] = mapped_column(Text, default=None)  # Fernet-encrypted
 
+    # FatSecret OAuth 1.0a (3-legged) — both tokens Fernet-encrypted
+    fatsecret_oauth_token: Mapped[str | None] = mapped_column(Text, default=None)
+    fatsecret_oauth_token_secret: Mapped[str | None] = mapped_column(Text, default=None)
+
     # Fitbit capability flags
     fitbit_intraday_available: Mapped[bool | None] = mapped_column(Boolean, default=None)
     fitbit_scopes_version: Mapped[int | None] = mapped_column(Integer, default=1)
