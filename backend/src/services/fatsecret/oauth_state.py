@@ -16,8 +16,17 @@ from datetime import datetime, timedelta, timezone
 
 TTL = timedelta(minutes=10)
 
+# Sanity bound on FatSecret-supplied oauth_token length. Rejects giant strings
+# that could bloat the in-memory store. FatSecret tokens are ~20-40 chars in
+# practice; 256 leaves generous headroom without enabling abuse.
+MAX_TOKEN_LEN = 256
+
 # oauth_token -> (user_id, request_token_secret, expires_at)
 _STORE: dict[str, tuple[uuid.UUID, str, datetime]] = {}
+
+
+class TokenTooLongError(ValueError):
+    """Raised when a put receives an unreasonably long oauth_token."""
 
 
 def _now() -> datetime:
@@ -35,6 +44,8 @@ def _drop_expired() -> None:
 
 def put(oauth_token: str, user_id: uuid.UUID, request_token_secret: str) -> None:
     """Stash the request_token_secret for `oauth_token`. Overwrites on collision."""
+    if len(oauth_token) > MAX_TOKEN_LEN or len(request_token_secret) > MAX_TOKEN_LEN:
+        raise TokenTooLongError(f"oauth token exceeds {MAX_TOKEN_LEN} chars")
     _drop_expired()
     _STORE[oauth_token] = (user_id, request_token_secret, _now() + TTL)
 

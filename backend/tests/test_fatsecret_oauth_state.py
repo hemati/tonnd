@@ -42,6 +42,19 @@ class TestPutPopBasic:
         assert out == (uid, "secret_b")
 
 
+class TestLengthCap:
+    def test_rejects_oversize_oauth_token(self):
+        with pytest.raises(st.TokenTooLongError):
+            st.put("x" * (st.MAX_TOKEN_LEN + 1), uuid.uuid4(), "secret")
+
+    def test_rejects_oversize_secret(self):
+        with pytest.raises(st.TokenTooLongError):
+            st.put("tok", uuid.uuid4(), "x" * (st.MAX_TOKEN_LEN + 1))
+
+    def test_accepts_at_limit(self):
+        st.put("x" * st.MAX_TOKEN_LEN, uuid.uuid4(), "x" * st.MAX_TOKEN_LEN)
+
+
 class TestTTL:
     def test_pop_after_ttl_returns_none(self):
         uid = uuid.uuid4()
