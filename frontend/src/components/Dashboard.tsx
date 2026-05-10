@@ -113,7 +113,8 @@ export default function Dashboard() {
   const syncMutation = useSyncFitbit()
 
   useEffect(() => {
-    if (user && !user.fitbit_connected && !user.renpho_connected && !user.hevy_connected) {
+    if (user && !user.fitbit_connected && !user.renpho_connected
+        && !user.hevy_connected && !user.fatsecret_connected) {
       navigate('/sources')
     }
   }, [user, navigate])
