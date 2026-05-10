@@ -9,12 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.body_models import BodyMeasurement
 from src.models.fitbit_models import (
     DailyActivity,
+    DailyNutrition,
     DailySleep,
     DailyVitals,
     ExerciseLog,
     HourlyIntraday,
     UserContext,
 )
+from src.models.food_models import FoodEntry
 from src.models.hevy_models import Routine, Workout, WorkoutExercise
 
 
@@ -198,6 +200,33 @@ async def workout_with_exercises(session, workout) -> dict:
     exercises = await query_workout_exercises(session, workout.id)
     d["exercises"] = [e.to_dict() for e in exercises]
     return d
+
+
+async def query_daily_nutrition(session, user_id, **kw):
+    return await _query_typed(session, DailyNutrition, user_id, **kw)
+
+
+async def query_food_entries(
+    session: AsyncSession, user_id, *,
+    start_date=None, end_date=None, source=None, meal=None,
+    limit=100, offset=0, order="desc",
+):
+    """Query food_entries excluding soft-deleted rows. Optional `meal` filter."""
+    stmt = select(FoodEntry).where(
+        FoodEntry.user_id == user_id,
+        FoodEntry.deleted_at.is_(None),
+    )
+    if start_date:
+        stmt = stmt.where(FoodEntry.date >= start_date)
+    if end_date:
+        stmt = stmt.where(FoodEntry.date <= end_date)
+    if source:
+        stmt = stmt.where(FoodEntry.source == source)
+    if meal:
+        stmt = stmt.where(FoodEntry.meal == meal)
+    stmt = stmt.order_by(FoodEntry.date.asc() if order == "asc" else FoodEntry.date.desc())
+    stmt = stmt.offset(offset).limit(limit)
+    return list((await session.execute(stmt)).scalars().all())
 
 
 async def query_routines(session, user_id, **kw):

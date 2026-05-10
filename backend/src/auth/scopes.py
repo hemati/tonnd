@@ -14,6 +14,9 @@ SCOPE_METRICS: dict[str, list[str]] = {
     "read:sleep": ["sleep"],
     "read:activity": ["activity", "active_zone_minutes", "exercise_log"],
     "read:workouts": ["workout"],
+    # NOTE: read:nutrition exposes food_entry_name (user-identifiable food log).
+    # Tokens with this scope can read the user's full diary, not just macros.
+    "read:nutrition": ["daily_nutrition", "food_entry"],
     "read:recovery": [],  # computed, not a metric_type
 }
 
