@@ -10,11 +10,12 @@ export interface ExpandableCardProps {
   title: string
   icon: HeroIcon
   preview?: ReactNode
+  headerExtra?: ReactNode
   children: ReactNode
   className?: string
 }
 
-export default function ExpandableCard({ title, icon: Icon, preview, children, className }: ExpandableCardProps) {
+export default function ExpandableCard({ title, icon: Icon, preview, headerExtra, children, className }: ExpandableCardProps) {
   const [expanded, setExpanded] = useState(false)
   return (
     <div className={cn(CARD, 'overflow-hidden', className)}>
@@ -23,6 +24,7 @@ export default function ExpandableCard({ title, icon: Icon, preview, children, c
         <div className="flex items-center gap-2">
           <Icon className="h-5 w-5 text-white/60" />
           <h2 className="text-lg font-semibold text-white">{title}</h2>
+          {headerExtra}
         </div>
         <div className="flex items-center gap-3">
           {!expanded && preview}

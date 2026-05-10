@@ -129,7 +129,26 @@ describe('BodyCompositionCard', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('does not remount when the rangeDays prop changes (DOM root stable)', async () => {
+  it('renders Renpho badge in populated state header', async () => {
+    const m1 = makeMeasurement(7, { lean_body_mass_kg: 63.8, body_fat_percent: 17.0 })
+    const m2 = makeMeasurement(0, { lean_body_mass_kg: 64.2, body_fat_percent: 16.6 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [m2] }
+      return { count: 2, data: [m1, m2] }
+    })
+    renderCard(30)
+    // Renpho badge appears alongside the ExpandableCard title in populated state
+    const badges = await screen.findAllByText(/Renpho/i)
+    expect(badges.length).toBeGreaterThan(0)
+  })
+
+  it('does not remount when the rangeDays prop changes within the same state branch (DOM root stable)', async () => {
+    // NOTE: This test verifies within-state stability. Both 30D and 7D
+    // mocks return populated data, so both renders hit the same render
+    // branch (ExpandableCard wrapper). Cross-state stability (e.g. 30D
+    // populated → 7D no-data-in-range) would require the four state
+    // branches to share a common shell — currently they don't. That's
+    // a larger refactor tracked as future work.
     const m30 = makeMeasurement(15, { lean_body_mass_kg: 63.5, body_fat_percent: 17 })
     const mLatest = makeMeasurement(0, { lean_body_mass_kg: 64.2, body_fat_percent: 16.6 })
     vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {

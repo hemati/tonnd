@@ -65,7 +65,7 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
 
   return (
     <div data-testid="body-card-root">
-      <ExpandableCard title="Body Composition" icon={ScaleIcon} preview={preview}>
+      <ExpandableCard title="Body Composition" icon={ScaleIcon} preview={preview} headerExtra={<RenphoBadge />}>
         <div className="flex justify-end">
           <button
             type="button"
@@ -93,8 +93,14 @@ function EmptyHeader({ rangeDays }: { rangeDays: number }) {
         <h3 className="text-white font-semibold text-base">Body Composition</h3>
         <p className="text-white/40 text-xs mt-1">{rangeDays}-day trend</p>
       </div>
-      <span className="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full text-[10px]">Renpho</span>
+      <RenphoBadge />
     </div>
+  )
+}
+
+function RenphoBadge() {
+  return (
+    <span className="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full text-[10px]">Renpho</span>
   )
 }
 
