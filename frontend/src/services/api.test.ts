@@ -174,6 +174,7 @@ describe('api module', () => {
         fitbit_user_id: 'fb123',
         renpho_connected: false,
         hevy_connected: false,
+        fatsecret_connected: false,
         last_sync: '2025-01-01T00:00:00Z',
       }
       mockGet.mockResolvedValueOnce({ data: mockUser })

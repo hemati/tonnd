@@ -30,6 +30,15 @@ export default function AuthCallback() {
         return
       }
 
+      // FatSecret OAuth1 callback — mirrors Fitbit's success-redirect contract.
+      const fatsecret = searchParams.get('fatsecret')
+      if (success === 'true' && fatsecret === 'connected') {
+        trackEvent('fatsecret_connected')
+        setMessage('FatSecret connected. Backfilling 30 days in the background…')
+        setTimeout(() => navigate('/dashboard'), 1500)
+        return
+      }
+
       // Google OAuth callback — token arrives as query param
       const token = searchParams.get('access_token')
       if (token) {

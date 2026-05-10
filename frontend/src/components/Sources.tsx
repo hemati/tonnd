@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { initFitbitAuth, fetchUser, api } from '../services/api'
+import { initFitbitAuth, initFatSecretAuth, fetchUser, api } from '../services/api'
 import { trackEvent } from '../lib/analytics'
-import { FitbitIcon, RenphoIcon, HevyIcon } from './SourceIcons'
+import { FitbitIcon, RenphoIcon, HevyIcon, FatSecretIcon } from './SourceIcons'
 
 const CARD = 'rounded-xl border border-white/[.06] bg-white/[.02] p-8'
 const INPUT = 'w-full px-4 py-2.5 bg-white/[.04] border border-white/[.1] rounded-md text-white placeholder-white/25 text-sm focus:outline-none focus:border-white/25 transition-colors'
@@ -21,6 +21,7 @@ export default function Sources() {
   const [isConnectingFitbit, setIsConnectingFitbit] = useState(false)
   const [isConnectingRenpho, setIsConnectingRenpho] = useState(false)
   const [isConnectingHevy, setIsConnectingHevy] = useState(false)
+  const [isConnectingFatSecret, setIsConnectingFatSecret] = useState(false)
   const [renphoEmail, setRenphoEmail] = useState('')
   const [renphoPassword, setRenphoPassword] = useState('')
   const [hevyApiKey, setHevyApiKey] = useState('')
@@ -38,6 +39,18 @@ export default function Sources() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect Fitbit')
       setIsConnectingFitbit(false)
+    }
+  }
+
+  const handleConnectFatSecret = async () => {
+    setIsConnectingFatSecret(true)
+    setError(null)
+    try {
+      const response = await initFatSecretAuth()
+      window.location.href = response.authorization_url
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect FatSecret')
+      setIsConnectingFatSecret(false)
     }
   }
 
@@ -78,7 +91,7 @@ export default function Sources() {
     }
   }
 
-  const handleDisconnect = async (source: 'renpho' | 'hevy') => {
+  const handleDisconnect = async (source: 'renpho' | 'hevy' | 'fatsecret') => {
     try {
       await api.delete(`/auth/${source}/disconnect`)
       queryClient.invalidateQueries({ queryKey: ['user'] })
@@ -171,6 +184,31 @@ export default function Sources() {
               </a>
             </p>
           </form>
+        )}
+      </div>
+
+      {/* FatSecret */}
+      <div className={CARD}>
+        <div className="flex items-start gap-4 mb-5">
+          <FatSecretIcon className="w-8 h-8 flex-shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-base font-semibold text-white">FatSecret</h2>
+            <p className="text-white/40 text-sm">Food diary — calories, macros, and micros per meal</p>
+          </div>
+        </div>
+        {user?.fatsecret_connected ? (
+          <div className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/[.06] text-white/60 rounded-md text-sm">
+              <CheckIcon /> Connected
+            </span>
+            <button onClick={() => handleDisconnect('fatsecret')} className="text-white/45 hover:text-white/70 text-sm transition-colors">
+              Disconnect
+            </button>
+          </div>
+        ) : (
+          <button onClick={handleConnectFatSecret} disabled={isConnectingFatSecret} className={BTN_CONNECT}>
+            {isConnectingFatSecret ? 'Connecting...' : 'Connect FatSecret'}
+          </button>
         )}
       </div>
 

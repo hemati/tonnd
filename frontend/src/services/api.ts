@@ -42,7 +42,12 @@ export interface UserProfile {
   fitbit_user_id: string | null
   renpho_connected: boolean
   hevy_connected: boolean
+  fatsecret_connected: boolean
   last_sync: string | null
+}
+
+export interface FatSecretInitResponse {
+  authorization_url: string
 }
 
 export interface FitbitInitResponse {
@@ -239,6 +244,11 @@ export const fetchDashboardData = async (days: number = 30): Promise<DashboardDa
 
 export const initFitbitAuth = async (): Promise<FitbitInitResponse> => {
   const { data } = await api.get<FitbitInitResponse>('/auth/fitbit/init')
+  return data
+}
+
+export const initFatSecretAuth = async (): Promise<FatSecretInitResponse> => {
+  const { data } = await api.get<FatSecretInitResponse>('/auth/fatsecret/init')
   return data
 }
 
