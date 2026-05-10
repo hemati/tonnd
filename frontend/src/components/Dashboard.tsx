@@ -17,6 +17,7 @@ import { cn } from '../lib/utils'
 import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
 import MuscleMap from './MuscleMap'
 import ExpandableCard from './ExpandableCard'
+import BodyCompositionCard from './BodyCompositionCard'
 
 // Heroicons type
 type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
@@ -54,18 +55,6 @@ const CARD = 'bg-white/[.02] rounded-xl border border-white/[.06]'
 
 function prepareChartData<T extends { date: string }>(data: T[]): (T & { date: string })[] {
   return [...data].reverse().map(d => ({ ...d, date: format(parseISO(d.date), 'MMM d') }))
-}
-
-/** Exponentially Weighted Moving Average */
-function ewma(values: number[], span: number = 7): number[] {
-  const alpha = 2 / (span + 1)
-  const result: number[] = []
-  let prev = values[0]
-  for (const v of values) {
-    prev = alpha * v + (1 - alpha) * prev
-    result.push(Math.round(prev * 10) / 10)
-  }
-  return result
 }
 
 /** Pearson correlation coefficient */
@@ -108,7 +97,7 @@ function recoveryColor(score: number) {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const [daysToShow, setDaysToShow] = useState(7)
+  const [daysToShow, setDaysToShow] = useState<7 | 14 | 30>(7)
   const [syncProgress, setSyncProgress] = useState<string | null>(null)
 
   const { data: user } = useUser()
@@ -187,21 +176,6 @@ export default function Dashboard() {
     sleep: data?.latest_sleep?.efficiency ?? 0,
     rhr: Math.round(Math.max(0, Math.min(100, (100 - Number(data?.today_heart_rate?.resting_heart_rate ?? 70)) * 2))),
   } : null
-
-  // EWMA weight data
-  const weightWithEwma = (() => {
-    const raw = getFiltered(data?.weight_trend)?.filter(d => d.weight_kg)
-    if (!raw || raw.length < 2) return null
-    const reversed = [...raw].reverse()
-    const weights = reversed.map(d => Number(d.weight_kg))
-    const smoothed = ewma(weights)
-    return reversed.map((d, i) => ({
-      date: format(parseISO(d.date), 'MMM d'),
-      raw: Number(d.weight_kg),
-      trend: smoothed[i],
-      body_fat: d.body_fat_percent ? Number(d.body_fat_percent) : undefined,
-    }))
-  })()
 
   // Sleep-HRV correlation data
   const sleepHrvCorrelation = (() => {
@@ -401,7 +375,7 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold text-white">Trends</h2>
             <div className="flex items-center gap-3">
               <div className="flex bg-white/[.04] rounded-lg p-1">
-                {[7, 14, 30].map(d => (
+                {([7, 14, 30] as const).map(d => (
                   <button key={d} onClick={() => setDaysToShow(d)}
                     className={cn('px-3 py-1 text-sm rounded-md transition-colors',
                       daysToShow === d ? 'bg-white/[.15] text-white' : 'text-white/40 hover:text-white')}>
@@ -561,28 +535,8 @@ export default function Dashboard() {
               </ExpandableCard>
             )}
 
-            {/* US 3: Weight with EWMA */}
-            {weightWithEwma && weightWithEwma.length > 0 && (
-              <ExpandableCard title="Weight Trend" icon={ScaleIcon}
-                preview={<span className="text-white/60 text-sm">{weightWithEwma[weightWithEwma.length - 1].trend} kg trend</span>}>
-                <ResponsiveContainer width="100%" height={256}>
-                  <ComposedChart data={weightWithEwma} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-                    <XAxis dataKey="date" stroke="#9CA3AF" fontSize={11} />
-                    <YAxis yAxisId="weight" stroke="#9CA3AF" fontSize={11} domain={['dataMin - 1', 'dataMax + 1']} tickFormatter={v => `${v}kg`} />
-                    {weightWithEwma.some(d => d.body_fat !== undefined) && (
-                      <YAxis yAxisId="fat" orientation="right" stroke="#9CA3AF" fontSize={11} tickFormatter={v => `${v}%`} />
-                    )}
-                    <Tooltip {...tooltipStyle} />
-                    <Line yAxisId="weight" type="monotone" dataKey="raw" name="Daily" stroke={COLORS.cyan} strokeWidth={1} strokeDasharray="3 3" dot={{ fill: COLORS.cyan, r: 2 }} />
-                    <Line yAxisId="weight" type="monotone" dataKey="trend" name="Trend (EWMA)" stroke={COLORS.cyan} strokeWidth={2.5} dot={false} />
-                    {weightWithEwma.some(d => d.body_fat !== undefined && d.body_fat > 0) && (
-                      <Line yAxisId="fat" type="monotone" dataKey="body_fat" name="Body Fat %" stroke={COLORS.warning} strokeWidth={1.5} dot={{ fill: COLORS.warning, r: 2 }} />
-                    )}
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </ExpandableCard>
-            )}
+            {/* Body Composition (replaces former weight chart) */}
+            <BodyCompositionCard rangeDays={daysToShow} />
           </div>
         </>
       )}
