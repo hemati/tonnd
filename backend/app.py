@@ -1,9 +1,12 @@
 import contextlib
+import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal, Optional
+
+logger = logging.getLogger(__name__)
 
 import httpx
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -339,7 +342,13 @@ FATSECRET_BACKFILL_DAYS = 30
 
 
 async def _run_fatsecret_backfill(user_id: uuid.UUID, num_days: int) -> None:
-    """Background-task wrapper: opens its own DB session + HTTP client."""
+    """Background-task wrapper: opens its own DB session + HTTP client.
+
+    Always commits at the end so partial backfill progress (entries written
+    before a crash) is preserved, and so a disconnect-on-AuthError persists.
+    Non-Auth crashes are logged but never propagate — the task runs after
+    the response is sent and has nowhere to surface a stack trace.
+    """
     async with async_session_maker() as session:
         user = await session.get(User, user_id)
         if not user:
@@ -349,6 +358,10 @@ async def _run_fatsecret_backfill(user_id: uuid.UUID, num_days: int) -> None:
                 await backfill_fatsecret(session, user, num_days, http)
             except FatSecretAuthError:
                 disconnect_fatsecret(user)
+            except Exception:
+                logger.exception(
+                    "FatSecret backfill crashed for user=%s", user_id,
+                )
             await session.commit()
 
 
@@ -371,23 +384,28 @@ async def fatsecret_init(
 @app.get("/auth/fatsecret/callback", tags=["fatsecret"])
 async def fatsecret_callback(
     background_tasks: BackgroundTasks,
-    user: User = Depends(current_active_user),
     session: AsyncSession = Depends(get_async_session),
     oauth_token: str = Query(...),
     oauth_verifier: str = Query(...),
 ):
     """Step 3 of OAuth1: exchange verifier for access_token, encrypt + persist,
-    redirect immediately, then backfill in background."""
+    redirect immediately, then backfill in background.
+
+    No `current_active_user` dependency: this endpoint is hit via a top-level
+    cross-origin browser redirect from FatSecret, which cannot carry the
+    Authorization header. User identity comes from the in-memory store, where
+    /init stashed it bound to the oauth_token. This mirrors the Fitbit
+    callback's HMAC-state pattern — single-use + 10-min TTL on the store
+    provides the same anti-CSRF guarantee.
+    """
     stashed = fs_oauth_state.pop_if_valid(oauth_token)
     if stashed is None:
         raise HTTPException(status_code=400, detail="OAuth token expired or unknown")
     stashed_user_id, request_token_secret = stashed
 
-    # Token-binding: the user who initiated must be the user completing the flow.
-    # Without this check, a stolen oauth_token could be used by another logged-in
-    # user to bind the FatSecret account to themselves.
-    if stashed_user_id != user.id:
-        raise HTTPException(status_code=403, detail="OAuth token does not belong to this user")
+    user = await session.get(User, stashed_user_id)
+    if not user or not user.is_active:
+        raise HTTPException(status_code=404, detail="User not found")
 
     async with httpx.AsyncClient(timeout=30) as http:
         try:
@@ -403,8 +421,9 @@ async def fatsecret_callback(
     user.fatsecret_oauth_token_secret = encrypt_token(access["oauth_token_secret"])
     await session.commit()
 
-    # Backfill runs after the response is sent so the UI gets "connected" immediately.
-    # Errors are logged + tokens cleared on auth failure inside _run_fatsecret_backfill.
+    # Backfill runs after the response is sent so the UI shows "connected"
+    # immediately. Errors are logged + tokens cleared on auth failure inside
+    # _run_fatsecret_backfill.
     background_tasks.add_task(_run_fatsecret_backfill, user.id, FATSECRET_BACKFILL_DAYS)
 
     return RedirectResponse(
@@ -532,6 +551,10 @@ async def sync_all_sources(
                         synced_metrics.append(f"fatsecret:{current_date.isoformat()}#nutrition")
                 except FatSecretAuthError:
                     disconnect_fatsecret(user)
+                    # Persist immediately: if FatSecret was the only source the
+                    # "no sources connected" check below would raise 400 before
+                    # the trailing commit, losing the disconnect.
+                    await session.commit()
                     errors.append("fatsecret: token rejected, disconnected")
                     break
 

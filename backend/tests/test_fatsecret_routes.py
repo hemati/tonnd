@@ -80,13 +80,15 @@ class TestFatSecretInit:
 
 @pytest.mark.asyncio
 class TestFatSecretCallback:
-    async def test_persists_tokens_and_redirects(self, client):
+    """Callback intentionally has NO `current_active_user` dependency. The
+    cross-origin redirect from fatsecret.com cannot carry the Authorization
+    header; user identity comes from the in-memory oauth_state store."""
+
+    async def test_persists_tokens_and_redirects_without_auth_header(self, client):
         token = await _register_and_login(client)
-        # Get the user's id by calling /api/user
         me = await client.get("/api/user", headers=_auth(token))
         user_id = me.json()["user_id"]
 
-        # Simulate /init having stashed a request_token.
         import uuid
         fs_oauth_state.put("rt_abc", uuid.UUID(user_id), "rts_xyz")
 
@@ -95,44 +97,34 @@ class TestFatSecretCallback:
             new_callable=AsyncMock,
             return_value={"oauth_token": "acc_t", "oauth_token_secret": "acc_s"},
         ):
+            # NO auth header — simulating real cross-origin redirect from fatsecret.com.
             resp = await client.get(
                 "/auth/fatsecret/callback?oauth_token=rt_abc&oauth_verifier=ver1",
-                headers=_auth(token),
                 follow_redirects=False,
             )
-        assert resp.status_code == 307  # RedirectResponse
+        assert resp.status_code == 307
         assert "fatsecret=connected" in resp.headers["location"]
-
-        # Token consumed (single-use).
         assert "rt_abc" not in fs_oauth_state._STORE
 
-        # Persisted + encrypted on the user.
         me2 = await client.get("/api/user", headers=_auth(token))
         assert me2.json()["fatsecret_connected"] is True
 
     async def test_rejects_unknown_oauth_token(self, client):
-        token = await _register_and_login(client)
         resp = await client.get(
             "/auth/fatsecret/callback?oauth_token=stale&oauth_verifier=v",
-            headers=_auth(token),
         )
         assert resp.status_code == 400
 
-    async def test_rejects_when_token_belongs_to_other_user(self, client):
-        """Token-binding gap defense (Step 5 security finding)."""
-        # Stash a token bound to user A.
+    async def test_rejects_when_stashed_user_does_not_exist(self, client):
+        """If the stashed user_id was deleted between init and callback, 404."""
         import uuid
-        attacker_user_id = uuid.uuid4()  # not the logged-in user
-        fs_oauth_state.put("rt_abc", attacker_user_id, "rts_xyz")
-
-        # User B logs in and tries to consume it.
-        victim_token = await _register_and_login(client, email="victim@example.com")
+        ghost_user_id = uuid.uuid4()  # never existed
+        fs_oauth_state.put("rt_abc", ghost_user_id, "rts_xyz")
         resp = await client.get(
             "/auth/fatsecret/callback?oauth_token=rt_abc&oauth_verifier=v",
-            headers=_auth(victim_token),
         )
-        assert resp.status_code == 403
-        # Token still consumed (pop is single-use) so attacker can't reuse it either.
+        assert resp.status_code == 404
+        # Single-use pop still consumed it.
         assert "rt_abc" not in fs_oauth_state._STORE
 
 
@@ -140,7 +132,6 @@ class TestFatSecretCallback:
 class TestFatSecretDisconnect:
     async def test_clears_tokens(self, client):
         token = await _register_and_login(client)
-        # Connect first.
         me = await client.get("/api/user", headers=_auth(token))
         user_id = me.json()["user_id"]
         import uuid
@@ -152,10 +143,8 @@ class TestFatSecretDisconnect:
         ):
             await client.get(
                 "/auth/fatsecret/callback?oauth_token=rt_abc&oauth_verifier=v",
-                headers=_auth(token),
                 follow_redirects=False,
             )
-        # Disconnect.
         resp = await client.delete("/auth/fatsecret/disconnect", headers=_auth(token))
         assert resp.status_code == 200
         me2 = await client.get("/api/user", headers=_auth(token))
@@ -170,3 +159,45 @@ class TestUserResponseShape:
         body = resp.json()
         assert "fatsecret_connected" in body
         assert body["fatsecret_connected"] is False
+
+
+@pytest.mark.asyncio
+class TestApiSyncDisconnectPersistence:
+    """Regression: /api/sync FatSecret disconnect must persist even when
+    FatSecret is the only source (otherwise the "no sources connected" 400
+    raises before the trailing commit, swallowing the in-memory disconnect)."""
+
+    async def test_auth_failure_disconnects_when_only_source(self, client):
+        from src.services.fatsecret.client import FatSecretAuthError
+        token = await _register_and_login(client)
+        me = await client.get("/api/user", headers=_auth(token))
+        user_id = me.json()["user_id"]
+
+        # Connect FatSecret (callback flow).
+        import uuid
+        fs_oauth_state.put("rt_abc", uuid.UUID(user_id), "rts_xyz")
+        with patch(
+            "app.fatsecret_fetch_access_token",
+            new_callable=AsyncMock,
+            return_value={"oauth_token": "acc_t", "oauth_token_secret": "acc_s"},
+        ):
+            await client.get(
+                "/auth/fatsecret/callback?oauth_token=rt_abc&oauth_verifier=v",
+                follow_redirects=False,
+            )
+
+        # Now /api/sync — FatSecret call fails with AuthError; we disconnect.
+        with patch(
+            "app.sync_fatsecret_for_date",
+            new_callable=AsyncMock,
+            side_effect=FatSecretAuthError("rejected"),
+        ):
+            resp = await client.post(
+                "/api/sync?source=fatsecret&days=1", headers=_auth(token),
+            )
+        # Without other sources, sync raises 400 — but the disconnect must
+        # have committed BEFORE the raise.
+        assert resp.status_code == 400
+
+        me2 = await client.get("/api/user", headers=_auth(token))
+        assert me2.json()["fatsecret_connected"] is False
