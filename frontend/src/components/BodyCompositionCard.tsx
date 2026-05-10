@@ -26,6 +26,17 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
     )
   }
 
+  // Error branch — render before state detection so API failures are not
+  // misclassified as "no data" (which would show the Renpho CTA instead).
+  if (range.isError || latest.isError) {
+    return (
+      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
+        <EmptyHeader rangeDays={rangeDays} />
+        <ErrorState onRetry={() => { range.refetch(); latest.refetch() }} />
+      </div>
+    )
+  }
+
   // The hook fetches `rangeDays + 35` days to keep the 4-week comparison point
   // in scope. `comparisonPool` includes that buffer; `rangeData` is filtered to
   // the user-visible window for chart, state detection, and current-value display.
@@ -107,6 +118,21 @@ function EmptyHeader({ rangeDays }: { rangeDays: number }) {
 function RenphoBadge() {
   return (
     <span className="bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full text-[10px]">Renpho</span>
+  )
+}
+
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="mt-6 text-center py-8">
+      <p className="text-white/60 text-sm">Couldn't load body composition.</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-3 px-4 py-2 bg-white/[.06] hover:bg-white/[.10] text-white text-sm rounded-lg"
+      >
+        Retry
+      </button>
+    </div>
   )
 }
 

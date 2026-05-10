@@ -49,6 +49,19 @@ describe('BodyCompositionCard', () => {
     expect(screen.getByText(/Loading/i)).toBeInTheDocument()
   })
 
+  it('renders error state when body query fails', async () => {
+    // Body hooks set `retry: 3` per-query, which overrides QueryClient
+    // defaults. Wait long enough (default backoff: 1s + 2s + 4s ≈ 7s) for the
+    // final rejection to surface — `findByText` defaults to 1000ms, which is
+    // not enough to cover the retry chain.
+    vi.spyOn(api, 'fetchBodyMeasurements').mockRejectedValue(new Error('Network error'))
+    renderCard(30)
+    expect(
+      await screen.findByText(/Couldn't load body composition/i, undefined, { timeout: 10000 }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument()
+  }, 15000)
+
   it('renders empty state with Renpho CTA when no data exists for any source', async () => {
     vi.spyOn(api, 'fetchBodyMeasurements').mockResolvedValue({ count: 0, data: [] })
     renderCard()

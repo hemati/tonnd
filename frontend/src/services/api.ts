@@ -59,6 +59,7 @@ export interface SyncResponse {
 
 export interface WeightData {
   date: string
+  source?: string  // 'fitbit' | 'renpho'; backend includes it via to_dict()
   weight_kg: number | null
   body_fat_percent: number | null
   bmi?: number | null
