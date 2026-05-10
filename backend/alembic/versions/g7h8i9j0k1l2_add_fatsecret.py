@@ -66,11 +66,11 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("user_id", "source", "external_id", name="uq_food_entry"),
     )
-    op.create_index("ix_food_entries_user_date", "food_entries", ["user_id", "date"])
+    op.create_index("ix_food_entry_user_date", "food_entries", ["user_id", "date"])
 
 
 def downgrade() -> None:
-    op.drop_index("ix_food_entries_user_date", table_name="food_entries")
+    op.drop_index("ix_food_entry_user_date", table_name="food_entries")
     op.drop_table("food_entries")
     op.drop_column("user", "fatsecret_oauth_token_secret")
     op.drop_column("user", "fatsecret_oauth_token")

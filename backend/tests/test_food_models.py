@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timezone
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from src.models.food_models import FoodEntry
 
@@ -34,7 +34,7 @@ class TestFoodEntrySchema:
                 user_id=uid, external_id="fe1", source="fatsecret",
                 date=date(2026, 5, 10), food_entry_name="Apple v2",
             ))
-            with pytest.raises(Exception):
+            with pytest.raises(IntegrityError):
                 await session.commit()
 
     async def test_same_external_id_different_user_ok(self):

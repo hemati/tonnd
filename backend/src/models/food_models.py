@@ -18,7 +18,6 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.db_models import Base
-from src.models.fitbit_models import _iso
 
 
 class FoodEntry(Base):
@@ -62,26 +61,20 @@ class FoodEntry(Base):
 
     __table_args__ = (
         UniqueConstraint("user_id", "source", "external_id", name="uq_food_entry"),
-        Index("ix_food_entries_user_date", "user_id", "date"),
+        Index("ix_food_entry_user_date", "user_id", "date"),
     )
 
+    _SKIP = {"id", "user_id", "synced_at"}
+
     def to_dict(self) -> dict:
-        d = {
-            "external_id": self.external_id,
-            "source": self.source,
-            "date": self.date.isoformat(),
-            "food_entry_name": self.food_entry_name,
-        }
-        if self.deleted_at is not None:
-            d["deleted_at"] = _iso(self.deleted_at)
-        for field in (
-            "meal", "food_id", "serving_id", "food_entry_description", "number_of_units",
-            "calories", "carbs_g", "fat_g", "protein_g", "fiber_g", "sugar_g",
-            "saturated_fat_g", "polyunsaturated_fat_g", "monounsaturated_fat_g",
-            "cholesterol_mg", "sodium_mg", "calcium_mg", "iron_mg", "potassium_mg",
-            "vitamin_a_iu", "vitamin_c_mg",
-        ):
-            val = getattr(self, field)
-            if val is not None:
-                d[field] = val
+        d: dict = {}
+        for col in self.__table__.columns:
+            if col.name in self._SKIP:
+                continue
+            val = getattr(self, col.name)
+            if val is None:
+                continue
+            if hasattr(val, "isoformat"):
+                val = val.isoformat()
+            d[col.name] = val
         return d
