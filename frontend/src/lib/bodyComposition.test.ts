@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { pickComparisonMeasurement, daysBetween, formatDelta } from './bodyComposition'
+import { pickComparisonMeasurement, daysBetween, formatDelta, getDeltaColor } from './bodyComposition'
 import type { BodyMeasurement } from '../services/api'
 
 function m(daysBack: number, fields: Partial<BodyMeasurement> = {}): BodyMeasurement {
@@ -112,5 +112,37 @@ describe('formatDelta', () => {
   it('rounds to 1 decimal place', () => {
     expect(formatDelta(0.83, 'kg')).toBe('+0.8 kg')
     expect(formatDelta(-1.45, 'pp')).toBe('−1.5 pp')
+  })
+})
+
+describe('getDeltaColor', () => {
+  it('LBM up = cyan, down = warning', () => {
+    expect(getDeltaColor('lbm', 0.8)).toBe('cyan')
+    expect(getDeltaColor('lbm', -0.5)).toBe('warning')
+  })
+
+  it('Fat Mass / Body Fat % / Visceral Fat: down = cyan, up = warning', () => {
+    expect(getDeltaColor('fat_mass', -1.4)).toBe('cyan')
+    expect(getDeltaColor('fat_mass', 0.5)).toBe('warning')
+    expect(getDeltaColor('body_fat_pct', -1.8)).toBe('cyan')
+    expect(getDeltaColor('body_fat_pct', 0.3)).toBe('warning')
+    expect(getDeltaColor('visceral_fat', -0.3)).toBe('cyan')
+    expect(getDeltaColor('visceral_fat', 0.5)).toBe('warning')
+  })
+
+  it('Muscle Mass %: up = cyan, down = warning', () => {
+    expect(getDeltaColor('muscle_mass_pct', 0.6)).toBe('cyan')
+    expect(getDeltaColor('muscle_mass_pct', -0.4)).toBe('warning')
+  })
+
+  it('Water %: always neutral (informational, not a goal metric)', () => {
+    expect(getDeltaColor('water_pct', 1.5)).toBe('neutral')
+    expect(getDeltaColor('water_pct', -1.5)).toBe('neutral')
+  })
+
+  it('flat values (|delta| < 0.1) are neutral regardless of field', () => {
+    expect(getDeltaColor('lbm', 0.05)).toBe('neutral')
+    expect(getDeltaColor('fat_mass', -0.09)).toBe('neutral')
+    expect(getDeltaColor('muscle_mass_pct', 0)).toBe('neutral')
   })
 })

@@ -38,8 +38,19 @@ export function daysBetween(isoA: string, isoB: string): number {
 }
 
 export type DeltaUnit = 'kg' | 'pp' | 'pts'
+export type DeltaField = 'lbm' | 'fat_mass' | 'body_fat_pct' | 'muscle_mass_pct' | 'water_pct' | 'visceral_fat'
+export type DeltaColor = 'cyan' | 'warning' | 'neutral'
 
 const FLAT_THRESHOLD = 0.1
+
+const GOOD_DIRECTION: Record<DeltaField, 'up' | 'down' | null> = {
+  lbm: 'up',
+  fat_mass: 'down',
+  body_fat_pct: 'down',
+  muscle_mass_pct: 'up',
+  water_pct: null,        // informational, no goal direction
+  visceral_fat: 'down',
+}
 
 export function formatDelta(value: number, unit: DeltaUnit): string {
   if (Math.abs(value) < FLAT_THRESHOLD) return '±0.0'
@@ -47,4 +58,12 @@ export function formatDelta(value: number, unit: DeltaUnit): string {
   const rounded = Math.round(absValue * 10) / 10
   const sign = value > 0 ? '+' : '−' // U+2212 minus sign (typographic)
   return `${sign}${rounded.toFixed(1)} ${unit}`
+}
+
+export function getDeltaColor(field: DeltaField, value: number): DeltaColor {
+  if (Math.abs(value) < FLAT_THRESHOLD) return 'neutral'
+  const direction = GOOD_DIRECTION[field]
+  if (direction === null) return 'neutral'
+  const actual = value > 0 ? 'up' : 'down'
+  return actual === direction ? 'cyan' : 'warning'
 }
