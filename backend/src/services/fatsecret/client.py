@@ -34,7 +34,10 @@ from src.utils.safe_parse import safe_float
 logger = logging.getLogger(__name__)
 
 REQUEST_TOKEN_URL = "https://authentication.fatsecret.com/oauth/request_token"
-AUTHORIZE_URL = "https://www.fatsecret.com/oauth/authorize"
+# NOTE: the original spec said www.fatsecret.com/oauth/authorize but that
+# returns 403/Not Found. The correct authorize endpoint is on the same
+# authentication.* host as the request_token + access_token endpoints.
+AUTHORIZE_URL = "https://authentication.fatsecret.com/oauth/authorize"
 ACCESS_TOKEN_URL = "https://authentication.fatsecret.com/oauth/access_token"
 REST_URL = "https://platform.fatsecret.com/rest/server.api"
 

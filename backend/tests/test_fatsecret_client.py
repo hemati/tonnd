@@ -46,7 +46,8 @@ class TestCredentials:
 class TestAuthorizeURL:
     def test_format(self):
         url = fs.authorize_url("abc123")
-        assert url == "https://www.fatsecret.com/oauth/authorize?oauth_token=abc123"
+        # authentication.fatsecret.com (not www.fatsecret.com — that 403's).
+        assert url == "https://authentication.fatsecret.com/oauth/authorize?oauth_token=abc123"
 
 
 class TestSign:
