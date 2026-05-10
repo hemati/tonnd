@@ -5,7 +5,7 @@
 [![Discord](https://img.shields.io/badge/Discord-Join%20Community-5865F2?logo=discord&logoColor=white)](https://discord.gg/3qmrFpwzpE)
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
-Open-source, self-hosted health dashboard. Connect Fitbit, Renpho, and Hevy — see all your metrics in one place. Runs entirely in Docker.
+Open-source, self-hosted health dashboard. Connect Fitbit, Renpho, Hevy, and FatSecret — see all your metrics in one place. Runs entirely in Docker.
 
 ## Features
 
@@ -13,6 +13,7 @@ Open-source, self-hosted health dashboard. Connect Fitbit, Renpho, and Hevy — 
 - **Fitbit Integration** - Sleep, activity, heart rate, HRV, SpO2, VO2 Max, breathing rate, skin temperature, active zone minutes
 - **Renpho Integration** - Weight, body composition (body fat, muscle mass, water, bone mass)
 - **Hevy Integration** - Workout tracking (exercises, sets, reps, volume, muscle heatmap)
+- **FatSecret Integration** - Food diary with full macros + micros per meal, daily nutrition aggregates
 - **Recovery Score** - Calculated from HRV, sleep efficiency, and resting heart rate
 - **Public API** - RESTful `/api/v1/` with scoped Personal Access Tokens
 - **MCP Server** - Connect your health data to Claude Desktop via fastmcp
@@ -71,6 +72,7 @@ backend/
       fitbit/             # Fitbit API client + sync
       renpho/             # Renpho API client + sync
       hevy/               # Hevy API client + sync
+      fatsecret/          # FatSecret OAuth1 client + sync + in-memory state
 
 frontend/
   src/
@@ -96,6 +98,8 @@ See [.env.example](.env.example) for all required variables. Key ones:
 | `FITBIT_CLIENT_ID` | No | For Fitbit sync (dashboard works without it, just no data) |
 | `RENPHO_*` | No | Renpho credentials (connected per-user via UI) |
 | `HEVY_*` | No | Hevy API key (connected per-user via UI) |
+| `FATSECRET_CONSUMER_KEY` | No | FatSecret OAuth 1.0a consumer key (for nutrition sync) |
+| `FATSECRET_CONSUMER_SECRET` | No | FatSecret OAuth 1.0a consumer secret |
 
 ## Public API
 

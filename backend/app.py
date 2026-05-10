@@ -85,6 +85,18 @@ health_mcp_app = health_mcp.http_app(path=MCP_PATH)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Multi-worker breaks the FatSecret OAuth1 handshake (in-memory request-token
+    # store is process-local). Warn loudly so a misconfigured deployment doesn't
+    # silently regress users mid-connect.
+    workers = int(os.environ.get("WEB_CONCURRENCY", "1"))
+    if workers > 1:
+        logger.warning(
+            "WEB_CONCURRENCY=%d > 1: FatSecret OAuth handshake will fail "
+            "intermittently because the request-token store is in-memory per "
+            "worker. See AGENTS.md 'Production Constraints'.",
+            workers,
+        )
+
     # Start MCP session manager
     async with contextlib.AsyncExitStack() as stack:
         await stack.enter_async_context(health_mcp_app.router.lifespan_context(app))

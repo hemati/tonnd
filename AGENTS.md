@@ -13,7 +13,7 @@
 
 An open-source fitness tracking platform that:
 1. Authenticates users via **Email/Password** or **Google OAuth** (fastapi-users)
-2. Connects to **Fitbit**, **Renpho**, and **Hevy** to sync health & workout data
+2. Connects to **Fitbit**, **Renpho**, **Hevy**, and **FatSecret** to sync health, workout, and nutrition data
 3. Stores encrypted fitness data in **PostgreSQL** (multi-source, tagged by `source`)
 4. Provides a **React dashboard** for data visualization
 5. Runs **daily automated syncs** via APScheduler
@@ -45,6 +45,7 @@ Login (Email/Google)  →  Connect Sources  →  Dashboard
 | HTTP Client | httpx (async, for Fitbit API) |
 | Renpho | renpho-api (reverse-engineered cloud API) |
 | Hevy | hevy-api (workout tracking) |
+| FatSecret | OAuth 1.0a (oauthlib + httpx, food diary) |
 | Migrations | Alembic |
 | Rate Limiting | slowapi (token bucket, in-memory) |
 | MCP Server | fastmcp (stdio transport for Claude Desktop) |
@@ -102,6 +103,7 @@ tonnd/
 │       │   ├── context.py          # GET /api/v1/context (user_context table)
 │       │   ├── workouts.py         # GET /api/v1/workouts (typed workouts table)
 │       │   ├── routines.py         # GET /api/v1/routines (typed routines table)
+│       │   ├── nutrition.py        # GET /api/v1/nutrition/{daily,entries}
 │       │   ├── recovery.py         # GET /api/v1/recovery
 │       │   ├── tokens.py           # Token CRUD (JWT only)
 │       │   └── audit.py            # Audit log (JWT only)
@@ -129,6 +131,7 @@ tonnd/
 │       │   ├── sync_utils.py       # Shared _upsert generic helper
 │       │   ├── fitbit_sync_utils.py # Typed upsert functions for Fitbit tables
 │       │   ├── hevy_sync_utils.py  # Typed upsert functions for Hevy tables
+│       │   ├── fatsecret_sync_utils.py # upsert_food_entry + aggregate_daily_nutrition
 │       │   ├── fitbit/
 │       │   │   ├── client.py       # Fitbit API wrapper + data parsing
 │       │   │   ├── sync.py         # Token refresh, disconnect
@@ -139,12 +142,17 @@ tonnd/
 │       │   ├── renpho/
 │       │   │   ├── client.py       # Renpho cloud API wrapper
 │       │   │   └── sync.py         # Renpho sync logic
-│       │   └── hevy/
-│       │       ├── client.py       # Hevy API wrapper + workout parsing
-│       │       ├── sync.py         # Hevy sync pipeline (typed tables + soft-delete)
-│       │       └── routines.py     # Routine fetching and parsing
+│       │   ├── hevy/
+│       │   │   ├── client.py       # Hevy API wrapper + workout parsing
+│       │   │   ├── sync.py         # Hevy sync pipeline (typed tables + soft-delete)
+│       │   │   └── routines.py     # Routine fetching and parsing
+│       │   └── fatsecret/
+│       │       ├── client.py       # OAuth1 signing (HMAC-SHA1) + food_entries.get
+│       │       ├── sync.py         # Per-date sync + always-aggregate, backfill, disconnect
+│       │       └── oauth_state.py  # In-memory request-token store (single-worker only)
 │       └── utils/
-│           └── security.py         # OAuth state, input validation
+│           ├── security.py         # OAuth state, input validation
+│           └── safe_parse.py       # safe_float — defensive numeric coercion
 │
 ├── frontend/
 │   ├── Dockerfile                  # Multi-stage: build + Nginx
@@ -164,7 +172,7 @@ tonnd/
 │           ├── LandingPage.tsx     # Public landing page (/)
 │           ├── Dashboard.tsx       # Health dashboard (/dashboard)
 │           ├── MuscleMap.tsx       # Interactive muscle heatmap (react-body-highlighter)
-│           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy (/sources)
+│           ├── Sources.tsx         # Connect Fitbit/Renpho/Hevy/FatSecret (/sources)
 │           ├── Settings.tsx        # API token management (/settings)
 │           ├── AuthCallback.tsx    # OAuth callback handler
 │           ├── Layout.tsx          # App shell (header/footer)
@@ -196,6 +204,8 @@ tonnd/
 | renpho_email | Text | Renpho account email |
 | renpho_session_key | Text | Renpho session (encrypted) |
 | hevy_api_key | Text | Hevy API key (Fernet-encrypted) |
+| fatsecret_oauth_token | Text | FatSecret OAuth1 access token (Fernet-encrypted) |
+| fatsecret_oauth_token_secret | Text | FatSecret OAuth1 secret (Fernet-encrypted) |
 | fitbit_intraday_available | Boolean | None=untested, True/False after first attempt |
 | fitbit_scopes_version | Integer | Tracks OAuth scope version for re-auth prompts |
 | created_at | DateTime(tz) | |
@@ -287,12 +297,19 @@ tonnd/
 | renpho | weight_kg, bmi, body_fat_percent, body_water_percent, muscle_mass_percent, bone_mass_kg, bmr_kcal, visceral_fat, subcutaneous_fat_percent, protein_percent, body_age, lean_body_mass_kg, fat_free_weight_kg, heart_rate, cardiac_index, body_shape, sport_flag |
 | fitbit | weight_kg, bmi, body_fat_percent |
 
+### FatSecret Data (typed tables)
+
+| Table | Key Fields |
+|-------|------------|
+| food_entries | external_id, meal, food_entry_name, number_of_units, calories, carbs/fat/protein/fiber/sugar_g, sat/poly/mono_fat_g, cholesterol/sodium/calcium/iron/potassium_mg, vitamin_a_iu, vitamin_c_mg, deleted_at (soft-delete) |
+| daily_nutrition | calories_in, carbs_g, fat_g, protein_g, fiber_g (recomputed from non-deleted food_entries on every sync) |
+
 ---
 
 ## Security
 
 - **Auth**: fastapi-users with JWT (1h expiry) + Personal Access Tokens (scoped, revocable, SHA-256 hashed). Secrets must be set via env vars — app refuses to start without `JWT_SECRET`, `RESET_PASSWORD_TOKEN_SECRET`, `VERIFICATION_TOKEN_SECRET`.
-- **PATs**: `tonnd_` prefix, 256-bit entropy, max 25 per user. Token hash stored (not raw). Scopes: `read:vitals`, `read:body`, `read:sleep`, `read:activity`, `read:workouts`, `read:recovery`, `read:all`.
+- **PATs**: `tonnd_` prefix, 256-bit entropy, max 25 per user. Token hash stored (not raw). Scopes: `read:vitals`, `read:body`, `read:sleep`, `read:activity`, `read:workouts`, `read:nutrition`, `read:recovery`, `read:all`. Note: `read:nutrition` exposes `food_entry_name` (user-identifiable diet data); `read:all` includes it retroactively for existing tokens.
 - **Encryption**: Fitbit OAuth tokens encrypted at rest with Fernet. `ENCRYPTION_KEY` required.
 - **OAuth State**: HMAC-SHA256 signed, 10-minute expiry.
 - **CORS**: Restricted to `FRONTEND_URL`, explicit `allow_headers` (Authorization, Content-Type).
@@ -373,6 +390,9 @@ npx tsc --noEmit          # Type check
 | Hevy sync | scheduler.py (sync functions), hevy/client.py, hevy_sync_utils.py |
 | Hevy models | hevy_models.py (3 typed tables), data_service.py (queries) |
 | Hevy parsing | hevy/routines.py, hevy/client.py (_workout_to_metrics, _fetch_template_info) |
+| FatSecret OAuth | fatsecret/client.py (OAuth1 signing, food_entries.get), fatsecret/oauth_state.py (in-memory request-token store), app.py (init/callback routes) |
+| FatSecret sync | fatsecret/sync.py (sync_fatsecret_for_date, backfill_fatsecret), fatsecret_sync_utils.py (upsert_food_entry, aggregate_daily_nutrition) |
+| FatSecret models | food_models.py (FoodEntry), fitbit_models.py::DailyNutrition |
 | Database | db_models.py, fitbit_models.py, hevy_models.py, body_models.py, api_models.py, database.py |
 | Dashboard | Dashboard.tsx, api.ts |
 | Sources page | Sources.tsx, SourceIcons.tsx |
@@ -382,9 +402,20 @@ npx tsc --noEmit          # Type check
 
 ---
 
+## Production Constraints
+
+- **Single uvicorn worker required.** The FatSecret OAuth1 handshake stashes
+  `request_token_secret` in a process-local dict (`fatsecret/oauth_state.py`).
+  Multi-worker deployments (`--workers N` or `WEB_CONCURRENCY > 1`) silently
+  break the OAuth callback because the worker handling the callback may not
+  hold the secret. App startup logs a warning if `WEB_CONCURRENCY > 1` is set.
+- **Future**: migrating the request-token store to Redis would lift this
+  constraint, but it's not required at current user volume.
+
 ## External Docs
 
 - [Fitbit Web API](https://dev.fitbit.com/build/reference/web-api/)
+- [FatSecret Platform API](https://platform.fatsecret.com/api/)
 - [fastapi-users](https://fastapi-users.github.io/fastapi-users/)
 - [SQLAlchemy 2.0](https://docs.sqlalchemy.org/en/20/)
 - [React Query](https://tanstack.com/query/latest)
