@@ -128,4 +128,30 @@ describe('BodyCompositionCard', () => {
     fireEvent.click(toggle)
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('does not remount when the rangeDays prop changes (DOM root stable)', async () => {
+    const m30 = makeMeasurement(15, { lean_body_mass_kg: 63.5, body_fat_percent: 17 })
+    const mLatest = makeMeasurement(0, { lean_body_mass_kg: 64.2, body_fat_percent: 16.6 })
+    vi.spyOn(api, 'fetchBodyMeasurements').mockImplementation(async (params) => {
+      if (params.limit === 1) return { count: 1, data: [mLatest] }
+      return { count: 2, data: [m30, mLatest] }
+    })
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    function Wrapper({ days }: { days: 7 | 14 | 30 }) {
+      return (
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <BodyCompositionCard rangeDays={days} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      )
+    }
+
+    const { rerender, findByTestId } = render(<Wrapper days={30} />)
+    const rootBefore = await findByTestId('body-card-root')
+    rerender(<Wrapper days={7} />)
+    const rootAfter = await findByTestId('body-card-root')
+    expect(rootAfter).toBe(rootBefore)
+  })
 })
