@@ -1,10 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
-
-type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
-
-const CARD = 'bg-white/[.02] rounded-xl border border-white/[.06]'
+import { CARD, type HeroIcon } from '../lib/cardStyles'
 
 export interface ExpandableCardProps {
   title: string

@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { ScaleIcon } from '@heroicons/react/24/outline'
 import { Link } from 'react-router-dom'
 import { ComposedChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from 'recharts'
 import ExpandableCard from './ExpandableCard'
+import { CARD } from '../lib/cardStyles'
 import { useBodyMeasurements, useLatestBodyMeasurement } from '../hooks/useQueries'
 import { detectDataState, daysBetween, pickComparisonMeasurement, formatDelta, getDeltaColor, filterToRange } from '../lib/bodyComposition'
 import type { DeltaField, DeltaUnit, DeltaColor } from '../lib/bodyComposition'
@@ -17,12 +18,26 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
   const latest = useLatestBodyMeasurement()
   const [showWeight, setShowWeight] = useState(false)
 
+  // The hook fetches `rangeDays + 35` days to keep the 4-week comparison point
+  // in scope. `comparisonPool` includes that buffer; `rangeData` is filtered to
+  // the user-visible window for chart, state detection, and current-value display.
+  const comparisonPool = useMemo(() => range.data?.data ?? [], [range.data])
+  const rangeData = useMemo(() => filterToRange(comparisonPool, rangeDays), [comparisonPool, rangeDays])
+  const latestData = latest.data?.data ?? []
+
+  // Δ uses the buffered comparisonPool so the 4-week-back point is reachable
+  // even when the user-selected window is shorter than 28 days.
+  const latestPoint = rangeData[rangeData.length - 1]
+  const comparison = useMemo(
+    () => (latestPoint && comparisonPool.length >= 2 ? pickComparisonMeasurement(comparisonPool, latestPoint) : null),
+    [comparisonPool, latestPoint],
+  )
+
   if (range.isLoading || latest.isLoading) {
     return (
-      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
-        <EmptyHeader rangeDays={rangeDays} />
+      <NonExpandableShell rangeDays={rangeDays}>
         <div className="mt-4 animate-pulse text-white/40 text-sm">Loading...</div>
-      </div>
+      </NonExpandableShell>
     )
   }
 
@@ -30,47 +45,34 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
   // misclassified as "no data" (which would show the Renpho CTA instead).
   if (range.isError || latest.isError) {
     return (
-      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
-        <EmptyHeader rangeDays={rangeDays} />
+      <NonExpandableShell rangeDays={rangeDays}>
         <ErrorState onRetry={() => { range.refetch(); latest.refetch() }} />
-      </div>
+      </NonExpandableShell>
     )
   }
 
-  // The hook fetches `rangeDays + 35` days to keep the 4-week comparison point
-  // in scope. `comparisonPool` includes that buffer; `rangeData` is filtered to
-  // the user-visible window for chart, state detection, and current-value display.
-  const comparisonPool = range.data?.data ?? []
-  const rangeData = filterToRange(comparisonPool, rangeDays)
-  const latestData = latest.data?.data ?? []
   const state = detectDataState(rangeData, latestData)
 
   if (state === 'no-data-ever') {
     return (
-      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
-        <EmptyHeader rangeDays={rangeDays} />
+      <NonExpandableShell rangeDays={rangeDays}>
         <NoDataEver />
-      </div>
+      </NonExpandableShell>
     )
   }
 
   if (state === 'no-data-in-range') {
     return (
-      <div data-testid="body-card-root" className="rounded-xl border border-white/[.06] bg-white/[.02] p-5">
-        <EmptyHeader rangeDays={rangeDays} />
+      <NonExpandableShell rangeDays={rangeDays}>
         <NoDataInRange rangeDays={rangeDays} latest={latestData[0]} />
-      </div>
+      </NonExpandableShell>
     )
   }
 
   // Populated states (single-point or full): use ExpandableCard
-  const latestPoint = rangeData[rangeData.length - 1]
   const lbm = latestPoint.lean_body_mass_kg
-  // Δ uses the buffered comparisonPool so the 4-week-back point is reachable
-  // even when the user-selected window is shorter than 28 days.
-  const lbmComparison = comparisonPool.length >= 2 ? pickComparisonMeasurement(comparisonPool, latestPoint) : null
-  const lbmDelta = lbm !== undefined && lbmComparison?.lean_body_mass_kg !== undefined
-    ? lbm - lbmComparison.lean_body_mass_kg
+  const lbmDelta = lbm !== undefined && comparison?.lean_body_mass_kg !== undefined
+    ? lbm - comparison.lean_body_mass_kg
     : null
 
   const preview = (
@@ -95,22 +97,25 @@ export default function BodyCompositionCard({ rangeDays }: BodyCompositionCardPr
           </button>
         </div>
         <BodyChart rangeData={rangeData} showWeight={showWeight} isSinglePoint={state === 'single-point'} />
-        <StatStrip rangeData={rangeData} comparisonPool={comparisonPool} />
+        <StatStrip latest={latestPoint} comparison={comparison} />
       </ExpandableCard>
     </div>
   )
 }
 
-// Used by loading + empty-state shells (which don't use ExpandableCard,
-// so they need their own header rendering).
-function EmptyHeader({ rangeDays }: { rangeDays: number }) {
+// Wraps loading/error/empty branches with a header that matches the
+// ExpandableCard look but isn't expandable (no content to expand).
+function NonExpandableShell({ rangeDays, children }: { rangeDays: number; children: ReactNode }) {
   return (
-    <div className="flex justify-between items-start">
-      <div>
-        <h3 className="text-white font-semibold text-base">Body Composition</h3>
-        <p className="text-white/40 text-xs mt-1">{rangeDays}-day trend</p>
+    <div data-testid="body-card-root" className={`${CARD} p-5`}>
+      <div className="flex justify-between items-start">
+        <div>
+          <h3 className="text-white font-semibold text-base">Body Composition</h3>
+          <p className="text-white/40 text-xs mt-1">{rangeDays}-day trend</p>
+        </div>
+        <RenphoBadge />
       </div>
-      <RenphoBadge />
+      {children}
     </div>
   )
 }
@@ -215,11 +220,7 @@ function StatCell({ field, label, currentValue, delta, unit, format, daysBack }:
   )
 }
 
-function StatStrip({ rangeData, comparisonPool }: { rangeData: BodyMeasurement[]; comparisonPool: BodyMeasurement[] }) {
-  const latest = rangeData[rangeData.length - 1]
-  // Use the buffered comparisonPool (rangeDays + 35 days) so the 4-week-back
-  // point can be picked even on short ranges.
-  const comparison = comparisonPool.length >= 2 ? pickComparisonMeasurement(comparisonPool, latest) : null
+function StatStrip({ latest, comparison }: { latest: BodyMeasurement; comparison: BodyMeasurement | null }) {
   const daysBack = comparison ? daysBetween(comparison.measured_at, latest.measured_at) : null
 
   return (
@@ -252,15 +253,6 @@ function deriveFatMassKg(m: BodyMeasurement): number | undefined {
   return undefined
 }
 
-function buildChartData(rangeData: BodyMeasurement[]) {
-  return rangeData.map((m) => ({
-    date: m.date,
-    lbm: m.lean_body_mass_kg,
-    fat_mass: deriveFatMassKg(m),
-    weight: m.weight_kg,
-  }))
-}
-
 interface BodyChartProps {
   rangeData: BodyMeasurement[]
   showWeight: boolean
@@ -268,7 +260,15 @@ interface BodyChartProps {
 }
 
 function BodyChart({ rangeData, showWeight, isSinglePoint }: BodyChartProps) {
-  const chartData = buildChartData(rangeData)
+  const chartData = useMemo(
+    () => rangeData.map((m) => ({
+      date: m.date,
+      lbm: m.lean_body_mass_kg,
+      fat_mass: deriveFatMassKg(m),
+      weight: m.weight_kg,
+    })),
+    [rangeData],
+  )
   return (
     <div data-testid="body-chart" className="mt-4">
       <ResponsiveContainer width="100%" height={250}>

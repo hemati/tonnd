@@ -14,13 +14,11 @@ import {
   EllipsisHorizontalCircleIcon,
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
+import { CARD, type HeroIcon } from '../lib/cardStyles'
 import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
 import MuscleMap from './MuscleMap'
 import ExpandableCard from './ExpandableCard'
 import BodyCompositionCard from './BodyCompositionCard'
-
-// Heroicons type
-type HeroIcon = React.ForwardRefExoticComponent<React.PropsWithoutRef<React.SVGProps<SVGSVGElement>> & { title?: string; titleId?: string } & React.RefAttributes<SVGSVGElement>>
 
 // =============================================================================
 // Design Tokens
@@ -46,8 +44,6 @@ const tooltipStyle = {
   contentStyle: { backgroundColor: '#141414', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px' },
   labelStyle: { color: '#e5e5e5' },
 }
-
-const CARD = 'bg-white/[.02] rounded-xl border border-white/[.06]'
 
 // =============================================================================
 // Utility Functions
