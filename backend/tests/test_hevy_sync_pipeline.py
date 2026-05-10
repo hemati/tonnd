@@ -377,6 +377,39 @@ class TestSyncHevySoftDelete:
             assert row.deleted_at == past_ts
 
     @pytest.mark.asyncio
+    async def test_reappearing_workout_is_undeleted(self):
+        """A soft-deleted workout that reappears in the API gets restored."""
+        async with test_session_maker() as session:
+            user = _make_user()
+            session.add(user)
+            await session.flush()
+
+            past_ts = datetime(2026, 4, 8, 12, 0, 0, tzinfo=timezone.utc)
+            existing = Workout(
+                user_id=user.id, date=date(2026, 4, 10),
+                source="hevy", external_id="w1", title="Old title",
+                deleted_at=past_ts,
+            )
+            session.add(existing)
+            await session.flush()
+
+            with patch(
+                "src.services.hevy.sync.get_workouts_for_date",
+                new_callable=AsyncMock,
+                return_value=_mock_workout_data(),
+            ):
+                await sync_hevy_workouts(session, user, date(2026, 4, 10), "test-key")
+            await session.flush()
+
+            row = (
+                await session.execute(
+                    select(Workout).where(Workout.external_id == "w1")
+                )
+            ).scalar_one()
+            assert row.deleted_at is None
+            assert row.title == "Push Day"
+
+    @pytest.mark.asyncio
     async def test_empty_api_response_soft_deletes_all(self):
         """When API returns no workouts, all stored workouts for that date get soft-deleted."""
         async with test_session_maker() as session:

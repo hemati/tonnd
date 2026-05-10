@@ -10,20 +10,13 @@ from urllib.parse import urlencode
 
 import httpx
 
+from src.utils.safe_parse import _safe_float
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 BASE_URL = "https://api.fitbit.com"
 
-
-def _safe_float(val) -> float | None:
-    """Fitbit API sometimes returns numeric values as strings."""
-    if val is None:
-        return None
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return None
 AUTH_URL = "https://www.fitbit.com/oauth2/authorize"
 TOKEN_URL = "https://api.fitbit.com/oauth2/token"
 

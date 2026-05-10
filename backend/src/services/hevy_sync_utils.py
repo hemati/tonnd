@@ -12,9 +12,13 @@ from src.services.sync_utils import _upsert
 async def upsert_workout(
     session: AsyncSession, user_id, external_id: str, source: str, **fields
 ) -> uuid_mod.UUID:
-    """Upsert a workout and return its UUID (needed for exercise insertion)."""
+    """Upsert a workout and return its UUID (needed for exercise insertion).
+
+    Restores soft-deleted rows when the workout reappears in the API response.
+    """
     row = await _upsert(session, Workout,
-                        {"user_id": user_id, "external_id": external_id, "source": source}, fields)
+                        {"user_id": user_id, "external_id": external_id, "source": source}, fields,
+                        undelete_on_match=True)
     await session.flush()
     return row.id
 

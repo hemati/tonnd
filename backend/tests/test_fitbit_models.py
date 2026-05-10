@@ -150,6 +150,28 @@ class TestUserContext:
 
 
 @pytest.mark.asyncio
+class TestDailyNutritionToDict:
+    async def test_omits_null_fields(self):
+        async with test_session_maker() as session:
+            uid = uuid.uuid4()
+            row = DailyNutrition(
+                user_id=uid, date=date(2026, 4, 10), source="fatsecret",
+                calories_in=2100, carbs_g=210.0, protein_g=140.0,
+            )
+            session.add(row)
+            await session.commit()
+            d = row.to_dict()
+            assert d["date"] == "2026-04-10"
+            assert d["source"] == "fatsecret"
+            assert d["calories_in"] == 2100
+            assert d["carbs_g"] == 210.0
+            assert d["protein_g"] == 140.0
+            assert "fat_g" not in d
+            assert "fiber_g" not in d
+            assert "water_ml" not in d
+
+
+@pytest.mark.asyncio
 class TestUpsertDailyVitals:
     async def test_insert_new(self):
         async with test_session_maker() as session:

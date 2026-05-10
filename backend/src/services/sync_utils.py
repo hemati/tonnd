@@ -11,8 +11,13 @@ from src.models.body_models import BodyMeasurement
 async def _upsert(
     session: AsyncSession, model, lookup: dict, fields: dict,
     timestamp_col: str = "synced_at",
+    undelete_on_match: bool = False,
 ):
-    """Generic upsert: SELECT by lookup keys, then INSERT or UPDATE fields. Returns the row."""
+    """Generic upsert: SELECT by lookup keys, then INSERT or UPDATE fields. Returns the row.
+
+    When ``undelete_on_match=True`` and the matched row has ``deleted_at`` set,
+    it is reset to None — so a re-sync of a previously soft-deleted entry restores it.
+    """
     stmt = select(model)
     for col, val in lookup.items():
         stmt = stmt.where(getattr(model, col) == val)
@@ -21,6 +26,8 @@ async def _upsert(
         for k, v in fields.items():
             if v is not None:
                 setattr(row, k, v)
+        if undelete_on_match and getattr(row, "deleted_at", None) is not None:
+            row.deleted_at = None
         setattr(row, timestamp_col, datetime.now(timezone.utc))
     else:
         row = model(**lookup, **fields)

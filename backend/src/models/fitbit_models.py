@@ -149,8 +149,6 @@ class DailyActivity(Base):
 
 
 class DailyNutrition(Base):
-    """Reserved — sync not implemented yet."""
-
     __tablename__ = "daily_nutrition"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -168,6 +166,16 @@ class DailyNutrition(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "date", "source", name="uq_daily_nutrition"),
     )
+
+    def to_dict(self) -> dict:
+        d = {"date": self.date.isoformat(), "source": self.source}
+        for field in (
+            "calories_in", "carbs_g", "fat_g", "protein_g", "fiber_g", "water_ml",
+        ):
+            val = getattr(self, field)
+            if val is not None:
+                d[field] = val
+        return d
 
 
 class HourlyIntraday(Base):
