@@ -4,8 +4,14 @@ OAuth1 (3-legged) is required because FatSecret's OAuth2 client_credentials
 flow can only read generic data, not the user's food diary. We sign with
 HMAC-SHA1 via oauthlib and ship through httpx.AsyncClient.
 
-Signature is delivered in the Authorization header (not the URL query) so
-OAuth tokens cannot leak via request-URL logging in proxies or middleware.
+Signature is delivered in the URL query string (signature_type=QUERY).
+This was originally moved to AUTH_HEADER on a security review note, but
+FatSecret's auth servers don't accept the Authorization header and reject
+with "Missing required parameter: oauth_consumer_key". Mitigation for the
+URL-leak risk: TONND does not log httpx request URLs anywhere, and the
+oauth_signature in the URL is not the OAuth token itself — it's a one-shot
+HMAC of that request. The high-value secrets (oauth_token_secret,
+consumer_secret) are NEVER in the URL.
 """
 
 import json as _json
@@ -19,7 +25,7 @@ from urllib.parse import parse_qs, urlencode
 import httpx
 from oauthlib.oauth1 import (
     SIGNATURE_HMAC_SHA1,
-    SIGNATURE_TYPE_AUTH_HEADER,
+    SIGNATURE_TYPE_QUERY,
     Client as OAuth1Client,
 )
 
@@ -97,10 +103,12 @@ def _sign(
     callback_uri: str | None = None,
     verifier: str | None = None,
     query_params: dict | None = None,
-) -> tuple[str, dict]:
-    """Sign a GET request. Returns (uri, headers); call as http.get(uri, headers=headers).
+) -> str:
+    """Sign a GET request. Returns the fully-qualified signed URL.
 
-    Tokens land in the Authorization header, not the query string.
+    All OAuth params (consumer_key, signature, callback, verifier, …) land
+    in the URL query string. FatSecret's auth endpoints don't recognize
+    Authorization-header-mode OAuth1.
     """
     client = OAuth1Client(
         consumer_key,
@@ -110,12 +118,12 @@ def _sign(
         callback_uri=callback_uri,
         verifier=verifier,
         signature_method=SIGNATURE_HMAC_SHA1,
-        signature_type=SIGNATURE_TYPE_AUTH_HEADER,
+        signature_type=SIGNATURE_TYPE_QUERY,
     )
     if query_params:
         url = f"{url}?{urlencode(query_params)}"
-    uri, headers, _body = client.sign(url, http_method="GET")
-    return uri, headers
+    uri, _headers, _body = client.sign(url, http_method="GET")
+    return uri
 
 
 def _parse_form(text: str) -> dict[str, str]:
@@ -127,12 +135,12 @@ def _parse_form(text: str) -> dict[str, str]:
 async def fetch_request_token(callback_url: str, http: httpx.AsyncClient) -> dict[str, str]:
     """3-legged OAuth1 step 1: get a temporary request_token + secret."""
     consumer_key, consumer_secret = get_credentials()
-    uri, headers = _sign(
+    uri = _sign(
         REQUEST_TOKEN_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
         callback_uri=callback_url,
     )
-    resp = await http.get(uri, headers=headers)
+    resp = await http.get(uri)
     if resp.status_code != 200:
         raise FatSecretAPIError(
             f"request_token failed: {resp.status_code} {resp.text[:200]}"
@@ -159,14 +167,14 @@ async def fetch_access_token(
 ) -> dict[str, str]:
     """3-legged OAuth1 step 3: trade verifier for the long-lived access_token."""
     consumer_key, consumer_secret = get_credentials()
-    uri, headers = _sign(
+    uri = _sign(
         ACCESS_TOKEN_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
         resource_owner_key=oauth_token,
         resource_owner_secret=oauth_token_secret,
         verifier=oauth_verifier,
     )
-    resp = await http.get(uri, headers=headers)
+    resp = await http.get(uri)
     if resp.status_code == 401:
         raise FatSecretAuthError(f"access_token rejected: {resp.text[:200]}")
     if resp.status_code != 200:
@@ -310,7 +318,7 @@ async def get_food_entries_for_date(
     the reconciliation pass.
     """
     consumer_key, consumer_secret = get_credentials()
-    uri, headers = _sign(
+    uri = _sign(
         REST_URL,
         consumer_key=consumer_key, consumer_secret=consumer_secret,
         resource_owner_key=oauth_token,
@@ -321,7 +329,7 @@ async def get_food_entries_for_date(
             "date": str(_date_to_int(target_date)),
         },
     )
-    resp = await http.get(uri, headers=headers)
+    resp = await http.get(uri)
     if resp.status_code == 401:
         raise FatSecretAuthError("food_entries.get: token rejected")
     if resp.status_code != 200:

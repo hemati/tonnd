@@ -50,42 +50,39 @@ class TestAuthorizeURL:
 
 
 class TestSign:
-    def test_sign_returns_uri_with_query_and_auth_header(self):
-        uri, headers = fs._sign(
+    def test_sign_attaches_all_params_to_query(self):
+        uri = fs._sign(
             "https://example.com/api",
             consumer_key="ck", consumer_secret="cs",
             query_params={"method": "food_entries.get", "format": "json"},
         )
-        # Non-OAuth params on URL, OAuth signature in Authorization header.
+        # FatSecret rejects Authorization-header signing, so everything goes
+        # into the URL query string.
         assert "method=food_entries.get" in uri
         assert "format=json" in uri
-        assert uri.startswith("https://example.com/api?")
-        auth = headers["Authorization"]
-        assert auth.startswith("OAuth ")
-        assert 'oauth_consumer_key="ck"' in auth
-        assert "oauth_signature=" in auth
-        # Tokens MUST NOT be in the URL — that's the whole point of the header.
-        assert "oauth_signature" not in uri
-        assert "oauth_consumer_key" not in uri
+        assert "oauth_consumer_key=ck" in uri
+        assert "oauth_signature=" in uri
+        assert "oauth_signature_method=HMAC-SHA1" in uri
+        assert "oauth_nonce=" in uri
+        assert "oauth_timestamp=" in uri
 
     def test_sign_with_callback_uri_passes_to_oauthlib(self):
-        uri, headers = fs._sign(
+        uri = fs._sign(
             "https://example.com/oauth/request_token",
             consumer_key="ck", consumer_secret="cs",
             callback_uri="https://app/cb",
         )
-        # callback ends up in the Authorization header (URL-encoded).
-        assert "oauth_callback" in headers["Authorization"]
-        assert "https%3A%2F%2Fapp%2Fcb" in headers["Authorization"]
+        # callback ends up URL-encoded in the query string.
+        assert "oauth_callback=https%3A%2F%2Fapp%2Fcb" in uri
 
     def test_sign_with_verifier(self):
-        uri, headers = fs._sign(
+        uri = fs._sign(
             "https://example.com/oauth/access_token",
             consumer_key="ck", consumer_secret="cs",
             resource_owner_key="rt", resource_owner_secret="rs",
             verifier="abc123",
         )
-        assert 'oauth_verifier="abc123"' in headers["Authorization"]
+        assert "oauth_verifier=abc123" in uri
 
 
 # ─── form parsing ─────────────────────────────────────────────────────────
