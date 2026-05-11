@@ -1,6 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
 import { FireIcon } from '@heroicons/react/24/outline'
-import { Link } from 'react-router-dom'
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer,
@@ -39,17 +38,14 @@ export default function NutritionCard({ rangeDays }: NutritionCardProps) {
   // Filter to user-visible window. Hook fetches rangeDays + 1 to handle UTC boundary.
   const windowedDaily = useMemo(() => filterToRangeDaily(dailyData, rangeDays), [dailyData, rangeDays])
 
-  const today = useMemo(() => windowedDaily[windowedDaily.length - 1] ?? null, [windowedDaily])
-  const todayEntries = useMemo(() => {
-    if (!today) return []
-    return entryData.filter((e) => e.date === today.date)
-  }, [entryData, today])
+  // "Today" means actual today (UTC), not "newest row in range" — yesterday's
+  // 800 kcal must not appear under "Today" if today has no log yet.
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const today = windowedDaily.find((d) => d.date === todayISO) ?? null
+  const todayEntryCount = entryData.filter((e) => e.date === todayISO).length
 
-  const latestMeals = useMemo(() => {
-    return [...entryData]
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 3)
-  }, [entryData])
+  // Backend returns entries in DESC order (newest first); take the head directly.
+  const latestMeals = useMemo(() => entryData.slice(0, 3), [entryData])
 
   if (daily.isLoading || entries.isLoading) {
     return (
@@ -87,7 +83,7 @@ export default function NutritionCard({ rangeDays }: NutritionCardProps) {
   return (
     <div data-testid="nutrition-card-root">
       <ExpandableCard title="Nutrition" icon={FireIcon} preview={preview} headerExtra={<FatSecretBadge />}>
-        <TodayMacroSummary today={today} entryCount={todayEntries.length} />
+        <TodayMacroSummary today={today} entryCount={todayEntryCount} />
         <CaloriesChart data={windowedDaily} />
         <MacrosChart data={windowedDaily} />
         <LatestMealsList meals={latestMeals} />
@@ -135,13 +131,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
 function NoDataEver() {
   return (
     <div className="mt-6 text-center py-8">
-      <p className="text-white/60 text-sm">Log meals in FatSecret to see calories and macros</p>
-      <Link
-        to="/sources#fatsecret"
-        className="inline-block mt-4 px-4 py-2 bg-cyan-500/10 text-cyan-400 rounded-lg text-sm hover:bg-cyan-500/20"
-      >
-        Connect FatSecret
-      </Link>
+      <p className="text-white/60 text-sm">No food entries yet. Log a meal in the FatSecret app — it'll appear after the next sync.</p>
     </div>
   )
 }

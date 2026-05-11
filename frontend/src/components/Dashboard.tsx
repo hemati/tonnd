@@ -119,13 +119,18 @@ export default function Dashboard() {
 
   const { data: user } = useUser()
   const { data, isLoading, error, refetch } = useDashboard(30)
-  const { data: nutritionDaily } = useNutritionDaily(7)
+  const { data: nutritionDaily } = useNutritionDaily(30)
   const syncMutation = useSyncFitbit()
 
   // Pull the most recent day with logged calories for the hero stat.
-  const latestNutrition = nutritionDaily?.data && nutritionDaily.data.length > 0
-    ? [...nutritionDaily.data].reverse().find(d => (d.calories_in ?? 0) > 0) ?? null
-    : null
+  // Hook returns ASC-sorted data, so iterate from the end.
+  const latestNutrition = (() => {
+    const days = nutritionDaily?.data ?? []
+    for (let i = days.length - 1; i >= 0; i--) {
+      if ((days[i].calories_in ?? 0) > 0) return days[i]
+    }
+    return null
+  })()
 
   useEffect(() => {
     if (user && !user.fitbit_connected && !user.renpho_connected
@@ -609,12 +614,13 @@ export default function Dashboard() {
               <BodyCompositionCard rangeDays={daysToShow} />
             )}
           </div>
-
-          {/* Nutrition (FatSecret) */}
-          {user?.fatsecret_connected && (
-            <NutritionCard rangeDays={daysToShow} />
-          )}
         </>
+      )}
+
+      {/* Nutrition (FatSecret) — outside the activity_history gate so
+          FatSecret-only users still see the card. */}
+      {user?.fatsecret_connected && (
+        <NutritionCard rangeDays={daysToShow} />
       )}
 
       {/* ── Workout Section ────────────────────────────────────── */}
