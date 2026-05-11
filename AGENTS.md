@@ -333,6 +333,17 @@ docker compose up
 # API Docs: http://localhost:8080/docs
 ```
 
+### Frontend rebuild after edits
+
+The frontend container bakes its build at image-build time (no bind mount).
+After editing `frontend/`:
+
+```bash
+docker compose build frontend && docker compose up -d frontend
+```
+
+Use `--no-cache` only when you suspect cache pollution; normal builds reuse layers correctly.
+
 ### Without Docker
 
 ```bash
@@ -360,6 +371,26 @@ pytest --cov              # With coverage
 # Frontend (from frontend/)
 npm test                  # Vitest
 ```
+
+#### Minting a test JWT (no password needed)
+
+```bash
+docker compose exec -T backend python3 -c "
+import asyncio
+from src.services.user_service import get_jwt_strategy
+from uuid import UUID
+async def main():
+    strategy = get_jwt_strategy()
+    fake_user = type('U', (), {'id': UUID('<user-uuid>')})()
+    print(await strategy.write_token(fake_user))
+asyncio.run(main())
+"
+```
+
+Use for browser/Playwright auth or hitting `/api/sync` directly. For ad-hoc
+DB queries from the same shell, add `from src.models import api_models  # noqa`
+(SQLAlchemy class-resolution side effect) and call `.unique().scalar_one()`
+for eager-loaded queries.
 
 ### Code Quality
 
@@ -412,6 +443,22 @@ npx tsc --noEmit          # Type check
   hold the secret. App startup logs a warning if `WEB_CONCURRENCY > 1` is set.
 - **Future**: migrating the request-token store to Redis would lift this
   constraint, but it's not required at current user volume.
+- **MCP endpoint is `/mcp/mcp`, not `/mcp`.** The double-mount in `app.py`
+  (`app.mount("/mcp", ...)` + `http_app(path="/mcp")`) means the MCP endpoint
+  is at `/mcp/mcp`. Configure claude.ai connectors with `https://tonnd.com/mcp/mcp`.
+  The well-known metadata at `/.well-known/oauth-protected-resource/mcp/mcp` is
+  the source of truth for the canonical URL.
+
+## Adding a new PAT/MCP scope
+
+A new scope (e.g. `read:foo`) requires updates in **3 places** — missing any
+silently breaks claude.ai OAuth:
+
+1. `auth/scopes.py` — add to scope definitions
+2. `mcp/oauth_provider.py::valid_scopes` — add to the OAuth `valid_scopes`
+   list (claude.ai reads this via the well-known resource metadata)
+3. Per-tool `_get_user_id("read:foo")` calls in `mcp/remote_server.py`
+   and `mcp_server.py`
 
 ## External Docs
 

@@ -50,7 +50,8 @@ class TONNDOAuthProvider(OAuthProvider):
             client_registration_options=ClientRegistrationOptions(
                 enabled=True,
                 valid_scopes=["read:all", "read:vitals", "read:body", "read:sleep",
-                              "read:activity", "read:workouts", "read:recovery"],
+                              "read:activity", "read:workouts", "read:recovery",
+                              "read:nutrition"],
                 default_scopes=["read:all"],
             ),
         )
