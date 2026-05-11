@@ -57,7 +57,7 @@ class TestFatSecretInit:
             resp = await client.get("/auth/fatsecret/init", headers=_auth(token))
         assert resp.status_code == 200
         body = resp.json()
-        assert body["authorization_url"].startswith("https://www.fatsecret.com/oauth/authorize?oauth_token=rt_abc")
+        assert body["authorization_url"].startswith("https://authentication.fatsecret.com/oauth/authorize?oauth_token=rt_abc")
         # Secret stashed under the oauth_token, not echoed back.
         assert "rts_xyz" not in body["authorization_url"]
         assert "rt_abc" in fs_oauth_state._STORE
