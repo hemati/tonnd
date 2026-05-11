@@ -15,10 +15,11 @@ import {
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
 import { CARD, type HeroIcon } from '../lib/cardStyles'
-import { useDashboard, useUser, useSyncFitbit } from '../hooks/useQueries'
+import { useDashboard, useUser, useSyncFitbit, useNutritionDaily } from '../hooks/useQueries'
 import MuscleMap from './MuscleMap'
 import ExpandableCard from './ExpandableCard'
 import BodyCompositionCard from './BodyCompositionCard'
+import NutritionCard from './NutritionCard'
 
 // =============================================================================
 // Design Tokens
@@ -99,6 +100,14 @@ function recoveryColor(score: number) {
   return COLORS.danger
 }
 
+function macroLine(c?: number, f?: number, p?: number): string | undefined {
+  const parts: string[] = []
+  if (c !== undefined) parts.push(`C ${Math.round(c)}g`)
+  if (f !== undefined) parts.push(`F ${Math.round(f)}g`)
+  if (p !== undefined) parts.push(`P ${Math.round(p)}g`)
+  return parts.length > 0 ? parts.join(' · ') : undefined
+}
+
 // =============================================================================
 // Dashboard
 // =============================================================================
@@ -110,7 +119,13 @@ export default function Dashboard() {
 
   const { data: user } = useUser()
   const { data, isLoading, error, refetch } = useDashboard(30)
+  const { data: nutritionDaily } = useNutritionDaily(7)
   const syncMutation = useSyncFitbit()
+
+  // Pull the most recent day with logged calories for the hero stat.
+  const latestNutrition = nutritionDaily?.data && nutritionDaily.data.length > 0
+    ? [...nutritionDaily.data].reverse().find(d => (d.calories_in ?? 0) > 0) ?? null
+    : null
 
   useEffect(() => {
     if (user && !user.fitbit_connected && !user.renpho_connected
@@ -306,7 +321,7 @@ export default function Dashboard() {
       </div>
 
       {/* ── Stat Cards (latest values) ─────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <StatCard icon={ScaleIcon} title="Weight"
           value={data?.latest_weight?.weight_kg ? `${Number(data.latest_weight.weight_kg).toFixed(1)} kg` : '--'}
           subtitle={data?.latest_weight?.body_fat_percent ? `Body Fat: ${Number(data.latest_weight.body_fat_percent).toFixed(1)}%` : undefined}
@@ -327,6 +342,10 @@ export default function Dashboard() {
           value={data?.latest_workout?.title || '--'}
           subtitle={data?.latest_workout ? `${Math.round(data.latest_workout.total_volume_kg).toLocaleString()}kg · ${data.latest_workout.duration_minutes}min · ${data.latest_workout.total_sets} sets` : undefined}
           staleLevel={staleness(data?.latest_workout?.date)} />
+        <StatCard icon={FireIcon} title="Latest Calories"
+          value={latestNutrition?.calories_in ? `${Math.round(latestNutrition.calories_in).toLocaleString()} kcal` : '--'}
+          subtitle={latestNutrition ? macroLine(latestNutrition.carbs_g, latestNutrition.fat_g, latestNutrition.protein_g) : undefined}
+          staleLevel={staleness(latestNutrition?.date)} />
       </div>
 
       {/* ── Bento Grid: Health Vitals Row ───────────────────────── */}
@@ -590,6 +609,11 @@ export default function Dashboard() {
               <BodyCompositionCard rangeDays={daysToShow} />
             )}
           </div>
+
+          {/* Nutrition (FatSecret) */}
+          {user?.fatsecret_connected && (
+            <NutritionCard rangeDays={daysToShow} />
+          )}
         </>
       )}
 

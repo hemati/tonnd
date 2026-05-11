@@ -30,7 +30,7 @@ export default function ExpandableCard({ title, icon: Icon, preview, headerExtra
             : <ChevronDownIcon className="h-4 w-4 text-white/30" />}
         </div>
       </button>
-      <div className={cn('transition-all duration-300 ease-in-out', expanded ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden')}>
+      <div className={cn('transition-all duration-300 ease-in-out', expanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden')}>
         <div className="px-6 pb-6">
           {children}
         </div>

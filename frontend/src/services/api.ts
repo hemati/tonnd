@@ -98,6 +98,55 @@ export interface BodyMeasurementsResponse {
   data: BodyMeasurement[]
 }
 
+export interface DailyNutrition {
+  date: string
+  source: string
+  calories_in?: number
+  carbs_g?: number
+  fat_g?: number
+  protein_g?: number
+  fiber_g?: number
+  water_ml?: number
+}
+
+export interface FoodEntry {
+  external_id: string
+  source: string
+  date: string
+  food_entry_name: string
+  meal?: string
+  food_id?: string
+  serving_id?: string
+  food_entry_description?: string
+  number_of_units?: number
+  calories?: number
+  carbs_g?: number
+  fat_g?: number
+  protein_g?: number
+  fiber_g?: number
+  sugar_g?: number
+  saturated_fat_g?: number
+  polyunsaturated_fat_g?: number
+  monounsaturated_fat_g?: number
+  cholesterol_mg?: number
+  sodium_mg?: number
+  calcium_mg?: number
+  iron_mg?: number
+  potassium_mg?: number
+  vitamin_a_iu?: number
+  vitamin_c_mg?: number
+}
+
+export interface NutritionDailyResponse {
+  count: number
+  data: DailyNutrition[]
+}
+
+export interface NutritionEntriesResponse {
+  count: number
+  data: FoodEntry[]
+}
+
 export interface SleepData {
   date: string
   total_minutes: number
@@ -270,6 +319,38 @@ export const fetchBodyMeasurements = async (params: {
   if (params.endDate) query.set('end_date', params.endDate)
   query.set('limit', String(params.limit ?? 180))
   const { data } = await api.get<BodyMeasurementsResponse>(`/api/v1/body?${query.toString()}`)
+  return data
+}
+
+export const fetchNutritionDaily = async (params: {
+  startDate?: string
+  endDate?: string
+  source?: string
+  limit?: number
+} = {}): Promise<NutritionDailyResponse> => {
+  const q = new URLSearchParams()
+  if (params.startDate) q.set('start_date', params.startDate)
+  if (params.endDate) q.set('end_date', params.endDate)
+  if (params.source) q.set('source', params.source)
+  q.set('limit', String(params.limit ?? 30))
+  const { data } = await api.get<NutritionDailyResponse>(`/api/v1/nutrition/daily?${q.toString()}`)
+  return data
+}
+
+export const fetchNutritionEntries = async (params: {
+  startDate?: string
+  endDate?: string
+  meal?: string
+  source?: string
+  limit?: number
+} = {}): Promise<NutritionEntriesResponse> => {
+  const q = new URLSearchParams()
+  if (params.startDate) q.set('start_date', params.startDate)
+  if (params.endDate) q.set('end_date', params.endDate)
+  if (params.meal) q.set('meal', params.meal)
+  if (params.source) q.set('source', params.source)
+  q.set('limit', String(params.limit ?? 100))
+  const { data } = await api.get<NutritionEntriesResponse>(`/api/v1/nutrition/entries?${q.toString()}`)
   return data
 }
 

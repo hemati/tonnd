@@ -1,6 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { fetchUser, fetchDashboardData, syncFitbitData, initFitbitAuth, fetchBodyMeasurements } from '../services/api'
-import type { UserProfile, DashboardData, SyncResponse, FitbitInitResponse, BodyMeasurementsResponse } from '../services/api'
+import {
+  fetchUser, fetchDashboardData, syncFitbitData, initFitbitAuth,
+  fetchBodyMeasurements, fetchNutritionDaily, fetchNutritionEntries,
+} from '../services/api'
+import type {
+  UserProfile, DashboardData, SyncResponse, FitbitInitResponse,
+  BodyMeasurementsResponse, NutritionDailyResponse, NutritionEntriesResponse,
+} from '../services/api'
 
 // Query Keys
 export const queryKeys = {
@@ -8,6 +14,8 @@ export const queryKeys = {
   dashboard: (days: number) => ['dashboard', days] as const,
   bodyRange: (rangeDays: number) => ['body', 'renpho', rangeDays] as const,
   bodyLatest: ['body', 'renpho', 'latest'] as const,
+  nutritionDaily: (rangeDays: number) => ['nutrition', 'daily', rangeDays] as const,
+  nutritionEntries: (rangeDays: number) => ['nutrition', 'entries', rangeDays] as const,
 }
 
 // =============================================================================
@@ -77,6 +85,40 @@ export function useLatestBodyMeasurement() {
 }
 
 // =============================================================================
+// Nutrition Queries (FatSecret)
+// =============================================================================
+
+export function useNutritionDaily(rangeDays: number) {
+  // +1 to make sure today is included even when isoDaysAgo crosses a UTC boundary.
+  const startDate = isoDaysAgo(rangeDays)
+  return useQuery<NutritionDailyResponse, Error>({
+    queryKey: queryKeys.nutritionDaily(rangeDays),
+    queryFn: async () => {
+      const res = await fetchNutritionDaily({ startDate, source: 'fatsecret', limit: rangeDays + 1 })
+      // Backend defaults to DESC; consumers expect oldest-first for time-series charts.
+      return {
+        count: res.count,
+        data: [...res.data].sort((a, b) => a.date.localeCompare(b.date)),
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 3,
+  })
+}
+
+export function useNutritionEntries(rangeDays: number) {
+  const startDate = isoDaysAgo(rangeDays)
+  return useQuery<NutritionEntriesResponse, Error>({
+    queryKey: queryKeys.nutritionEntries(rangeDays),
+    queryFn: () => fetchNutritionEntries({ startDate, source: 'fatsecret', limit: 100 }),
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: 3,
+  })
+}
+
+// =============================================================================
 // Sync Mutations
 // =============================================================================
 
@@ -91,6 +133,8 @@ export function useSyncFitbit() {
       queryClient.invalidateQueries({ queryKey: queryKeys.user })
       // Invalidate body composition queries (both range-scoped and latest)
       queryClient.invalidateQueries({ queryKey: ['body'] })
+      // Invalidate nutrition queries
+      queryClient.invalidateQueries({ queryKey: ['nutrition'] })
     },
   })
 }
