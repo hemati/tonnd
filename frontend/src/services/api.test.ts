@@ -37,7 +37,10 @@ vi.mock('axios', () => {
 })
 
 // Import after mock so the module gets our mocked axios
-import { fetchUser, fetchDashboardData, initFitbitAuth, syncFitbitData } from './api'
+import {
+  fetchUser, fetchDashboardData, initFitbitAuth, syncFitbitData,
+  fetchNutritionDaily, fetchNutritionEntries,
+} from './api'
 import type { UserProfile, FitbitInitResponse, SyncResponse } from './api'
 
 describe('api module', () => {
@@ -239,6 +242,36 @@ describe('api module', () => {
 
       await syncFitbitData({ days: 1, date: '2025-01-15' })
       expect(mockPost).toHaveBeenCalledWith('/api/sync', { days: 1, date: '2025-01-15' })
+    })
+
+    it('fetchNutritionDaily defaults limit=30 when no params', async () => {
+      mockGet.mockResolvedValueOnce({ data: { count: 0, data: [] } })
+      await fetchNutritionDaily()
+      expect(mockGet).toHaveBeenCalledWith('/api/v1/nutrition/daily?limit=30')
+    })
+
+    it('fetchNutritionDaily encodes start_date and source params', async () => {
+      mockGet.mockResolvedValueOnce({ data: { count: 0, data: [] } })
+      await fetchNutritionDaily({ startDate: '2026-05-01', source: 'fatsecret', limit: 8 })
+      expect(mockGet).toHaveBeenCalledWith(
+        '/api/v1/nutrition/daily?start_date=2026-05-01&source=fatsecret&limit=8',
+      )
+    })
+
+    it('fetchNutritionEntries defaults limit=100 when no params', async () => {
+      mockGet.mockResolvedValueOnce({ data: { count: 0, data: [] } })
+      await fetchNutritionEntries()
+      expect(mockGet).toHaveBeenCalledWith('/api/v1/nutrition/entries?limit=100')
+    })
+
+    it('fetchNutritionEntries forwards meal filter and source', async () => {
+      mockGet.mockResolvedValueOnce({ data: { count: 0, data: [] } })
+      await fetchNutritionEntries({
+        startDate: '2026-05-01', meal: 'Breakfast', source: 'fatsecret', limit: 50,
+      })
+      expect(mockGet).toHaveBeenCalledWith(
+        '/api/v1/nutrition/entries?start_date=2026-05-01&meal=Breakfast&source=fatsecret&limit=50',
+      )
     })
   })
 
