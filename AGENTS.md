@@ -74,6 +74,23 @@ Login (Email/Google)  →  Connect Sources  →  Dashboard
 
 ---
 
+## Editing this file
+
+`CLAUDE.md` is a symlink → `AGENTS.md`. Edit tools refuse to write through
+symlinks — always target `AGENTS.md` directly.
+
+## Request routing (dev + prod)
+
+Host nginx (prod only) routes by path: `/api`, `/auth`, `/users`, `/health`,
+`/docs` → backend `:8080`; everything else → frontend `:5173`. The frontend
+container has its own `frontend/nginx.conf` that ALSO proxies `/mcp/`,
+`/.well-known/`, and backend paths to `backend:8080` — so anything reaching
+the frontend container's nginx that needs the backend is forwarded there.
+When adding a new backend route, you usually don't need to touch host nginx —
+the frontend container already forwards it.
+
+---
+
 ## Project Structure
 
 ```
@@ -391,6 +408,12 @@ Use for browser/Playwright auth or hitting `/api/sync` directly. For ad-hoc
 DB queries from the same shell, add `from src.models import api_models  # noqa`
 (SQLAlchemy class-resolution side effect) and call `.unique().scalar_one()`
 for eager-loaded queries.
+
+#### CI debugging
+
+- `gh run list --limit 5` — recent runs + status
+- `gh run view <id> --log-failed` — only failing-step output (no scrolling)
+- Wait from a script: `until [ "$(gh run view <id> --json status -q .status)" = "completed" ]; do sleep 5; done`
 
 ### Code Quality
 
