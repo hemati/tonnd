@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon, ScaleIcon, FireIcon, BeakerIcon, ChatBubbleLeftRightIcon, CakeIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon, ScaleIcon, FireIcon, BeakerIcon, ChatBubbleLeftRightIcon, CakeIcon, ServerStackIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
 import Body from '@mjcdev/react-body-highlighter'
 import { FitbitIcon, RenphoIcon, HevyIcon, FatSecretIcon } from './SourceIcons'
@@ -449,6 +449,7 @@ export default function LandingPage() {
                 { icon: BeakerIcon, title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness and blood oxygen.' },
                 { icon: CakeIcon, title: 'Nutrition', desc: 'Calories, macros, and per-meal logs via FatSecret.' },
                 { icon: ChatBubbleLeftRightIcon, title: 'AI Analysis', desc: 'Ask Claude anything about your data.' },
+                { icon: ServerStackIcon, title: 'MCP Server', desc: 'Connect Claude Desktop or claude.ai to query your data live.' },
               ].map((f) => (
                 <div key={f.title} className="bg-[#0a0a0a] p-5">
                   <div className="flex items-start gap-3">
