@@ -472,6 +472,20 @@ npx tsc --noEmit          # Type check
   The well-known metadata at `/.well-known/oauth-protected-resource/mcp/mcp` is
   the source of truth for the canonical URL.
 
+## Adding a blog post
+
+1. `frontend/content/blog/<slug>.mdx` — frontmatter schema in
+   `lib/blog.ts::BlogPostMeta` (title, description, date ISO, tags[],
+   author, optional image, optional faqs[]).
+2. `frontend/public/blog/<slug>.jpg` — OG hero image, 1200x630 JPG
+   <100 KB. Convert from any source with:
+   `convert in.png -resize 1200x676^ -gravity center -extent 1200x630 -quality 85 -strip -interlace Plane out.jpg`
+3. **`frontend/prerender.mjs::ROUTES`** — MUST add `/blog/<slug>`.
+   Without it the SPA fallback serves `index.html` with default site
+   SEO (wrong og:image, canonical, description). Silent failure —
+   only social shares + Google crawler see it.
+4. Memory rule: run `/humanizer` after writing the post.
+
 ## Adding a new PAT/MCP scope
 
 A new scope (e.g. `read:foo`) requires updates in **3 places** — missing any
