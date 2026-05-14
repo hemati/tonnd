@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Helmet } from 'react-helmet-async'
-import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon, ScaleIcon, FireIcon, BeakerIcon, ChatBubbleLeftRightIcon } from '@heroicons/react/24/outline'
+import { Bars3Icon, XMarkIcon, ArrowRightIcon, MoonIcon, BoltIcon, HeartIcon, ChartBarSquareIcon, ScaleIcon, FireIcon, BeakerIcon, ChatBubbleLeftRightIcon, CakeIcon } from '@heroicons/react/24/outline'
 import { GITHUB_URL, DISCORD_URL } from '../config/theme'
 import Body from '@mjcdev/react-body-highlighter'
-import { FitbitIcon, RenphoIcon, HevyIcon } from './SourceIcons'
+import { FitbitIcon, RenphoIcon, HevyIcon, FatSecretIcon } from './SourceIcons'
 import { getAllPosts } from '../lib/blog'
 import SEO from './SEO'
 import Logo from './Logo'
@@ -386,9 +386,9 @@ export default function LandingPage() {
           <p className="text-[13px] text-white/40 font-medium tracking-wide mb-3">Connect</p>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white/90 mb-4">Bring your devices together.</h2>
           <p className="text-[15px] text-white/40 mb-8 max-w-lg">
-            Link Fitbit, Renpho, and Hevy. Data flows automatically into your dashboard.
+            Link Fitbit, Renpho, Hevy, and FatSecret. Data flows automatically into your dashboard.
           </p>
-          <div className="grid sm:grid-cols-3 gap-px bg-white/[.06] rounded-lg overflow-hidden">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/[.06] rounded-lg overflow-hidden">
             <div className="bg-[#0a0a0a] p-6">
               <div className="flex items-start gap-4">
                 <FitbitIcon className="w-8 h-8 flex-shrink-0" />
@@ -416,6 +416,15 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+            <div className="bg-[#0a0a0a] p-6">
+              <div className="flex items-start gap-4">
+                <FatSecretIcon className="w-8 h-8 flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-semibold text-white/80 mb-2">FatSecret</h3>
+                  <p className="text-sm text-white/40 leading-relaxed">Food diary with calories, macros (carbs, fat, protein, fiber), and per-meal nutrition.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -438,6 +447,7 @@ export default function LandingPage() {
                 { icon: FireIcon, title: 'Workouts', desc: 'Exercises, volume, muscle heatmap.' },
                 { icon: ChartBarSquareIcon, title: 'Recovery Score', desc: 'Composite from HRV, sleep, and resting HR.' },
                 { icon: BeakerIcon, title: 'VO\u2082 Max & SpO\u2082', desc: 'Cardio fitness and blood oxygen.' },
+                { icon: CakeIcon, title: 'Nutrition', desc: 'Calories, macros, and per-meal logs via FatSecret.' },
                 { icon: ChatBubbleLeftRightIcon, title: 'AI Analysis', desc: 'Ask Claude anything about your data.' },
               ].map((f) => (
                 <div key={f.title} className="bg-[#0a0a0a] p-5">
