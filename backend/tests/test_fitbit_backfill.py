@@ -207,3 +207,36 @@ async def test_intraday_phase_window_uses_anchor_date():
             await backfill._run_intraday_phase(session, user, client, job)
 
     assert seen == [date(2026, 1, 9), date(2026, 1, 10)]  # anchor-1 .. anchor
+
+
+@pytest.mark.asyncio
+async def test_backfill_endpoints(client, monkeypatch):
+    """POST returns 202 + job; a second POST returns the same job; GET reflects state."""
+    from app import app
+    from src.services.user_service import current_active_user  # same object app.py uses
+    import src.services.fitbit.backfill as bf
+
+    # Don't actually launch the background task in the endpoint test.
+    monkeypatch.setattr(bf, "_spawn", lambda coro: coro.close())
+
+    user = _make_user()
+    async with test_session_maker() as session:
+        session.add(user)
+        await session.commit()
+
+    app.dependency_overrides[current_active_user] = lambda: user
+    try:
+        r1 = await client.post("/api/fitbit/backfill")
+        assert r1.status_code == 202
+        body1 = r1.json()
+        assert body1["state"] in ("pending", "running")
+        assert body1["days_requested"] == 30
+
+        r2 = await client.post("/api/fitbit/backfill")
+        assert r2.json()["id"] == body1["id"]  # no duplicate job
+
+        g = await client.get("/api/fitbit/backfill")
+        assert g.status_code == 200
+        assert g.json()["id"] == body1["id"]
+    finally:
+        app.dependency_overrides.pop(current_active_user, None)

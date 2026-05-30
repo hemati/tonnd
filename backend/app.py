@@ -590,6 +590,36 @@ async def sync_all_sources(
     }
 
 
+@app.post("/api/fitbit/backfill", tags=["api"], status_code=202)
+async def start_fitbit_backfill(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Start (or return the in-flight) 30-day Fitbit historical backfill."""
+    if not user.fitbit_access_token:
+        raise HTTPException(status_code=400, detail="Fitbit not connected")
+    from src.services.fitbit.backfill import start_backfill
+    job = await start_backfill(session, user)
+    return job.to_dict()
+
+
+@app.get("/api/fitbit/backfill", tags=["api"])
+async def get_fitbit_backfill(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Latest backfill job status for the current user (for polling)."""
+    from src.models.backfill_models import BackfillJob
+    from sqlalchemy import select
+    result = await session.execute(
+        select(BackfillJob)
+        .where(BackfillJob.user_id == user.id)
+        .order_by(BackfillJob.started_at.desc())
+    )
+    job = result.scalars().first()
+    return job.to_dict() if job else {"state": "none"}
+
+
 @app.get("/api/data", tags=["api"])
 async def get_data(
     user: User = Depends(current_active_user),
