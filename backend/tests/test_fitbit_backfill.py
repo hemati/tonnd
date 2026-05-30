@@ -247,17 +247,23 @@ async def test_resume_incomplete_backfills_relaunches(monkeypatch):
     from src.services.fitbit import backfill
 
     user = _make_user()
-    job = BackfillJob(user_id=user.id, state="paused_rate_limited",
-                      phase="intraday", days_requested=30, days_done=12,
-                      ranges_done=True)
+    job = BackfillJob(
+        user_id=user.id,
+        state="paused_rate_limited",
+        phase="intraday",
+        days_requested=30,
+        days_done=12,
+        ranges_done=True,
+    )
     async with test_session_maker() as session:
         session.add_all([user, job])
         await session.commit()
 
     launched = []
     # Patch the spawn helper: capture the coro and close it (no real task).
-    monkeypatch.setattr(backfill, "_spawn",
-                        lambda coro: launched.append(coro) or coro.close())
+    monkeypatch.setattr(
+        backfill, "_spawn", lambda coro: launched.append(coro) or coro.close()
+    )
     monkeypatch.setattr(backfill, "async_session_maker", test_session_maker)
 
     await backfill.resume_incomplete_backfills()
@@ -269,17 +275,30 @@ async def test_resume_skips_terminal_jobs(monkeypatch):
     from src.services.fitbit import backfill
 
     user = _make_user()
-    done = BackfillJob(user_id=user.id, state="done", phase="intraday",
-                       days_requested=30, days_done=30, ranges_done=True)
-    failed = BackfillJob(user_id=user.id, state="failed", phase="ranges",
-                         days_requested=30, days_done=0, ranges_done=False)
+    done = BackfillJob(
+        user_id=user.id,
+        state="done",
+        phase="intraday",
+        days_requested=30,
+        days_done=30,
+        ranges_done=True,
+    )
+    failed = BackfillJob(
+        user_id=user.id,
+        state="failed",
+        phase="ranges",
+        days_requested=30,
+        days_done=0,
+        ranges_done=False,
+    )
     async with test_session_maker() as session:
         session.add_all([user, done, failed])
         await session.commit()
 
     launched = []
-    monkeypatch.setattr(backfill, "_spawn",
-                        lambda coro: launched.append(coro) or coro.close())
+    monkeypatch.setattr(
+        backfill, "_spawn", lambda coro: launched.append(coro) or coro.close()
+    )
     monkeypatch.setattr(backfill, "async_session_maker", test_session_maker)
 
     await backfill.resume_incomplete_backfills()
