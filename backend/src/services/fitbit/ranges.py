@@ -32,105 +32,105 @@ def _entries(payload, key):
     return []
 
 
+def _heart_rate(v):
+    return {
+        "resting_heart_rate": safe_float(v.get("restingHeartRate")),
+        "zones": {
+            z["name"]: {
+                "min": z.get("min"),
+                "max": z.get("max"),
+                "minutes": z.get("minutes"),
+                "caloriesOut": z.get("caloriesOut"),
+            }
+            for z in v.get("heartRateZones", [])
+        },
+    }
+
+
+def _active_zone_minutes(v):
+    fb = v.get("fatBurnActiveZoneMinutes", 0)
+    ca = v.get("cardioActiveZoneMinutes", 0)
+    pk = v.get("peakActiveZoneMinutes", 0)
+    return {
+        "fat_burn_minutes": fb,
+        "cardio_minutes": ca,
+        "peak_minutes": pk,
+        "total_minutes": fb + ca + pk,
+    }
+
+
 def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, activity):
     """Merge all range responses into {date_iso: data_dict}."""
     by_date: dict[str, dict] = defaultdict(dict)
 
-    # Heart rate
-    for e in _entries(hr, "activities-heart"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["heart_rate"] = {
-            "resting_heart_rate": safe_float(v.get("restingHeartRate")),
-            "zones": {
-                z["name"]: {
-                    "min": z.get("min"),
-                    "max": z.get("max"),
-                    "minutes": z.get("minutes"),
-                    "caloriesOut": z.get("caloriesOut"),
-                }
-                for z in v.get("heartRateZones", [])
+    # One-value-per-day metrics: (payload, response_key, out_key, value_builder).
+    simple_metrics = (
+        (hr, "activities-heart", "heart_rate", _heart_rate),
+        (
+            hrv,
+            "hrv",
+            "hrv",
+            lambda v: {
+                "daily_rmssd": safe_float(v.get("dailyRmssd")),
+                "deep_rmssd": safe_float(v.get("deepRmssd")),
             },
-        }
+        ),
+        (
+            spo2,
+            "spo2",
+            "spo2",
+            lambda v: {
+                "avg": safe_float(v.get("avg")),
+                "min": safe_float(v.get("min")),
+                "max": safe_float(v.get("max")),
+            },
+        ),
+        (
+            br,
+            "br",
+            "breathing_rate",
+            lambda v: {
+                "breathing_rate": safe_float(v.get("breathingRate")),
+            },
+        ),
+        (
+            vo2,
+            "cardioScore",
+            "vo2_max",
+            lambda v: {
+                "vo2_max": safe_float(v.get("vo2Max")),
+            },
+        ),
+        (
+            temp,
+            "tempSkin",
+            "temperature",
+            lambda v: {
+                "relative_deviation": safe_float(v.get("nightlyRelative")),
+            },
+        ),
+        (
+            azm,
+            "activities-active-zone-minutes",
+            "active_zone_minutes",
+            _active_zone_minutes,
+        ),
+    )
+    for payload, response_key, out_key, build in simple_metrics:
+        for e in _entries(payload, response_key):
+            dt = e.get("dateTime")
+            if not dt:
+                continue
+            by_date[dt][out_key] = build(e.get("value", {}))
 
-    # HRV
-    for e in _entries(hrv, "hrv"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["hrv"] = {
-            "daily_rmssd": safe_float(v.get("dailyRmssd")),
-            "deep_rmssd": safe_float(v.get("deepRmssd")),
-        }
-
-    # SpO2 (bare list)
-    for e in _entries(spo2, "spo2"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["spo2"] = {
-            "avg": safe_float(v.get("avg")),
-            "min": safe_float(v.get("min")),
-            "max": safe_float(v.get("max")),
-        }
-
-    # Breathing rate
-    for e in _entries(br, "br"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["breathing_rate"] = {
-            "breathing_rate": safe_float(v.get("breathingRate")),
-        }
-
-    # VO2 max
-    for e in _entries(vo2, "cardioScore"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["vo2_max"] = {"vo2_max": safe_float(v.get("vo2Max"))}
-
-    # Skin temperature
-    for e in _entries(temp, "tempSkin"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        by_date[dt]["temperature"] = {
-            "relative_deviation": safe_float(v.get("nightlyRelative")),
-        }
-
-    # Active Zone Minutes
-    for e in _entries(azm, "activities-active-zone-minutes"):
-        dt = e.get("dateTime")
-        if not dt:
-            continue
-        v = e.get("value", {})
-        fb = v.get("fatBurnActiveZoneMinutes", 0)
-        ca = v.get("cardioActiveZoneMinutes", 0)
-        pk = v.get("peakActiveZoneMinutes", 0)
-        by_date[dt]["active_zone_minutes"] = {
-            "fat_burn_minutes": fb,
-            "cardio_minutes": ca,
-            "peak_minutes": pk,
-            "total_minutes": fb + ca + pk,
-        }
-
-    # Sleep (group entries by dateOfSleep)
-    sleep_by_date: dict[str, list] = defaultdict(list)
+    # Sleep (group entries by dateOfSleep; multiple naps per day allowed).
     for s in _entries(sleep, "sleep"):
-        levels = s.get("levels", {}).get("summary", {})
-        levels_data = s.get("levels", {}).get("data", [])
         d = s.get("dateOfSleep")
         if not d:
             continue
-        sleep_by_date[d].append(
+        levels = s.get("levels", {}).get("summary", {})
+        levels_data = s.get("levels", {}).get("data", [])
+        by_date[d].setdefault("sleep", []).append(
             {
                 "external_id": str(s.get("logId", "")),
                 "date_of_sleep": d,
@@ -148,33 +148,34 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
                 "stages_30s_summary": compute_stages_summary(levels_data),
             }
         )
-    for d, entries in sleep_by_date.items():
-        by_date[d]["sleep"] = entries
 
-    # Weight / body (fat comes from the weight log entry, matching the daily path)
+    # Weight / body (fat comes from the weight log entry, matching the daily
+    # path). Keep the latest entry of the day; track its time locally so no
+    # helper key leaks into the output.
+    weight_time: dict[str, str] = {}
     for w in _entries(weight, "weight"):
         d = w.get("date")
         if not d:
             continue
-        existing = by_date[d].get("weight")
-        candidate = {
-            "weight_kg": safe_float(w.get("weight")),
-            "body_fat_percent": safe_float(w.get("fat")),
-            "bmi": safe_float(w.get("bmi")),
-            "_time": w.get("time", "00:00:00"),
-        }
-        # keep the latest entry of the day
-        if existing is None or candidate["_time"] >= existing.get("_time", ""):
-            by_date[d]["weight"] = candidate
+        t = w.get("time", "00:00:00")
+        if d not in weight_time or t >= weight_time[d]:
+            weight_time[d] = t
+            by_date[d]["weight"] = {
+                "weight_kg": safe_float(w.get("weight")),
+                "body_fat_percent": safe_float(w.get("fat")),
+                "bmi": safe_float(w.get("bmi")),
+            }
 
-    # Activity time-series (one resource per call)
+    # Activity time-series (one resource per call). active_minutes accumulates
+    # fairly + very; calories_bmr has no range resource, so it stays None.
     for resource in ACTIVITY_RESOURCES:
-        payload = activity.get(resource, {})
-        for e in _entries(payload, f"activities-{resource}"):
-            d = e.get("dateTime")
-            if not d:
+        for e in _entries(activity.get(resource, {}), f"activities-{resource}"):
+            dt = e.get("dateTime")
+            if not dt:
                 continue
-            act = by_date[d].setdefault("activity", {})
+            act = by_date[dt].setdefault(
+                "activity", {"active_minutes": 0, "calories_bmr": None}
+            )
             val = e.get("value")
             if resource == "steps":
                 act["steps"] = int(safe_float(val) or 0)
@@ -188,23 +189,7 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
                 act["sedentary_minutes"] = int(safe_float(val) or 0)
             elif resource == "minutesLightlyActive":
                 act["lightly_active_minutes"] = int(safe_float(val) or 0)
-            elif resource == "minutesFairlyActive":
-                act["_fairly"] = int(safe_float(val) or 0)
-            elif resource == "minutesVeryActive":
-                act["_very"] = int(safe_float(val) or 0)
-
-    # Finalize activity: derive active_minutes, drop helpers, add null bmr
-    for d, data in by_date.items():
-        act = data.get("activity")
-        if act is not None:
-            fairly = act.pop("_fairly", 0)
-            very = act.pop("_very", 0)
-            act["active_minutes"] = fairly + very
-            act.setdefault("calories_bmr", None)
-
-    # Strip the internal _time helper from weight
-    for data in by_date.values():
-        if "weight" in data:
-            data["weight"].pop("_time", None)
+            elif resource in ("minutesFairlyActive", "minutesVeryActive"):
+                act["active_minutes"] += int(safe_float(val) or 0)
 
     return dict(by_date)

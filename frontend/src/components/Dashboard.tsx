@@ -143,9 +143,8 @@ export default function Dashboard() {
   const backfill = useBackfillStatus(startBackfill.isSuccess)
   // Track the LIVE job state (poll first, POST snapshot as fallback) so the
   // button re-enables when the job finishes — not the frozen mutation snapshot.
-  const backfillActive = BACKFILL_ACTIVE.has(
-    backfill.data?.state ?? startBackfill.data?.state ?? '',
-  )
+  const liveBackfill = backfill.data ?? startBackfill.data
+  const backfillActive = BACKFILL_ACTIVE.has(liveBackfill?.state ?? '')
 
   // Pull the most recent day with logged calories for the hero stat.
   // Hook returns ASC-sorted data, so iterate from the end.
@@ -182,7 +181,7 @@ export default function Dashboard() {
     startBackfill.mutate()
   }
 
-  const backfillMessage = backfillMessageFor(backfill.data ?? startBackfill.data)
+  const backfillMessage = backfillMessageFor(liveBackfill)
 
   const formatLastSync = (ls: string | null) => {
     if (!ls) return 'Never'

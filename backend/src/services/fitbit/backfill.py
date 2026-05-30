@@ -35,6 +35,12 @@ RATE_LIMIT_BUFFER_SECONDS = 60  # extra wait past the reset to be safe
 _BACKGROUND_TASKS: set = set()
 
 
+def _window(job: BackfillJob) -> tuple[date, date]:
+    """The (start, end) backfill window, anchored at job creation."""
+    end = job.anchor_date or date.today()
+    return end - timedelta(days=job.days_requested - 1), end
+
+
 def _spawn(coro) -> None:
     """Launch a background task and hold a strong ref so it isn't GC'd."""
     task = asyncio.create_task(coro)
@@ -47,6 +53,16 @@ async def _active_job(session: AsyncSession, user_id) -> BackfillJob | None:
         select(BackfillJob)
         .where(BackfillJob.user_id == user_id)
         .where(BackfillJob.state.in_(BackfillJob.ACTIVE_STATES))
+        .order_by(BackfillJob.started_at.desc())
+    )
+    return result.scalars().first()
+
+
+async def latest_job(session: AsyncSession, user_id) -> BackfillJob | None:
+    """Most recent backfill job for a user, any state (for status polling)."""
+    result = await session.execute(
+        select(BackfillJob)
+        .where(BackfillJob.user_id == user_id)
         .order_by(BackfillJob.started_at.desc())
     )
     return result.scalars().first()
@@ -72,8 +88,7 @@ async def _run_ranges_phase(
     """Fetch the whole window via range endpoints. Retried as a unit on 429."""
     job.phase = "ranges"
     await session.commit()
-    end = job.anchor_date or date.today()
-    start = end - timedelta(days=job.days_requested - 1)
+    start, end = _window(job)
     while True:
         try:
             await sync_fitbit_range(session, user, start, end, client)
@@ -91,8 +106,7 @@ async def _run_intraday_phase(
     """Per-day intraday, paced. Best-effort: 403 disables it via sync_fitbit_intraday."""
     job.phase = "intraday"
     await session.commit()
-    end = job.anchor_date or date.today()
-    start = end - timedelta(days=job.days_requested - 1)
+    start, end = _window(job)
 
     for i in range(job.days_done, job.days_requested):
         d = start + timedelta(days=i)

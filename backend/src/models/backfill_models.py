@@ -17,6 +17,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.db_models import Base
+from src.models.fitbit_models import _iso
 
 
 class BackfillJob(Base):
@@ -52,15 +53,12 @@ class BackfillJob(Base):
     ACTIVE_STATES = ("pending", "running", "paused_rate_limited")
 
     def to_dict(self) -> dict:
-        def _iso(v):
-            return v.isoformat() if v else None
-
         return {
             "id": str(self.id),
             "state": self.state,
             "phase": self.phase,
             "days_requested": self.days_requested,
-            "anchor_date": self.anchor_date.isoformat() if self.anchor_date else None,
+            "anchor_date": _iso(self.anchor_date),
             "days_done": self.days_done,
             "ranges_done": self.ranges_done,
             "started_at": _iso(self.started_at),

@@ -617,14 +617,8 @@ async def get_fitbit_backfill(
     session: AsyncSession = Depends(get_async_session),
 ):
     """Latest backfill job status for the current user (for polling)."""
-    from src.models.backfill_models import BackfillJob
-    from sqlalchemy import select
-    result = await session.execute(
-        select(BackfillJob)
-        .where(BackfillJob.user_id == user.id)
-        .order_by(BackfillJob.started_at.desc())
-    )
-    job = result.scalars().first()
+    from src.services.fitbit.backfill import latest_job
+    job = await latest_job(session, user.id)
     return job.to_dict() if job else {"state": "none"}
 
 
