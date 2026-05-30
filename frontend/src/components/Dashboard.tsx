@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO, differenceInHours } from 'date-fns'
@@ -124,6 +124,14 @@ function backfillMessageFor(s: BackfillStatus | undefined): string | null {
   return `Backfilling… ${phase}`
 }
 
+/** Coarse 0–100 progress: ranges phase ≈ first 10%, intraday fills the rest. */
+function backfillProgress(s: BackfillStatus | undefined): number {
+  if (!s) return 0
+  if (!s.ranges_done) return 8
+  const total = s.days_requested ?? 30
+  return Math.min(100, 10 + Math.round(((s.days_done ?? 0) / total) * 90))
+}
+
 // =============================================================================
 // Dashboard
 // =============================================================================
@@ -138,11 +146,10 @@ export default function Dashboard() {
   const syncMutation = useSyncFitbit()
   const queryClient = useQueryClient()
   const startBackfill = useStartBackfill()
-  // Poll once a backfill has been kicked off this session; refetchInterval
-  // self-stops on terminal state. isSuccess latches true after the first POST.
-  const backfill = useBackfillStatus(startBackfill.isSuccess)
-  // Track the LIVE job state (poll first, POST snapshot as fallback) so the
-  // button re-enables when the job finishes — not the frozen mutation snapshot.
+  // Always fetches the latest job on mount (so a page reload shows live
+  // progress) and polls while active. Track the freshest state (poll first,
+  // POST snapshot as fallback) so the button reflects the real job state.
+  const backfill = useBackfillStatus()
   const liveBackfill = backfill.data ?? startBackfill.data
   const backfillActive = BACKFILL_ACTIVE.has(liveBackfill?.state ?? '')
 
@@ -163,12 +170,21 @@ export default function Dashboard() {
     }
   }, [user, navigate])
 
+  const prevBackfillState = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (backfill.data?.state === 'done') {
+    const s = backfill.data?.state
+    // Refetch only on a LIVE transition into done (active -> done), not on a
+    // reload where the latest job happened to already be done.
+    if (
+      prevBackfillState.current &&
+      BACKFILL_ACTIVE.has(prevBackfillState.current) &&
+      s === 'done'
+    ) {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
       queryClient.invalidateQueries({ queryKey: ['body'] })
       queryClient.invalidateQueries({ queryKey: ['nutrition'] })
     }
+    prevBackfillState.current = s
   }, [backfill.data?.state, queryClient])
 
   const handleSync = () => {
@@ -304,8 +320,22 @@ export default function Dashboard() {
             Last synced: {formatLastSync(data?.last_sync || null)}
             <StaleBadge level={syncStaleness} />
           </p>
-          {backfillMessage && (
-            <p className="text-white/80 text-sm animate-pulse">{backfillMessage}</p>
+          {backfillActive && liveBackfill && (
+            <div className="mt-2 w-full sm:w-72">
+              <div className="flex items-center justify-between text-white/70 text-xs mb-1">
+                <span>{backfillMessage}</span>
+                <span>{backfillProgress(liveBackfill)}%</span>
+              </div>
+              <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                <div
+                  className="h-full bg-white/70 transition-[width] duration-500"
+                  style={{ width: `${backfillProgress(liveBackfill)}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {liveBackfill?.state === 'failed' && (
+            <p className="text-red-300/80 text-sm mt-1">{backfillMessage}</p>
           )}
         </div>
         <div className="flex items-center gap-3">

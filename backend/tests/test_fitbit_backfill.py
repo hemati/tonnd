@@ -303,3 +303,120 @@ async def test_resume_skips_terminal_jobs(monkeypatch):
 
     await backfill.resume_incomplete_backfills()
     assert launched == []  # terminal jobs are never relaunched
+
+
+def test_is_deadlock_detection():
+    """_is_deadlock recognises PG deadlock/serialization SQLSTATEs only."""
+    from src.services.fitbit import backfill
+
+    class _Orig(Exception):
+        sqlstate = "40P01"
+
+    class _Wrapped(Exception):
+        orig = _Orig()
+
+    class _Other(Exception):
+        sqlstate = "23505"  # unique_violation — NOT retryable
+
+    assert backfill._is_deadlock(_Wrapped()) is True
+    assert backfill._is_deadlock(_Other()) is False
+    assert backfill._is_deadlock(Exception("nope")) is False
+
+
+@pytest.mark.asyncio
+async def test_run_backfill_marks_failed_when_session_poisoned():
+    """A DB error mid-run must mark the job failed, not leave it stuck running."""
+    from src.services.fitbit import backfill
+    from sqlalchemy import select
+
+    user = _make_user()
+    job = BackfillJob(
+        user_id=user.id,
+        state="pending",
+        phase="ranges",
+        days_requested=30,
+        days_done=0,
+        ranges_done=False,
+    )
+    async with test_session_maker() as session:
+        session.add_all([user, job])
+        await session.commit()
+
+    async def poison(session, u, start, end, client):
+        # Poison the work session exactly like a deadlock during flush would.
+        session.add(
+            BackfillJob(
+                user_id=None,
+                state="x",
+                phase="ranges",
+                days_requested=1,
+                days_done=0,
+                ranges_done=False,
+            )
+        )
+        await session.flush()  # IntegrityError -> session needs rollback
+
+    with (
+        patch("src.services.fitbit.backfill.async_session_maker", test_session_maker),
+        patch(
+            "src.services.fitbit.backfill.ensure_valid_token",
+            new=AsyncMock(return_value="tok"),
+        ),
+        patch("src.services.fitbit.backfill.FitbitClient", return_value=_client_ok()),
+        patch("src.services.fitbit.backfill.sync_fitbit_range", new=poison),
+    ):
+        await backfill.run_backfill(user.id)  # must NOT raise
+
+    async with test_session_maker() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(BackfillJob).where(BackfillJob.user_id == user.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+    assert len(rows) == 1  # the poison insert was rolled back
+    assert rows[0].state == "failed"
+    assert rows[0].last_error
+
+
+@pytest.mark.asyncio
+async def test_ranges_phase_retries_on_deadlock():
+    """A transient deadlock in the ranges phase is rolled back and retried."""
+    from src.services.fitbit import backfill
+    from sqlalchemy.exc import OperationalError
+
+    user = _make_user()
+    job = BackfillJob(
+        user_id=user.id,
+        state="running",
+        phase="ranges",
+        days_requested=30,
+        days_done=0,
+        ranges_done=False,
+    )
+    client = _client_ok()
+    calls = {"n": 0}
+
+    class _Deadlock(Exception):
+        sqlstate = "40P01"
+
+    async def flaky_range(session, u, s, e, c):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OperationalError("INSERT ...", {}, _Deadlock())
+
+    async with test_session_maker() as session:
+        session.add_all([user, job])
+        await session.flush()
+        with (
+            patch("src.services.fitbit.backfill.asyncio.sleep", new=AsyncMock()),
+            patch("src.services.fitbit.backfill.sync_fitbit_range", new=flaky_range),
+            patch("src.services.fitbit.backfill.sync_fitbit_context", new=AsyncMock()),
+        ):
+            await backfill._run_ranges_phase(session, user, client, job)
+
+    assert calls["n"] == 2  # deadlock once, retried, then succeeded
+    assert job.ranges_done is True

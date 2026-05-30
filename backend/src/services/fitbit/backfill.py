@@ -13,6 +13,7 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database import async_session_maker
@@ -31,8 +32,23 @@ logger = logging.getLogger(__name__)
 DEFAULT_BACKFILL_DAYS = 30
 RATE_LIMIT_PAUSE_THRESHOLD = 10  # pause when fewer than this remain in the hour
 RATE_LIMIT_BUFFER_SECONDS = 60  # extra wait past the reset to be safe
+DEADLOCK_RETRIES = 2  # transient deadlocks (e.g. overlap with the daily sync)
+
+# PostgreSQL SQLSTATEs for transient, retryable conflicts.
+_RETRYABLE_SQLSTATES = {"40P01", "40001"}  # deadlock_detected, serialization_failure
 
 _BACKGROUND_TASKS: set = set()
+
+
+def _is_deadlock(exc: BaseException) -> bool:
+    """True for a transient PostgreSQL deadlock / serialization failure.
+
+    Idempotent upserts make these safe to retry. asyncpg exposes the code on
+    the wrapped DBAPI error as `sqlstate`/`pgcode`.
+    """
+    orig = getattr(exc, "orig", None) or exc
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    return sqlstate in _RETRYABLE_SQLSTATES
 
 
 def _window(job: BackfillJob) -> tuple[date, date]:
@@ -85,10 +101,13 @@ async def _pause(session: AsyncSession, job: BackfillJob, client: FitbitClient) 
 async def _run_ranges_phase(
     session: AsyncSession, user: User, client: FitbitClient, job: BackfillJob
 ) -> None:
-    """Fetch the whole window via range endpoints. Retried as a unit on 429."""
+    """Fetch the whole window via range endpoints. Retried as a unit on a 429
+    (rate limit) or a transient deadlock — both replays are safe because the
+    upserts are idempotent."""
     job.phase = "ranges"
     await session.commit()
     start, end = _window(job)
+    deadlock_retries = 0
     while True:
         try:
             await sync_fitbit_range(session, user, start, end, client)
@@ -96,6 +115,16 @@ async def _run_ranges_phase(
             break
         except RateLimitError:
             await _pause(session, job, client)
+        except DBAPIError as e:
+            if not _is_deadlock(e) or deadlock_retries >= DEADLOCK_RETRIES:
+                raise
+            deadlock_retries += 1
+            await session.rollback()
+            logger.warning(
+                f"Backfill {job.id}: deadlock in ranges phase, "
+                f"retry {deadlock_retries}/{DEADLOCK_RETRIES}"
+            )
+            await asyncio.sleep(1)
     job.ranges_done = True
     await session.commit()
     logger.info(
@@ -128,9 +157,29 @@ async def _run_intraday_phase(
             # Defensive fallback: pause until reset, then retry the same day.
             await _pause(session, job, client)
             await sync_fitbit_intraday(session, user, d, client)
+        except DBAPIError as e:
+            if not _is_deadlock(e):
+                raise
+            await session.rollback()
+            await sync_fitbit_intraday(session, user, d, client)  # retry once
 
         job.days_done = i + 1
         await session.commit()
+
+
+async def _mark_failed(job_id, message: str) -> None:
+    """Record a terminal failure in a FRESH session.
+
+    A DB error (e.g. a deadlock) poisons the work session, so the failure must
+    be written through a clean session — otherwise the job is stuck "running".
+    """
+    async with async_session_maker() as session:
+        job = await session.get(BackfillJob, job_id)
+        if job is not None:
+            job.state = "failed"
+            job.last_error = (message or "")[:2000]
+            job.finished_at = datetime.now(timezone.utc)
+            await session.commit()
 
 
 async def run_backfill(user_id) -> None:
@@ -140,6 +189,7 @@ async def run_backfill(user_id) -> None:
         if job is None:
             logger.warning(f"run_backfill: no active job for user {user_id}")
             return
+        job_id = job.id
         user = await session.get(User, user_id)
         if user is None or not user.fitbit_access_token:
             job.state = "failed"
@@ -171,15 +221,19 @@ async def run_backfill(user_id) -> None:
                 f"intraday {job.days_done}/{job.days_requested} days"
             )
         except TokenExpiredError:
+            await session.rollback()
             disconnect_fitbit(user)
-            job.state = "failed"
-            job.last_error = "token expired, disconnected"
-            await session.commit()
+            try:
+                await session.commit()  # persist the disconnect
+            except DBAPIError:
+                await session.rollback()
+            await _mark_failed(job_id, "token expired, disconnected")
         except Exception as e:  # noqa: BLE001 — record any failure for the UI
-            logger.exception(f"Backfill {job.id} failed: {e}")
-            job.state = "failed"
-            job.last_error = str(e)
-            await session.commit()
+            # A DB error (e.g. deadlock) poisons this session; record the
+            # failure through a fresh session so the job never sticks "running".
+            await session.rollback()
+            logger.exception(f"Backfill {job_id} failed: {e}")
+            await _mark_failed(job_id, str(e))
 
 
 async def start_backfill(session: AsyncSession, user: User) -> BackfillJob:

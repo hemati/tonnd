@@ -143,12 +143,13 @@ export function useSyncFitbit() {
 
 export const BACKFILL_ACTIVE = new Set(['pending', 'running', 'paused_rate_limited'])
 
-export function useBackfillStatus(enabled: boolean) {
+export function useBackfillStatus() {
   return useQuery<BackfillStatus, Error>({
     queryKey: ['fitbit-backfill'],
     queryFn: getFitbitBackfillStatus,
-    enabled,
-    // Poll while the job is active; stop once done/failed/none.
+    // Always fetch on mount so a page reload shows the live progress of an
+    // in-flight backfill. Poll while the job is active; stop on done/failed/none.
+    refetchOnMount: true,
     refetchInterval: (query) =>
       query.state.data && BACKFILL_ACTIVE.has(query.state.data.state) ? 4000 : false,
     staleTime: 0,
@@ -160,8 +161,9 @@ export function useStartBackfill() {
   return useMutation<BackfillStatus, Error, void>({
     mutationFn: async () => {
       const job = await startFitbitBackfill()
-      // Kick off the non-Fitbit sources in parallel (single days=30 sweep).
-      void syncOtherSources(30).catch((e) => console.error('other-sources backfill failed', e))
+      // Backfill the non-Fitbit sources alongside (fire-and-forget; it handles
+      // its own per-source errors and never re-runs the Fitbit sync).
+      void syncOtherSources(30)
       return job
     },
     onSuccess: () => {

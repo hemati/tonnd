@@ -332,13 +332,19 @@ export const getFitbitBackfillStatus = async (): Promise<BackfillStatus> => {
   return data
 }
 
-// One-shot 30-day sync for the non-Fitbit sources. NOTE: /api/sync reads `days`
-// as a QUERY param — must use axios `params`, not the request body.
-export const syncOtherSources = async (days = 30): Promise<SyncResponse> => {
-  const { data } = await api.post<SyncResponse>('/api/sync', null, {
-    params: { days },
-  })
-  return data
+// Backfill the NON-Fitbit sources. Fitbit is handled by the dedicated paced
+// backfill job — calling /api/sync WITHOUT a `source` would also re-run the
+// Fitbit sync, which deadlocks with the background backfill writing the same
+// typed tables. So sync each source explicitly (a disconnected source is a
+// no-op server-side). NOTE: `days`/`source` are QUERY params, not body.
+export const syncOtherSources = async (days = 30): Promise<void> => {
+  for (const source of ['renpho', 'hevy', 'fatsecret'] as const) {
+    try {
+      await api.post<SyncResponse>('/api/sync', null, { params: { days, source } })
+    } catch {
+      // best-effort per source; don't let one failure block the others
+    }
+  }
 }
 
 export const fetchBodyMeasurements = async (params: {
