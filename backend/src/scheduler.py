@@ -173,6 +173,8 @@ async def sync_fitbit_range(
 
     Costs ~17 requests for the whole window (vs ~11/day). Reuses the same
     upserts as the daily path, so data is idempotent and identical in shape.
+    Caller must keep the window <= 30 days (Fitbit's tightest range cap); the
+    backfill runner uses a single 30-day window so no chunking is needed.
     """
     by_date = await client.get_all_data_for_range(start.isoformat(), end.isoformat())
     for date_iso in sorted(by_date):
