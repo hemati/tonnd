@@ -612,6 +612,44 @@ class FitbitClient:
             "date": date,
         }
 
+    async def get_all_data_for_range(self, start: str, end: str) -> dict[str, dict]:
+        """Fetch all rangeable metrics for a window and parse to {date: data}.
+
+        One request per metric/resource (~17 total) instead of ~11 per day.
+        RateLimitError propagates so the backfill pacer can pause/resume; other
+        per-metric errors are tolerated (that metric is simply absent).
+        Intraday is NOT included here (no range API) — see backfill Phase 2.
+        """
+        from src.services.fitbit.ranges import ACTIVITY_RESOURCES, parse_range_responses
+
+        async def _safe(coro):
+            try:
+                return await coro
+            except RateLimitError:
+                raise
+            except FitbitAPIError as e:
+                logger.warning(f"range fetch skipped: {e}")
+                return {}
+
+        hr = await _safe(self.get_heart_rate_range(start, end))
+        hrv = await _safe(self.get_hrv_range(start, end))
+        spo2 = await _safe(self.get_spo2_range(start, end))
+        br = await _safe(self.get_breathing_rate_range(start, end))
+        vo2 = await _safe(self.get_vo2_max_range(start, end))
+        temp = await _safe(self.get_skin_temperature_range(start, end))
+        azm = await _safe(self.get_active_zone_minutes_range(start, end))
+        sleep = await _safe(self.get_sleep_range(start, end))
+        weight = await _safe(self.get_weight_range(start, end))
+        activity = {}
+        for resource in ACTIVITY_RESOURCES:
+            activity[resource] = await _safe(
+                self.get_activity_timeseries(resource, start, end)
+            )
+
+        return parse_range_responses(
+            hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, activity
+        )
+
 
 class FitbitAPIError(Exception):
     """General Fitbit API error."""

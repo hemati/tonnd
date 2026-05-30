@@ -1,3 +1,7 @@
+import pytest
+from unittest.mock import AsyncMock
+
+from src.services.fitbit.client import FitbitClient
 from src.services.fitbit.ranges import parse_range_responses
 
 
@@ -224,3 +228,14 @@ def test_parse_range_responses_latest_weight_of_day_out_of_order():
     # later time (20:00) wins regardless of list order
     assert out["2026-05-05"]["weight"]["weight_kg"] == 79.5
     assert "_time" not in out["2026-05-05"]["weight"]
+
+
+@pytest.mark.asyncio
+async def test_get_all_data_for_range_request_budget():
+    """A 30-day range must cost <= 20 Fitbit requests (not ~330)."""
+    client = FitbitClient("token")
+    client._make_request = AsyncMock(return_value={})
+    await client.get_all_data_for_range("2026-05-01", "2026-05-30")
+    # 7 vitals + sleep + weight + 8 activity resources = 17
+    assert client._make_request.call_count == 17
+    assert client._make_request.call_count <= 20

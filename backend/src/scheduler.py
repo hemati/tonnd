@@ -166,11 +166,32 @@ async def _distribute_daily_data(
         )
 
 
-async def sync_fitbit_exercise_logs(
-    session: AsyncSession, user: User, sync_date: date, client: FitbitClient
+async def sync_fitbit_range(
+    session: AsyncSession, user: User, start: date, end: date, client: FitbitClient
 ) -> None:
-    """Fetch and upsert Fitbit exercise logs for the given date."""
-    raw = await client.get_exercise_logs(after_date=sync_date.isoformat())
+    """Backfill a date range using range endpoints + shared distribution.
+
+    Costs ~17 requests for the whole window (vs ~11/day). Reuses the same
+    upserts as the daily path, so data is idempotent and identical in shape.
+    """
+    by_date = await client.get_all_data_for_range(start.isoformat(), end.isoformat())
+    for date_iso in sorted(by_date):
+        try:
+            d = date.fromisoformat(date_iso)
+        except (ValueError, TypeError):
+            continue
+        await _distribute_daily_data(session, user, d, by_date[date_iso])
+
+    # Exercise logs: one call covers the whole window (each log self-dates).
+    await sync_fitbit_exercise_logs(session, user, start, client, limit=100)
+
+
+async def sync_fitbit_exercise_logs(
+    session: AsyncSession, user: User, sync_date: date, client: FitbitClient,
+    limit: int = 20,
+) -> None:
+    """Fetch and upsert Fitbit exercise logs after the given date."""
+    raw = await client.get_exercise_logs(after_date=sync_date.isoformat(), limit=limit)
     logs = parse_exercise_logs(raw)
 
     for log in logs:
