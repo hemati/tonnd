@@ -98,6 +98,10 @@ async def _run_ranges_phase(
             await _pause(session, job, client)
     job.ranges_done = True
     await session.commit()
+    logger.info(
+        f"Backfill {job.id}: ranges phase complete for user {user.id} "
+        f"(window {start}..{end})"
+    )
 
 
 async def _run_intraday_phase(
@@ -145,6 +149,10 @@ async def run_backfill(user_id) -> None:
 
         job.state = "running"
         await session.commit()
+        logger.info(
+            f"Backfill {job.id} started for user {user_id} "
+            f"(ranges_done={job.ranges_done}, days_done={job.days_done}/{job.days_requested})"
+        )
 
         try:
             token = await ensure_valid_token(user)
@@ -158,6 +166,10 @@ async def run_backfill(user_id) -> None:
             job.state = "done"
             job.finished_at = datetime.now(timezone.utc)
             await session.commit()
+            logger.info(
+                f"Backfill {job.id} complete for user {user_id}: "
+                f"intraday {job.days_done}/{job.days_requested} days"
+            )
         except TokenExpiredError:
             disconnect_fitbit(user)
             job.state = "failed"
