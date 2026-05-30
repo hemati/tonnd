@@ -115,8 +115,12 @@ async def lifespan(app: FastAPI):
         scheduler.start()
 
         # Resume any backfill jobs interrupted by a restart (single worker).
-        from src.services.fitbit.backfill import resume_incomplete_backfills
-        await resume_incomplete_backfills()
+        # Best-effort: never let recovery failure abort app startup.
+        try:
+            from src.services.fitbit.backfill import resume_incomplete_backfills
+            await resume_incomplete_backfills()
+        except Exception:
+            logger.exception("Failed to resume incomplete backfills; continuing startup")
 
         yield
 

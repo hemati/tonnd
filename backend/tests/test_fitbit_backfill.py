@@ -262,3 +262,25 @@ async def test_resume_incomplete_backfills_relaunches(monkeypatch):
 
     await backfill.resume_incomplete_backfills()
     assert len(launched) == 1  # the paused job was relaunched
+
+
+@pytest.mark.asyncio
+async def test_resume_skips_terminal_jobs(monkeypatch):
+    from src.services.fitbit import backfill
+
+    user = _make_user()
+    done = BackfillJob(user_id=user.id, state="done", phase="intraday",
+                       days_requested=30, days_done=30, ranges_done=True)
+    failed = BackfillJob(user_id=user.id, state="failed", phase="ranges",
+                         days_requested=30, days_done=0, ranges_done=False)
+    async with test_session_maker() as session:
+        session.add_all([user, done, failed])
+        await session.commit()
+
+    launched = []
+    monkeypatch.setattr(backfill, "_spawn",
+                        lambda coro: launched.append(coro) or coro.close())
+    monkeypatch.setattr(backfill, "async_session_maker", test_session_maker)
+
+    await backfill.resume_incomplete_backfills()
+    assert launched == []  # terminal jobs are never relaunched
