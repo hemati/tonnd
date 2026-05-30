@@ -62,6 +62,19 @@ export interface SyncResponse {
   errors: string[]
 }
 
+export interface BackfillStatus {
+  id?: string
+  state: 'none' | 'pending' | 'running' | 'paused_rate_limited' | 'done' | 'failed'
+  phase?: 'ranges' | 'intraday'
+  days_requested?: number
+  days_done?: number
+  ranges_done?: boolean
+  started_at?: string | null
+  finished_at?: string | null
+  next_resume_at?: string | null
+  last_error?: string | null
+}
+
 export interface WeightData {
   date: string
   source?: string  // 'fitbit' | 'renpho'; backend includes it via to_dict()
@@ -304,6 +317,27 @@ export const initFatSecretAuth = async (): Promise<FatSecretInitResponse> => {
 export const syncFitbitData = async (params: { days?: number; date?: string } = {}): Promise<SyncResponse> => {
   const { days = 1, date } = params
   const { data } = await api.post<SyncResponse>('/api/sync', { days, ...(date && { date }) })
+  return data
+}
+
+// Start the server-side 30-day Fitbit backfill (returns 202 + job status).
+export const startFitbitBackfill = async (): Promise<BackfillStatus> => {
+  const { data } = await api.post<BackfillStatus>('/api/fitbit/backfill')
+  return data
+}
+
+// Poll current backfill status.
+export const getFitbitBackfillStatus = async (): Promise<BackfillStatus> => {
+  const { data } = await api.get<BackfillStatus>('/api/fitbit/backfill')
+  return data
+}
+
+// One-shot 30-day sync for the non-Fitbit sources. NOTE: /api/sync reads `days`
+// as a QUERY param — must use axios `params`, not the request body.
+export const syncOtherSources = async (days = 30): Promise<SyncResponse> => {
+  const { data } = await api.post<SyncResponse>('/api/sync', null, {
+    params: { days },
+  })
   return data
 }
 
