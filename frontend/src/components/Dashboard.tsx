@@ -16,7 +16,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
 import { CARD, type HeroIcon } from '../lib/cardStyles'
-import { useDashboard, useUser, useSyncFitbit, useNutritionDaily, useBackfillStatus, useStartBackfill } from '../hooks/useQueries'
+import { useDashboard, useUser, useSyncFitbit, useNutritionDaily, useBackfillStatus, useStartBackfill, BACKFILL_ACTIVE } from '../hooks/useQueries'
 import type { BackfillStatus } from '../services/api'
 import MuscleMap from './MuscleMap'
 import ExpandableCard from './ExpandableCard'
@@ -138,9 +138,14 @@ export default function Dashboard() {
   const syncMutation = useSyncFitbit()
   const queryClient = useQueryClient()
   const startBackfill = useStartBackfill()
-  const backfillActive = ['pending', 'running', 'paused_rate_limited']
-    .includes(startBackfill.data?.state ?? '')
-  const backfill = useBackfillStatus(backfillActive || startBackfill.isSuccess)
+  // Poll once a backfill has been kicked off this session; refetchInterval
+  // self-stops on terminal state. isSuccess latches true after the first POST.
+  const backfill = useBackfillStatus(startBackfill.isSuccess)
+  // Track the LIVE job state (poll first, POST snapshot as fallback) so the
+  // button re-enables when the job finishes — not the frozen mutation snapshot.
+  const backfillActive = BACKFILL_ACTIVE.has(
+    backfill.data?.state ?? startBackfill.data?.state ?? '',
+  )
 
   // Pull the most recent day with logged calories for the hero stat.
   // Hook returns ASC-sorted data, so iterate from the end.

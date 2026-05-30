@@ -141,7 +141,7 @@ export function useSyncFitbit() {
   })
 }
 
-const BACKFILL_ACTIVE = new Set(['pending', 'running', 'paused_rate_limited'])
+export const BACKFILL_ACTIVE = new Set(['pending', 'running', 'paused_rate_limited'])
 
 export function useBackfillStatus(enabled: boolean) {
   return useQuery<BackfillStatus, Error>({
