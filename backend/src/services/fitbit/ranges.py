@@ -38,8 +38,11 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
 
     # Heart rate
     for e in _entries(hr, "activities-heart"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["heart_rate"] = {
+        by_date[dt]["heart_rate"] = {
             "resting_heart_rate": safe_float(v.get("restingHeartRate")),
             "zones": {
                 z["name"]: {
@@ -54,16 +57,22 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
 
     # HRV
     for e in _entries(hrv, "hrv"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["hrv"] = {
+        by_date[dt]["hrv"] = {
             "daily_rmssd": safe_float(v.get("dailyRmssd")),
             "deep_rmssd": safe_float(v.get("deepRmssd")),
         }
 
     # SpO2 (bare list)
     for e in _entries(spo2, "spo2"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["spo2"] = {
+        by_date[dt]["spo2"] = {
             "avg": safe_float(v.get("avg")),
             "min": safe_float(v.get("min")),
             "max": safe_float(v.get("max")),
@@ -71,30 +80,42 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
 
     # Breathing rate
     for e in _entries(br, "br"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["breathing_rate"] = {
+        by_date[dt]["breathing_rate"] = {
             "breathing_rate": safe_float(v.get("breathingRate")),
         }
 
     # VO2 max
     for e in _entries(vo2, "cardioScore"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["vo2_max"] = {"vo2_max": safe_float(v.get("vo2Max"))}
+        by_date[dt]["vo2_max"] = {"vo2_max": safe_float(v.get("vo2Max"))}
 
     # Skin temperature
     for e in _entries(temp, "tempSkin"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
-        by_date[e["dateTime"]]["temperature"] = {
+        by_date[dt]["temperature"] = {
             "relative_deviation": safe_float(v.get("nightlyRelative")),
         }
 
     # Active Zone Minutes
     for e in _entries(azm, "activities-active-zone-minutes"):
+        dt = e.get("dateTime")
+        if not dt:
+            continue
         v = e.get("value", {})
         fb = v.get("fatBurnActiveZoneMinutes", 0)
         ca = v.get("cardioActiveZoneMinutes", 0)
         pk = v.get("peakActiveZoneMinutes", 0)
-        by_date[e["dateTime"]]["active_zone_minutes"] = {
+        by_date[dt]["active_zone_minutes"] = {
             "fat_burn_minutes": fb,
             "cardio_minutes": ca,
             "peak_minutes": pk,
@@ -150,7 +171,9 @@ def parse_range_responses(hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, acti
     for resource in ACTIVITY_RESOURCES:
         payload = activity.get(resource, {})
         for e in _entries(payload, f"activities-{resource}"):
-            d = e["dateTime"]
+            d = e.get("dateTime")
+            if not d:
+                continue
             act = by_date[d].setdefault("activity", {})
             val = e.get("value")
             if resource == "steps":

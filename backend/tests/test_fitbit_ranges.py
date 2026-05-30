@@ -143,3 +143,84 @@ def test_parse_range_responses_merges_by_date():
     assert d2["heart_rate"]["resting_heart_rate"] == 62.0
     assert d2["activity"]["steps"] == 8000
     assert "hrv" not in d2
+
+
+def test_parse_range_responses_empty_returns_empty_dict():
+    out = parse_range_responses({}, {}, [], {}, {}, {}, {}, {}, {}, {})
+    assert out == {}
+    assert type(out) is dict
+
+
+def test_parse_range_responses_skips_entries_without_datetime():
+    # One good HR entry, one malformed (no dateTime) — must not abort the batch.
+    hr = {
+        "activities-heart": [
+            {"value": {"restingHeartRate": 61, "heartRateZones": []}},  # no dateTime
+            {
+                "dateTime": "2026-05-03",
+                "value": {"restingHeartRate": 64, "heartRateZones": []},
+            },
+        ]
+    }
+    activity = {
+        "steps": {
+            "activities-steps": [
+                {"value": "999"},  # no dateTime
+                {"dateTime": "2026-05-03", "value": "5000"},
+            ]
+        }
+    }
+    out = parse_range_responses(hr, {}, [], {}, {}, {}, {}, {}, {}, activity)
+    assert set(out.keys()) == {"2026-05-03"}
+    assert out["2026-05-03"]["heart_rate"]["resting_heart_rate"] == 64.0
+    assert out["2026-05-03"]["activity"]["steps"] == 5000
+
+
+def test_parse_range_responses_multiple_sleep_entries_same_day():
+    sleep = {
+        "sleep": [
+            {
+                "logId": 1,
+                "dateOfSleep": "2026-05-04",
+                "isMainSleep": True,
+                "duration": 28800000,
+                "levels": {"summary": {}, "data": []},
+            },
+            {
+                "logId": 2,
+                "dateOfSleep": "2026-05-04",
+                "isMainSleep": False,
+                "duration": 1800000,
+                "levels": {"summary": {}, "data": []},
+            },
+        ]
+    }
+    out = parse_range_responses({}, {}, [], {}, {}, {}, {}, sleep, {}, {})
+    entries = out["2026-05-04"]["sleep"]
+    assert len(entries) == 2
+    assert {e["external_id"] for e in entries} == {"1", "2"}
+
+
+def test_parse_range_responses_latest_weight_of_day_out_of_order():
+    weight = {
+        "weight": [
+            {
+                "date": "2026-05-05",
+                "time": "20:00:00",
+                "weight": 79.5,
+                "bmi": 24.5,
+                "fat": 17.0,
+            },
+            {
+                "date": "2026-05-05",
+                "time": "08:00:00",
+                "weight": 80.5,
+                "bmi": 25.0,
+                "fat": 18.0,
+            },
+        ]
+    }
+    out = parse_range_responses({}, {}, [], {}, {}, {}, {}, {}, weight, {})
+    # later time (20:00) wins regardless of list order
+    assert out["2026-05-05"]["weight"]["weight_kg"] == 79.5
+    assert "_time" not in out["2026-05-05"]["weight"]
