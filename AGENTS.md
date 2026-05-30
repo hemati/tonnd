@@ -457,6 +457,27 @@ npx tsc --noEmit          # Type check
 
 ---
 
+## Gotchas
+
+- **`/api/sync` reads `days`/`sync_date`/`source` as QUERY params** (FastAPI
+  `Query`/scalar), NOT the JSON body — the frontend must pass them via axios
+  `params`. Omitting `source` syncs **all** sources (incl. Fitbit); pass
+  `source=<one>` to scope it.
+- **New SQLAlchemy model:** add an Alembic migration (never raw `CREATE`/`ALTER`)
+  AND an `import src.models.<module>  # noqa` line in `tests/conftest.py` — that
+  import is what registers the table on `Base.metadata` for the in-memory test DB.
+- **`app.py` lifespan runs `Base.metadata.create_all` at startup**, before any
+  Alembic upgrade. A model imported *eagerly* at startup gets pre-created, then
+  its migration's `create_table` clashes and rolls back. New-table model modules
+  are imported lazily for this reason.
+- **Module loggers default to WARNING** — `logger.info(...)` won't appear unless
+  the module sets `logger.setLevel(logging.INFO)` (see `fitbit/client.py`).
+- **ruff isn't repo-clean** (pre-existing `E402` in `app.py`, unformatted legacy
+  blocks); lint/format only the files you touch — don't run `ruff format .`
+  repo-wide.
+
+---
+
 ## Production Constraints
 
 - **Single uvicorn worker required.** The FatSecret OAuth1 handshake stashes
