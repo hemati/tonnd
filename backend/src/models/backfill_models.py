@@ -1,10 +1,11 @@
 """Status record for the Fitbit historical backfill background job."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     ForeignKey,
     Index,
@@ -32,6 +33,7 @@ class BackfillJob(Base):
     # ranges | intraday
     phase: Mapped[str] = mapped_column(String(16), nullable=False, default="ranges")
     days_requested: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    anchor_date: Mapped[date | None] = mapped_column(Date, default=None)
     days_done: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ranges_done: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     started_at: Mapped[datetime] = mapped_column(
@@ -45,20 +47,20 @@ class BackfillJob(Base):
     )
     last_error: Mapped[str | None] = mapped_column(Text, default=None)
 
-    __table_args__ = (
-        Index("ix_fitbit_backfill_jobs_user", "user_id"),
-    )
+    __table_args__ = (Index("ix_fitbit_backfill_jobs_user", "user_id"),)
 
     ACTIVE_STATES = ("pending", "running", "paused_rate_limited")
 
     def to_dict(self) -> dict:
         def _iso(v):
             return v.isoformat() if v else None
+
         return {
             "id": str(self.id),
             "state": self.state,
             "phase": self.phase,
             "days_requested": self.days_requested,
+            "anchor_date": self.anchor_date.isoformat() if self.anchor_date else None,
             "days_done": self.days_done,
             "ranges_done": self.ranges_done,
             "started_at": _iso(self.started_at),

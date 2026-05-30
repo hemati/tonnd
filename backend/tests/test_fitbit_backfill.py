@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -12,8 +12,12 @@ from tests.conftest import test_session_maker
 
 
 def _make_user(**kw):
-    d = {"id": uuid.uuid4(), "email": "b@test.com", "hashed_password": "x",
-         "fitbit_access_token": "tok"}
+    d = {
+        "id": uuid.uuid4(),
+        "email": "b@test.com",
+        "hashed_password": "x",
+        "fitbit_access_token": "tok",
+    }
     d.update(kw)
     return User(**d)
 
@@ -25,8 +29,12 @@ async def test_backfill_job_persists_and_to_dict():
         session.add(user)
         await session.flush()
         job = BackfillJob(
-            user_id=user.id, state="pending", phase="ranges",
-            days_requested=30, days_done=0, ranges_done=False,
+            user_id=user.id,
+            state="pending",
+            phase="ranges",
+            days_requested=30,
+            days_done=0,
+            ranges_done=False,
             started_at=datetime(2026, 5, 30, tzinfo=timezone.utc),
         )
         session.add(job)
@@ -54,8 +62,14 @@ async def test_run_intraday_phase_pauses_when_remaining_low():
     from src.services.fitbit import backfill
 
     user = _make_user()
-    job = BackfillJob(user_id=user.id, state="running", phase="intraday",
-                      days_requested=2, days_done=0, ranges_done=True)
+    job = BackfillJob(
+        user_id=user.id,
+        state="running",
+        phase="intraday",
+        days_requested=2,
+        days_done=0,
+        ranges_done=True,
+    )
     client = _client_ok()
     client.rate_limit_remaining = backfill.RATE_LIMIT_PAUSE_THRESHOLD  # trip pause
     client.rate_limit_reset = 5
@@ -68,9 +82,10 @@ async def test_run_intraday_phase_pauses_when_remaining_low():
     async with test_session_maker() as session:
         session.add_all([user, job])
         await session.flush()
-        with patch("src.services.fitbit.backfill.asyncio.sleep", fake_sleep), \
-             patch("src.services.fitbit.backfill.sync_fitbit_intraday",
-                   new=AsyncMock()):
+        with (
+            patch("src.services.fitbit.backfill.asyncio.sleep", fake_sleep),
+            patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=AsyncMock()),
+        ):
             await backfill._run_intraday_phase(session, user, client, job)
 
     assert slept and slept[0] >= 5  # paused at least until reset
@@ -84,8 +99,14 @@ async def test_run_intraday_phase_429_pauses_and_retries():
     from src.services.fitbit import backfill
 
     user = _make_user()
-    job = BackfillJob(user_id=user.id, state="running", phase="intraday",
-                      days_requested=1, days_done=0, ranges_done=True)
+    job = BackfillJob(
+        user_id=user.id,
+        state="running",
+        phase="intraday",
+        days_requested=1,
+        days_done=0,
+        ranges_done=True,
+    )
     client = _client_ok()
     client.rate_limit_reset = 3
     calls = {"n": 0}
@@ -98,8 +119,10 @@ async def test_run_intraday_phase_429_pauses_and_retries():
     async with test_session_maker() as session:
         session.add_all([user, job])
         await session.flush()
-        with patch("src.services.fitbit.backfill.asyncio.sleep", new=AsyncMock()), \
-             patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=flaky):
+        with (
+            patch("src.services.fitbit.backfill.asyncio.sleep", new=AsyncMock()),
+            patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=flaky),
+        ):
             await backfill._run_intraday_phase(session, user, client, job)
 
     assert calls["n"] == 2  # failed once, retried once
@@ -112,28 +135,75 @@ async def test_run_backfill_full_state_transition():
     from src.services.fitbit import backfill
 
     user = _make_user()
-    job = BackfillJob(user_id=user.id, state="pending", phase="ranges",
-                      days_requested=30, days_done=0, ranges_done=False)
+    job = BackfillJob(
+        user_id=user.id,
+        state="pending",
+        phase="ranges",
+        days_requested=30,
+        days_done=0,
+        ranges_done=False,
+    )
     client = _client_ok()
 
     async with test_session_maker() as session:
         session.add_all([user, job])
         await session.commit()
 
-    with patch("src.services.fitbit.backfill.async_session_maker", test_session_maker), \
-         patch("src.services.fitbit.backfill.ensure_valid_token",
-               new=AsyncMock(return_value="tok")), \
-         patch("src.services.fitbit.backfill.FitbitClient", return_value=client), \
-         patch("src.services.fitbit.backfill.sync_fitbit_range", new=AsyncMock()), \
-         patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=AsyncMock()), \
-         patch("src.services.fitbit.backfill.sync_fitbit_context", new=AsyncMock()):
+    with (
+        patch("src.services.fitbit.backfill.async_session_maker", test_session_maker),
+        patch(
+            "src.services.fitbit.backfill.ensure_valid_token",
+            new=AsyncMock(return_value="tok"),
+        ),
+        patch("src.services.fitbit.backfill.FitbitClient", return_value=client),
+        patch("src.services.fitbit.backfill.sync_fitbit_range", new=AsyncMock()),
+        patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=AsyncMock()),
+        patch("src.services.fitbit.backfill.sync_fitbit_context", new=AsyncMock()),
+    ):
         await backfill.run_backfill(user.id)
 
     async with test_session_maker() as session:
-        refreshed = (await session.execute(
-            select(BackfillJob).where(BackfillJob.user_id == user.id)
-        )).scalars().one()
+        refreshed = (
+            (
+                await session.execute(
+                    select(BackfillJob).where(BackfillJob.user_id == user.id)
+                )
+            )
+            .scalars()
+            .one()
+        )
     assert refreshed.state == "done"
     assert refreshed.ranges_done is True
     assert refreshed.days_done == 30
     assert refreshed.finished_at is not None
+
+
+@pytest.mark.asyncio
+async def test_intraday_phase_window_uses_anchor_date():
+    """Resume maps day-index to the anchored window, not date.today()."""
+    from src.services.fitbit import backfill
+
+    user = _make_user()
+    anchor = date(2026, 1, 10)
+    job = BackfillJob(
+        user_id=user.id,
+        state="running",
+        phase="intraday",
+        days_requested=2,
+        days_done=0,
+        ranges_done=True,
+        anchor_date=anchor,
+    )
+    client = _client_ok()
+    seen = []
+
+    async def capture(session, u, d, c):
+        seen.append(d)
+
+    async with test_session_maker() as session:
+        session.add_all([user, job])
+        await session.flush()
+        with patch("src.services.fitbit.backfill.sync_fitbit_intraday", new=capture):
+            await backfill._run_intraday_phase(session, user, client, job)
+
+    assert seen == [date(2026, 1, 9), date(2026, 1, 10)]  # anchor-1 .. anchor

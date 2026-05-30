@@ -32,6 +32,15 @@ DEFAULT_BACKFILL_DAYS = 30
 RATE_LIMIT_PAUSE_THRESHOLD = 10  # pause when fewer than this remain in the hour
 RATE_LIMIT_BUFFER_SECONDS = 60  # extra wait past the reset to be safe
 
+_BACKGROUND_TASKS: set = set()
+
+
+def _spawn(coro) -> None:
+    """Launch a background task and hold a strong ref so it isn't GC'd."""
+    task = asyncio.create_task(coro)
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
 
 async def _active_job(session: AsyncSession, user_id) -> BackfillJob | None:
     result = await session.execute(
@@ -63,7 +72,7 @@ async def _run_ranges_phase(
     """Fetch the whole window via range endpoints. Retried as a unit on 429."""
     job.phase = "ranges"
     await session.commit()
-    end = date.today()
+    end = job.anchor_date or date.today()
     start = end - timedelta(days=job.days_requested - 1)
     while True:
         try:
@@ -82,7 +91,7 @@ async def _run_intraday_phase(
     """Per-day intraday, paced. Best-effort: 403 disables it via sync_fitbit_intraday."""
     job.phase = "intraday"
     await session.commit()
-    end = date.today()
+    end = job.anchor_date or date.today()
     start = end - timedelta(days=job.days_requested - 1)
 
     for i in range(job.days_done, job.days_requested):
@@ -141,7 +150,7 @@ async def run_backfill(user_id) -> None:
             job.last_error = "token expired, disconnected"
             await session.commit()
         except Exception as e:  # noqa: BLE001 — record any failure for the UI
-            logger.error(f"Backfill {job.id} failed: {e}")
+            logger.exception(f"Backfill {job.id} failed: {e}")
             job.state = "failed"
             job.last_error = str(e)
             await session.commit()
@@ -160,12 +169,13 @@ async def start_backfill(session: AsyncSession, user: User) -> BackfillJob:
         days_requested=DEFAULT_BACKFILL_DAYS,
         days_done=0,
         ranges_done=False,
+        anchor_date=date.today(),
     )
     session.add(job)
     await session.commit()
 
     # Own session inside the task — never reuse the request session.
-    asyncio.create_task(run_backfill(user.id))
+    _spawn(run_backfill(user.id))
     return job
 
 
@@ -178,4 +188,4 @@ async def resume_incomplete_backfills() -> None:
         jobs = result.scalars().all()
     for job in jobs:
         logger.info(f"Resuming interrupted backfill {job.id} (user {job.user_id})")
-        asyncio.create_task(run_backfill(job.user_id))
+        _spawn(run_backfill(job.user_id))
