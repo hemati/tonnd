@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { format, parseISO, differenceInHours } from 'date-fns'
 import { trackEvent } from '../lib/analytics'
@@ -15,7 +16,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { cn } from '../lib/utils'
 import { CARD, type HeroIcon } from '../lib/cardStyles'
-import { useDashboard, useUser, useSyncFitbit, useNutritionDaily } from '../hooks/useQueries'
+import { useDashboard, useUser, useSyncFitbit, useNutritionDaily, useBackfillStatus, useStartBackfill, BACKFILL_ACTIVE } from '../hooks/useQueries'
+import type { BackfillStatus } from '../services/api'
 import MuscleMap from './MuscleMap'
 import ExpandableCard from './ExpandableCard'
 import BodyCompositionCard from './BodyCompositionCard'
@@ -108,6 +110,20 @@ function macroLine(c?: number, f?: number, p?: number): string | undefined {
   return parts.length > 0 ? parts.join(' · ') : undefined
 }
 
+/** Human-readable status line for an in-progress backfill job (null when idle/done). */
+function backfillMessageFor(s: BackfillStatus | undefined): string | null {
+  if (!s || s.state === 'none' || s.state === 'done') return null
+  if (s.state === 'failed') return `Backfill failed: ${s.last_error ?? 'unknown error'}`
+  const done = s.days_done ?? 0
+  const total = s.days_requested ?? 30
+  const phase = s.ranges_done ? `Intraday ${done}/${total} days` : 'Fetching daily data…'
+  if (s.state === 'paused_rate_limited' && s.next_resume_at) {
+    const mins = Math.max(1, Math.round((new Date(s.next_resume_at).getTime() - Date.now()) / 60000))
+    return `${phase} · paused for Fitbit limit, resuming in ${mins} min`
+  }
+  return `Backfilling… ${phase}`
+}
+
 // =============================================================================
 // Dashboard
 // =============================================================================
@@ -115,12 +131,20 @@ function macroLine(c?: number, f?: number, p?: number): string | undefined {
 export default function Dashboard() {
   const navigate = useNavigate()
   const [daysToShow, setDaysToShow] = useState<7 | 14 | 30>(7)
-  const [syncProgress, setSyncProgress] = useState<string | null>(null)
 
   const { data: user } = useUser()
   const { data, isLoading, error, refetch } = useDashboard(30)
   const { data: nutritionDaily } = useNutritionDaily(30)
   const syncMutation = useSyncFitbit()
+  const queryClient = useQueryClient()
+  const startBackfill = useStartBackfill()
+  // Poll once a backfill has been kicked off this session; refetchInterval
+  // self-stops on terminal state. isSuccess latches true after the first POST.
+  const backfill = useBackfillStatus(startBackfill.isSuccess)
+  // Track the LIVE job state (poll first, POST snapshot as fallback) so the
+  // button re-enables when the job finishes — not the frozen mutation snapshot.
+  const liveBackfill = backfill.data ?? startBackfill.data
+  const backfillActive = BACKFILL_ACTIVE.has(liveBackfill?.state ?? '')
 
   // Pull the most recent day with logged calories for the hero stat.
   // Hook returns ASC-sorted data, so iterate from the end.
@@ -139,23 +163,25 @@ export default function Dashboard() {
     }
   }, [user, navigate])
 
+  useEffect(() => {
+    if (backfill.data?.state === 'done') {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.invalidateQueries({ queryKey: ['body'] })
+      queryClient.invalidateQueries({ queryKey: ['nutrition'] })
+    }
+  }, [backfill.data?.state, queryClient])
+
   const handleSync = () => {
     trackEvent('manual_sync')
     syncMutation.mutate({ days: 1 })
   }
 
-  const handleHistoricalSync = async () => {
-    if (!confirm('Sync last 30 days? This will be done in 10 batches.')) return
-    for (let i = 0; i < 10; i++) {
-      setSyncProgress(`Syncing batch ${i + 1}/10...`)
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - (i * 3))
-      await syncMutation.mutateAsync({ days: 3, date: startDate.toISOString().split('T')[0] })
-      if (i < 9) await new Promise(r => setTimeout(r, 1000))
-    }
-    setSyncProgress(null)
-    refetch()
+  const handleHistoricalSync = () => {
+    trackEvent('historical_sync')
+    startBackfill.mutate()
   }
+
+  const backfillMessage = backfillMessageFor(liveBackfill)
 
   const formatLastSync = (ls: string | null) => {
     if (!ls) return 'Never'
@@ -278,12 +304,15 @@ export default function Dashboard() {
             Last synced: {formatLastSync(data?.last_sync || null)}
             <StaleBadge level={syncStaleness} />
           </p>
-          {syncProgress && <p className="text-white/80 text-sm animate-pulse">{syncProgress}</p>}
+          {backfillMessage && (
+            <p className="text-white/80 text-sm animate-pulse">{backfillMessage}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={handleHistoricalSync} disabled={syncMutation.isPending}
+          <button onClick={handleHistoricalSync}
+            disabled={syncMutation.isPending || backfillActive || startBackfill.isPending}
             className="bg-white/[.08] hover:bg-white/[.12] disabled:opacity-50 text-white px-3 py-2 rounded-lg text-sm">
-            Sync 30 Days
+            {backfillActive ? 'Backfilling…' : 'Sync 30 Days'}
           </button>
           <button onClick={handleSync} disabled={syncMutation.isPending}
             className="bg-white text-black hover:bg-white/90 disabled:opacity-50 px-4 py-2 rounded-lg flex items-center gap-2">

@@ -22,6 +22,7 @@ import src.models.fitbit_models  # noqa: F401 — register typed Fitbit tables
 import src.models.hevy_models  # noqa: F401 — register typed Hevy tables
 import src.models.body_models  # noqa: F401 — register body_measurements table
 import src.models.food_models  # noqa: F401 — register food_entries table
+import src.models.backfill_models  # noqa: F401 — register fitbit_backfill_jobs table
 from src.database import get_async_session
 
 # Use SQLite for tests (in-memory)

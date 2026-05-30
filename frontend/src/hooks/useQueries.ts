@@ -2,10 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchUser, fetchDashboardData, syncFitbitData, initFitbitAuth,
   fetchBodyMeasurements, fetchNutritionDaily, fetchNutritionEntries,
+  startFitbitBackfill, getFitbitBackfillStatus, syncOtherSources,
 } from '../services/api'
 import type {
   UserProfile, DashboardData, SyncResponse, FitbitInitResponse,
   BodyMeasurementsResponse, NutritionDailyResponse, NutritionEntriesResponse,
+  BackfillStatus,
 } from '../services/api'
 
 // Query Keys
@@ -135,6 +137,35 @@ export function useSyncFitbit() {
       queryClient.invalidateQueries({ queryKey: ['body'] })
       // Invalidate nutrition queries
       queryClient.invalidateQueries({ queryKey: ['nutrition'] })
+    },
+  })
+}
+
+export const BACKFILL_ACTIVE = new Set(['pending', 'running', 'paused_rate_limited'])
+
+export function useBackfillStatus(enabled: boolean) {
+  return useQuery<BackfillStatus, Error>({
+    queryKey: ['fitbit-backfill'],
+    queryFn: getFitbitBackfillStatus,
+    enabled,
+    // Poll while the job is active; stop once done/failed/none.
+    refetchInterval: (query) =>
+      query.state.data && BACKFILL_ACTIVE.has(query.state.data.state) ? 4000 : false,
+    staleTime: 0,
+  })
+}
+
+export function useStartBackfill() {
+  const queryClient = useQueryClient()
+  return useMutation<BackfillStatus, Error, void>({
+    mutationFn: async () => {
+      const job = await startFitbitBackfill()
+      // Kick off the non-Fitbit sources in parallel (single days=30 sweep).
+      void syncOtherSources(30).catch((e) => console.error('other-sources backfill failed', e))
+      return job
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['fitbit-backfill'] })
     },
   })
 }

@@ -155,6 +155,23 @@ class FitbitClient:
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
+        self.rate_limit_remaining: int | None = None
+        self.rate_limit_reset: int | None = None
+
+    def _capture_rate_limit(self, response: httpx.Response) -> None:
+        """Record Fitbit's per-user rate-limit headers (shared 150/hr quota)."""
+        remaining = response.headers.get("Fitbit-Rate-Limit-Remaining")
+        reset = response.headers.get("Fitbit-Rate-Limit-Reset")
+        if remaining is not None:
+            try:
+                self.rate_limit_remaining = int(remaining)
+            except ValueError:
+                pass
+        if reset is not None:
+            try:
+                self.rate_limit_reset = int(reset)
+            except ValueError:
+                pass
 
     async def _make_request(self, endpoint: str) -> dict:
         """Make an authenticated request to Fitbit API."""
@@ -162,6 +179,7 @@ class FitbitClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
+            self._capture_rate_limit(response)
 
             if response.status_code == 401:
                 raise TokenExpiredError("Access token is expired or invalid")
@@ -319,6 +337,67 @@ class FitbitClient:
         """
         return await self._make_request(
             f"/1/user/-/activities/active-zone-minutes/date/{date}/1d.json"
+        )
+
+    # --- Range (time-series) endpoints: one request per metric per window ---
+    # Each caps at ~30 days; a single 30-day backfill window fits in one call.
+
+    async def get_heart_rate_range(self, start_date: str, end_date: str) -> dict:
+        """Resting HR + zones per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/activities/heart/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_hrv_range(self, start_date: str, end_date: str) -> dict:
+        """HRV (RMSSD) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/hrv/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_spo2_range(self, start_date: str, end_date: str) -> dict:
+        """SpO2 (avg/min/max) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/spo2/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_breathing_rate_range(self, start_date: str, end_date: str) -> dict:
+        """Breathing rate per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/br/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_vo2_max_range(self, start_date: str, end_date: str) -> dict:
+        """VO2 Max (cardio score) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/cardioscore/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_skin_temperature_range(self, start_date: str, end_date: str) -> dict:
+        """Skin temperature deviation per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/temp/skin/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_active_zone_minutes_range(
+        self, start_date: str, end_date: str
+    ) -> dict:
+        """Active Zone Minutes per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/activities/active-zone-minutes/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_sleep_range(self, start_date: str, end_date: str) -> dict:
+        """Sleep logs (with stages) for a date range (max 100 days)."""
+        return await self._make_request(
+            f"/1.2/user/-/sleep/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_activity_timeseries(
+        self, resource: str, start_date: str, end_date: str
+    ) -> dict:
+        """One activity time-series resource (e.g. 'steps') for a date range."""
+        return await self._make_request(
+            f"/1/user/-/activities/{resource}/date/{start_date}/{end_date}.json"
         )
 
     async def get_exercise_logs(self, after_date: str, limit: int = 20) -> dict:
@@ -532,6 +611,44 @@ class FitbitClient:
             "errors": errors,
             "date": date,
         }
+
+    async def get_all_data_for_range(self, start: str, end: str) -> dict[str, dict]:
+        """Fetch all rangeable metrics for a window and parse to {date: data}.
+
+        One request per metric/resource (~17 total) instead of ~11 per day.
+        RateLimitError propagates so the backfill pacer can pause/resume; other
+        per-metric errors are tolerated (that metric is simply absent).
+        Intraday is NOT included here (no range API) — see backfill Phase 2.
+        """
+        from src.services.fitbit.ranges import ACTIVITY_RESOURCES, parse_range_responses
+
+        async def _safe(coro):
+            try:
+                return await coro
+            except RateLimitError:
+                raise
+            except FitbitAPIError as e:
+                logger.warning(f"range fetch skipped: {e}")
+                return {}
+
+        hr = await _safe(self.get_heart_rate_range(start, end))
+        hrv = await _safe(self.get_hrv_range(start, end))
+        spo2 = await _safe(self.get_spo2_range(start, end))
+        br = await _safe(self.get_breathing_rate_range(start, end))
+        vo2 = await _safe(self.get_vo2_max_range(start, end))
+        temp = await _safe(self.get_skin_temperature_range(start, end))
+        azm = await _safe(self.get_active_zone_minutes_range(start, end))
+        sleep = await _safe(self.get_sleep_range(start, end))
+        weight = await _safe(self.get_weight_range(start, end))
+        activity = {}
+        for resource in ACTIVITY_RESOURCES:
+            activity[resource] = await _safe(
+                self.get_activity_timeseries(resource, start, end)
+            )
+
+        return parse_range_responses(
+            hr, hrv, spo2, br, vo2, temp, azm, sleep, weight, activity
+        )
 
 
 class FitbitAPIError(Exception):

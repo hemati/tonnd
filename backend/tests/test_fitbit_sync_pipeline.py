@@ -538,3 +538,41 @@ class TestSyncFitbitExerciseLogs:
             assert row.activity_name == "Run"
             assert row.duration_minutes == 30
             assert row.calories == 350
+
+
+@pytest.mark.asyncio
+async def test_sync_fitbit_range_distributes_all_days():
+    from datetime import date
+    from src.scheduler import sync_fitbit_range
+    from src.models.fitbit_models import DailyVitals, DailyActivity
+    from sqlalchemy import select
+
+    user = _make_user()
+    client = AsyncMock()
+    client.get_all_data_for_range = AsyncMock(return_value={
+        "2026-05-01": {"heart_rate": {"resting_heart_rate": 60, "zones": {}},
+                       "activity": {"steps": 10000, "active_minutes": 45,
+                                    "calories_bmr": None}},
+        "2026-05-02": {"heart_rate": {"resting_heart_rate": 62, "zones": {}},
+                       "activity": {"steps": 8000, "active_minutes": 20,
+                                    "calories_bmr": None}},
+    })
+    client.get_exercise_logs = AsyncMock(return_value={})
+
+    async with test_session_maker() as session:
+        session.add(user)
+        await session.flush()
+        await sync_fitbit_range(
+            session, user, date(2026, 5, 1), date(2026, 5, 2), client
+        )
+        await session.commit()
+
+        vitals = (await session.execute(
+            select(DailyVitals).where(DailyVitals.user_id == user.id)
+        )).scalars().all()
+        activity = (await session.execute(
+            select(DailyActivity).where(DailyActivity.user_id == user.id)
+        )).scalars().all()
+    assert len(vitals) == 2
+    assert len(activity) == 2
+    assert {a.steps for a in activity} == {10000, 8000}

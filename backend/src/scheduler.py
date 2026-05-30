@@ -51,10 +51,19 @@ VITALS_KEYS = {"heart_rate", "hrv", "spo2", "breathing_rate", "vo2_max", "temper
 async def sync_fitbit_daily(
     session: AsyncSession, user: User, sync_date: date, client: FitbitClient
 ) -> None:
-    """Distribute get_all_data_for_date() results to typed tables."""
+    """Fetch one day via per-date endpoints and distribute to typed tables."""
     result = await client.get_all_data_for_date(sync_date.isoformat())
-    data = result["data"]
+    await _distribute_daily_data(session, user, sync_date, result["data"])
 
+
+async def _distribute_daily_data(
+    session: AsyncSession, user: User, sync_date: date, data: dict
+) -> None:
+    """Distribute a single day's parsed data dict to the typed tables.
+
+    `data` matches FitbitClient.get_all_data_for_date()["data"] — used by both
+    the daily path and the range backfill path.
+    """
     # --- Vitals ---
     vitals_fields = {}
     hr = data.get("heart_rate")
@@ -146,6 +155,7 @@ async def sync_fitbit_daily(
     # --- Weight / Body ---
     weight = data.get("weight")
     if weight:
+        weight = dict(weight)
         measured_at = weight.pop("measured_at", None)
         if not measured_at:
             measured_at = datetime(sync_date.year, sync_date.month, sync_date.day, tzinfo=timezone.utc)
@@ -156,11 +166,34 @@ async def sync_fitbit_daily(
         )
 
 
-async def sync_fitbit_exercise_logs(
-    session: AsyncSession, user: User, sync_date: date, client: FitbitClient
+async def sync_fitbit_range(
+    session: AsyncSession, user: User, start: date, end: date, client: FitbitClient
 ) -> None:
-    """Fetch and upsert Fitbit exercise logs for the given date."""
-    raw = await client.get_exercise_logs(after_date=sync_date.isoformat())
+    """Backfill a date range using range endpoints + shared distribution.
+
+    Costs ~17 requests for the whole window (vs ~11/day). Reuses the same
+    upserts as the daily path, so data is idempotent and identical in shape.
+    Caller must keep the window <= 30 days (Fitbit's tightest range cap); the
+    backfill runner uses a single 30-day window so no chunking is needed.
+    """
+    by_date = await client.get_all_data_for_range(start.isoformat(), end.isoformat())
+    for date_iso in sorted(by_date):
+        try:
+            d = date.fromisoformat(date_iso)
+        except (ValueError, TypeError):
+            continue
+        await _distribute_daily_data(session, user, d, by_date[date_iso])
+
+    # Exercise logs: one call covers the whole window (each log self-dates).
+    await sync_fitbit_exercise_logs(session, user, start, client, limit=100)
+
+
+async def sync_fitbit_exercise_logs(
+    session: AsyncSession, user: User, sync_date: date, client: FitbitClient,
+    limit: int = 20,
+) -> None:
+    """Fetch and upsert Fitbit exercise logs after the given date."""
+    raw = await client.get_exercise_logs(after_date=sync_date.isoformat(), limit=limit)
     logs = parse_exercise_logs(raw)
 
     for log in logs:

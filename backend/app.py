@@ -114,6 +114,14 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_sync_all")
         scheduler.start()
 
+        # Resume any backfill jobs interrupted by a restart (single worker).
+        # Best-effort: never let recovery failure abort app startup.
+        try:
+            from src.services.fitbit.backfill import resume_incomplete_backfills
+            await resume_incomplete_backfills()
+        except Exception:
+            logger.exception("Failed to resume incomplete backfills; continuing startup")
+
         yield
 
         scheduler.shutdown()
@@ -588,6 +596,30 @@ async def sync_all_sources(
         "synced_metrics": synced_metrics,
         "errors": errors,
     }
+
+
+@app.post("/api/fitbit/backfill", tags=["api"], status_code=202)
+async def start_fitbit_backfill(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Start (or return the in-flight) 30-day Fitbit historical backfill."""
+    if not user.fitbit_access_token:
+        raise HTTPException(status_code=400, detail="Fitbit not connected")
+    from src.services.fitbit.backfill import start_backfill
+    job = await start_backfill(session, user)
+    return job.to_dict()
+
+
+@app.get("/api/fitbit/backfill", tags=["api"])
+async def get_fitbit_backfill(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+):
+    """Latest backfill job status for the current user (for polling)."""
+    from src.services.fitbit.backfill import latest_job
+    job = await latest_job(session, user.id)
+    return job.to_dict() if job else {"state": "none"}
 
 
 @app.get("/api/data", tags=["api"])
