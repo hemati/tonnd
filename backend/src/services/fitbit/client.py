@@ -155,6 +155,23 @@ class FitbitClient:
             "Authorization": f"Bearer {access_token}",
             "Accept": "application/json",
         }
+        self.rate_limit_remaining: int | None = None
+        self.rate_limit_reset: int | None = None
+
+    def _capture_rate_limit(self, response: httpx.Response) -> None:
+        """Record Fitbit's per-user rate-limit headers (shared 150/hr quota)."""
+        remaining = response.headers.get("Fitbit-Rate-Limit-Remaining")
+        reset = response.headers.get("Fitbit-Rate-Limit-Reset")
+        if remaining is not None:
+            try:
+                self.rate_limit_remaining = int(remaining)
+            except ValueError:
+                pass
+        if reset is not None:
+            try:
+                self.rate_limit_reset = int(reset)
+            except ValueError:
+                pass
 
     async def _make_request(self, endpoint: str) -> dict:
         """Make an authenticated request to Fitbit API."""
@@ -162,6 +179,7 @@ class FitbitClient:
 
         async with httpx.AsyncClient() as client:
             response = await client.get(url, headers=self.headers)
+            self._capture_rate_limit(response)
 
             if response.status_code == 401:
                 raise TokenExpiredError("Access token is expired or invalid")

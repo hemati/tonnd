@@ -2,6 +2,7 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
 import pytest
 
 from src.services.fitbit.client import (
@@ -849,3 +850,60 @@ class TestParseDevices:
 
     def test_empty_list(self):
         assert parse_devices([]) == {}
+
+
+# ---------------------------------------------------------------------------
+# FitbitClient._make_request — rate-limit header capture
+# ---------------------------------------------------------------------------
+class _MockTransport(httpx.AsyncBaseTransport):
+    def __init__(self, status_code, json_body, headers):
+        self.status_code = status_code
+        self.json_body = json_body
+        self.headers = headers
+
+    async def handle_async_request(self, request):
+        import json
+
+        return httpx.Response(
+            self.status_code,
+            headers=self.headers,
+            content=json.dumps(self.json_body).encode(),
+        )
+
+
+def _patch_async_client(monkeypatch, transport):
+    """Patch httpx.AsyncClient so _make_request uses our mock transport.
+
+    Captures the real AsyncClient first to avoid recursing into the patched name.
+    """
+    real_async_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx,
+        "AsyncClient",
+        lambda *a, **k: real_async_client(transport=transport),
+    )
+
+
+@pytest.mark.asyncio
+async def test_make_request_captures_rate_limit_headers(monkeypatch):
+    client = FitbitClient("token")
+    transport = _MockTransport(
+        200,
+        {"ok": True},
+        {"Fitbit-Rate-Limit-Remaining": "42", "Fitbit-Rate-Limit-Reset": "1800"},
+    )
+    _patch_async_client(monkeypatch, transport)
+    data = await client._make_request("/x")
+    assert data == {"ok": True}
+    assert client.rate_limit_remaining == 42
+    assert client.rate_limit_reset == 1800
+
+
+@pytest.mark.asyncio
+async def test_make_request_429_records_reset(monkeypatch):
+    client = FitbitClient("token")
+    transport = _MockTransport(429, {}, {"Fitbit-Rate-Limit-Reset": "120"})
+    _patch_async_client(monkeypatch, transport)
+    with pytest.raises(RateLimitError):
+        await client._make_request("/x")
+    assert client.rate_limit_reset == 120
