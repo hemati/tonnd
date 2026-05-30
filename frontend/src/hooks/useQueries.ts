@@ -161,7 +161,7 @@ export function useStartBackfill() {
     mutationFn: async () => {
       const job = await startFitbitBackfill()
       // Kick off the non-Fitbit sources in parallel (single days=30 sweep).
-      void syncOtherSources(30).catch(() => undefined)
+      void syncOtherSources(30).catch((e) => console.error('other-sources backfill failed', e))
       return job
     },
     onSuccess: () => {
