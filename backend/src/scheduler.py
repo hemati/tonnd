@@ -51,10 +51,19 @@ VITALS_KEYS = {"heart_rate", "hrv", "spo2", "breathing_rate", "vo2_max", "temper
 async def sync_fitbit_daily(
     session: AsyncSession, user: User, sync_date: date, client: FitbitClient
 ) -> None:
-    """Distribute get_all_data_for_date() results to typed tables."""
+    """Fetch one day via per-date endpoints and distribute to typed tables."""
     result = await client.get_all_data_for_date(sync_date.isoformat())
-    data = result["data"]
+    await _distribute_daily_data(session, user, sync_date, result["data"])
 
+
+async def _distribute_daily_data(
+    session: AsyncSession, user: User, sync_date: date, data: dict
+) -> None:
+    """Distribute a single day's parsed data dict to the typed tables.
+
+    `data` matches FitbitClient.get_all_data_for_date()["data"] — used by both
+    the daily path and the range backfill path.
+    """
     # --- Vitals ---
     vitals_fields = {}
     hr = data.get("heart_rate")
@@ -146,6 +155,7 @@ async def sync_fitbit_daily(
     # --- Weight / Body ---
     weight = data.get("weight")
     if weight:
+        weight = dict(weight)
         measured_at = weight.pop("measured_at", None)
         if not measured_at:
             measured_at = datetime(sync_date.year, sync_date.month, sync_date.day, tzinfo=timezone.utc)
