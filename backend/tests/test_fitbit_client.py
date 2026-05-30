@@ -907,3 +907,33 @@ async def test_make_request_429_records_reset(monkeypatch):
     with pytest.raises(RateLimitError):
         await client._make_request("/x")
     assert client.rate_limit_reset == 120
+
+
+@pytest.mark.asyncio
+async def test_range_methods_build_correct_urls():
+    client = FitbitClient("token")
+    client._make_request = AsyncMock(return_value={})
+    s, e = "2026-05-01", "2026-05-30"
+
+    await client.get_heart_rate_range(s, e)
+    await client.get_hrv_range(s, e)
+    await client.get_spo2_range(s, e)
+    await client.get_breathing_rate_range(s, e)
+    await client.get_vo2_max_range(s, e)
+    await client.get_skin_temperature_range(s, e)
+    await client.get_active_zone_minutes_range(s, e)
+    await client.get_sleep_range(s, e)
+    await client.get_activity_timeseries("steps", s, e)
+
+    urls = [c.args[0] for c in client._make_request.call_args_list]
+    assert urls == [
+        f"/1/user/-/activities/heart/date/{s}/{e}.json",
+        f"/1/user/-/hrv/date/{s}/{e}.json",
+        f"/1/user/-/spo2/date/{s}/{e}.json",
+        f"/1/user/-/br/date/{s}/{e}.json",
+        f"/1/user/-/cardioscore/date/{s}/{e}.json",
+        f"/1/user/-/temp/skin/date/{s}/{e}.json",
+        f"/1/user/-/activities/active-zone-minutes/date/{s}/{e}.json",
+        f"/1.2/user/-/sleep/date/{s}/{e}.json",
+        f"/1/user/-/activities/steps/date/{s}/{e}.json",
+    ]

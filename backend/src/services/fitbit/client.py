@@ -339,6 +339,67 @@ class FitbitClient:
             f"/1/user/-/activities/active-zone-minutes/date/{date}/1d.json"
         )
 
+    # --- Range (time-series) endpoints: one request per metric per window ---
+    # Each caps at ~30 days; a single 30-day backfill window fits in one call.
+
+    async def get_heart_rate_range(self, start_date: str, end_date: str) -> dict:
+        """Resting HR + zones per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/activities/heart/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_hrv_range(self, start_date: str, end_date: str) -> dict:
+        """HRV (RMSSD) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/hrv/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_spo2_range(self, start_date: str, end_date: str) -> dict:
+        """SpO2 (avg/min/max) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/spo2/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_breathing_rate_range(self, start_date: str, end_date: str) -> dict:
+        """Breathing rate per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/br/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_vo2_max_range(self, start_date: str, end_date: str) -> dict:
+        """VO2 Max (cardio score) per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/cardioscore/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_skin_temperature_range(self, start_date: str, end_date: str) -> dict:
+        """Skin temperature deviation per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/temp/skin/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_active_zone_minutes_range(
+        self, start_date: str, end_date: str
+    ) -> dict:
+        """Active Zone Minutes per day for a date range (max 30 days)."""
+        return await self._make_request(
+            f"/1/user/-/activities/active-zone-minutes/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_sleep_range(self, start_date: str, end_date: str) -> dict:
+        """Sleep logs (with stages) for a date range (max 100 days)."""
+        return await self._make_request(
+            f"/1.2/user/-/sleep/date/{start_date}/{end_date}.json"
+        )
+
+    async def get_activity_timeseries(
+        self, resource: str, start_date: str, end_date: str
+    ) -> dict:
+        """One activity time-series resource (e.g. 'steps') for a date range."""
+        return await self._make_request(
+            f"/1/user/-/activities/{resource}/date/{start_date}/{end_date}.json"
+        )
+
     async def get_exercise_logs(self, after_date: str, limit: int = 20) -> dict:
         """GET /1/user/-/activities/list.json — per-exercise sessions."""
         return await self._make_request(
