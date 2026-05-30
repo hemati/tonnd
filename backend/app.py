@@ -114,6 +114,10 @@ async def lifespan(app: FastAPI):
         scheduler.add_job(daily_sync_all, "cron", hour=6, minute=0, id="daily_sync_all")
         scheduler.start()
 
+        # Resume any backfill jobs interrupted by a restart (single worker).
+        from src.services.fitbit.backfill import resume_incomplete_backfills
+        await resume_incomplete_backfills()
+
         yield
 
         scheduler.shutdown()

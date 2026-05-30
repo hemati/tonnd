@@ -240,3 +240,25 @@ async def test_backfill_endpoints(client, monkeypatch):
         assert g.json()["id"] == body1["id"]
     finally:
         app.dependency_overrides.pop(current_active_user, None)
+
+
+@pytest.mark.asyncio
+async def test_resume_incomplete_backfills_relaunches(monkeypatch):
+    from src.services.fitbit import backfill
+
+    user = _make_user()
+    job = BackfillJob(user_id=user.id, state="paused_rate_limited",
+                      phase="intraday", days_requested=30, days_done=12,
+                      ranges_done=True)
+    async with test_session_maker() as session:
+        session.add_all([user, job])
+        await session.commit()
+
+    launched = []
+    # Patch the spawn helper: capture the coro and close it (no real task).
+    monkeypatch.setattr(backfill, "_spawn",
+                        lambda coro: launched.append(coro) or coro.close())
+    monkeypatch.setattr(backfill, "async_session_maker", test_session_maker)
+
+    await backfill.resume_incomplete_backfills()
+    assert len(launched) == 1  # the paused job was relaunched
